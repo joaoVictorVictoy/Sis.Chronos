@@ -25,6 +25,7 @@ export type ActivityOption = {
   name: string;
   billable: boolean;
   area_id: string;
+  client_id?: string | null;
 };
 
 export type ContractOption = {
@@ -59,7 +60,7 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
     supabase.from("contract_options").select("id, name, client_id, status").eq("status", "ativo").order("name"),
     supabase.from("clients").select("id, legal_name, trade_name").eq("active", true).order("legal_name"),
     supabase.from("areas").select("id, name, active").eq("active", true).order("name"),
-    supabase.from("activities").select("id, name, billable, area_id").eq("active", true).order("name"),
+    supabase.from("activities").select("id, name, billable, area_id, client_id").eq("active", true).order("name"),
     supabase.from("client_areas").select("client_id, area_id"),
     supabase.from("period_locks").select("locked_through").maybeSingle(),
     employeeId
@@ -90,6 +91,7 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
     name: act.name,
     billable: act.billable,
     area_id: act.area_id,
+    client_id: act.client_id,
   }));
 
   const contractOptions: ContractOption[] = (contractsData ?? []).map((c) => ({

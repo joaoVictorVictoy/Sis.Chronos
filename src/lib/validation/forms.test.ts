@@ -84,6 +84,18 @@ describe("formulários com campos ausentes", () => {
       form({ name: "Apuração", areaId: "0b5f2b3a-3f4a-4c56-9f0e-2b6f1a2c3d4e", billable: "on" }),
     );
     expect(comArea.ok).toBe(true);
+
+    const comCliente = parseForm(
+      activitySchema,
+      form({
+        name: "BPO Financeiro",
+        areaId: "0b5f2b3a-3f4a-4c56-9f0e-2b6f1a2c3d4e",
+        clientId: "1c6f2b3a-3f4a-4c56-9f0e-2b6f1a2c3d4f",
+        billable: "on",
+      }),
+    );
+    expect(comCliente.ok).toBe(true);
+    if (comCliente.ok) expect(comCliente.data.clientId).toBe("1c6f2b3a-3f4a-4c56-9f0e-2b6f1a2c3d4f");
   });
 
   it("continua reclamando do que é realmente obrigatório", () => {

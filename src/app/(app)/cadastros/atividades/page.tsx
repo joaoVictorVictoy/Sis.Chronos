@@ -12,18 +12,29 @@ export default async function ActivitiesPage() {
   await requireRole(["admin", "gestor"]);
   const supabase = await createClient();
 
-  const [{ data: activities }, { data: areas }] = await Promise.all([
+  const [{ data: activities }, { data: areas }, { data: clients }, { data: clientAreas }] = await Promise.all([
     supabase.from("activities").select("*, time_entries(count)").order("name"),
     supabase.from("areas").select("id, name, active").order("name"),
+    supabase.from("clients").select("id, legal_name, trade_name, active").order("legal_name"),
+    supabase.from("client_areas").select("client_id, area_id"),
   ]);
 
   const areaOptions = (areas ?? []) as Pick<Tables<"areas">, "id" | "name" | "active">[];
+  const clientOptions = (clients ?? []).map((c) => ({
+    id: c.id,
+    name: c.trade_name || c.legal_name,
+    active: c.active,
+  }));
+  const clientAreaOptions = (clientAreas ?? []).map((ca) => ({
+    clientId: ca.client_id,
+    areaId: ca.area_id,
+  }));
 
   return (
     <div className="grid gap-6">
       <PageHeader
         title="Atividades"
-        description="O que a equipe aponta. A marcação faturável / não faturável alimenta os indicadores de produtividade."
+        description="Atividades vinculadas aos Clientes e às Áreas de consultoria. A marcação faturável alimenta os relatórios de produtividade."
       />
 
       {areaOptions.length === 0 ? (
@@ -43,10 +54,10 @@ export default async function ActivitiesPage() {
         <Card>
           <CardHeader>
             <CardTitle>Nova atividade</CardTitle>
-            <CardDescription>Ex.: Apuração fiscal (faturável), Reunião interna (não faturável).</CardDescription>
+            <CardDescription>Ex.: BPO Financeiro, Planejamento Estratégico, Levantamento de informações.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ActivityForm areas={areaOptions} />
+            <ActivityForm areas={areaOptions} clients={clientOptions} clientAreas={clientAreaOptions} />
           </CardContent>
         </Card>
       )}
@@ -59,6 +70,7 @@ export default async function ActivitiesPage() {
           <ActivitiesTable
             activities={(activities ?? []) as (Tables<"activities"> & { time_entries: { count: number }[] })[]}
             areas={areaOptions}
+            clients={clientOptions}
           />
         </CardContent>
       </Card>

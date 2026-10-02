@@ -115,6 +115,7 @@ export type Database = {
           id: string;
           tenant_id: string;
           area_id: string;
+          client_id: string | null;
           name: string;
           billable: boolean;
           active: boolean;
@@ -122,14 +123,21 @@ export type Database = {
           created_at: string;
           updated_at: string;
         };
-        Insert: { tenant_id: string; area_id: string; name: string; billable?: boolean; active?: boolean; is_active?: boolean };
-        Update: { area_id?: string; name?: string; billable?: boolean; active?: boolean; is_active?: boolean };
+        Insert: { tenant_id: string; area_id: string; client_id?: string | null; name: string; billable?: boolean; active?: boolean; is_active?: boolean };
+        Update: { area_id?: string; client_id?: string | null; name?: string; billable?: boolean; active?: boolean; is_active?: boolean };
         Relationships: [
           {
             foreignKeyName: "activities_area_id_fkey";
             columns: ["area_id"];
             isOneToOne: false;
             referencedRelation: "areas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "activities_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
             referencedColumns: ["id"];
           },
         ];

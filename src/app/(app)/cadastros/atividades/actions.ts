@@ -18,15 +18,18 @@ export async function createActivityAction(_prev: ActionState, formData: FormDat
     tenant_id: tenant.id,
     name: parsed.data.name,
     area_id: parsed.data.areaId,
+    client_id: parsed.data.clientId ?? null,
     billable: parsed.data.billable,
     active: true,
   });
   if (error) {
-    if (error.code === "23505") return { error: "Já existe uma atividade com esse nome." };
+    if (error.code === "23505") return { error: "Já existe uma atividade com esse nome para este cliente/área." };
     return { error: translateError(error) };
   }
 
   revalidatePath("/cadastros/atividades");
+  revalidatePath("/apontamentos");
+  revalidatePath("/clientes");
   return { success: "Atividade criada." };
 }
 
@@ -41,16 +44,19 @@ export async function updateActivityAction(_prev: ActionState, formData: FormDat
     .update({
       name: parsed.data.name,
       area_id: parsed.data.areaId,
+      client_id: parsed.data.clientId ?? null,
       billable: parsed.data.billable,
       active: parsed.data.active,
     })
     .eq("id", parsed.data.id);
   if (error) {
-    if (error.code === "23505") return { error: "Já existe uma atividade com esse nome." };
+    if (error.code === "23505") return { error: "Já existe uma atividade com esse nome para este cliente/área." };
     return { error: translateError(error) };
   }
 
   revalidatePath("/cadastros/atividades");
+  revalidatePath("/apontamentos");
+  revalidatePath("/clientes");
   return { success: "Atividade atualizada." };
 }
 

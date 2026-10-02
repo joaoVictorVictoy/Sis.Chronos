@@ -67,11 +67,24 @@ export function CascadeSelectors({
     return areas;
   }, [selectedClientId, clientAreas, areas]);
 
-  // Atividades pertencentes à área de atuação selecionada
+  // Filtra atividades por área e vínculo com cliente
+  const filterActivities = (areaId: string, clientId: string) => {
+    if (!areaId) return [];
+    return activities.filter((act) => {
+      if (act.area_id !== areaId) return false;
+      // Se a atividade estiver associada a um cliente específico, só exibe para ele
+      if (act.client_id) {
+        return act.client_id === clientId;
+      }
+      // Atividades sem cliente específico (gerais da área) ficam disponíveis
+      return true;
+    });
+  };
+
+  // Atividades pertencentes à área selecionada e ao cliente selecionado
   const availableActivities = useMemo(() => {
-    if (!selectedAreaId) return [];
-    return activities.filter((act) => act.area_id === selectedAreaId);
-  }, [selectedAreaId, activities]);
+    return filterActivities(selectedAreaId, selectedClientId);
+  }, [selectedAreaId, selectedClientId, activities]);
 
   const handleClientChange = (newClientId: string) => {
     setSelectedClientId(newClientId);
@@ -87,19 +100,24 @@ export function CascadeSelectors({
     }
 
     // Se a área atual não estiver disponível para o novo cliente, ajusta para a primeira
+    let targetAreaId = selectedAreaId;
     if (!newAvailableAreas.some((a) => a.id === selectedAreaId)) {
-      const firstArea = newAvailableAreas[0]?.id ?? "";
-      setSelectedAreaId(firstArea);
-      const actsForFirstArea = activities.filter((act) => act.area_id === firstArea);
-      setSelectedActivityId(actsForFirstArea[0]?.id ?? "");
+      targetAreaId = newAvailableAreas[0]?.id ?? "";
+      setSelectedAreaId(targetAreaId);
+    }
+
+    // Atualiza atividade para condizer com o novo cliente + área
+    const newActs = filterActivities(targetAreaId, newClientId);
+    if (!newActs.some((act) => act.id === selectedActivityId)) {
+      setSelectedActivityId(newActs[0]?.id ?? "");
     }
   };
 
   const handleAreaChange = (newAreaId: string) => {
     setSelectedAreaId(newAreaId);
-    const acts = activities.filter((act) => act.area_id === newAreaId);
-    if (!acts.some((act) => act.id === selectedActivityId)) {
-      setSelectedActivityId(acts[0]?.id ?? "");
+    const newActs = filterActivities(newAreaId, selectedClientId);
+    if (!newActs.some((act) => act.id === selectedActivityId)) {
+      setSelectedActivityId(newActs[0]?.id ?? "");
     }
   };
 

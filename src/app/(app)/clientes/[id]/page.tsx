@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { CONTRACT_STATUS_LABELS, PERIODICITY_LABELS, PERIODICITY_MONTHS, monthsBetween } from "@/lib/contracts";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { Tables } from "@/lib/database.types";
-import { ClientAreasForm, ClientDetailsForm } from "../clients-client";
+import { ClientActivitiesSection, ClientAreasForm, ClientDetailsForm } from "../clients-client";
 
 export const metadata = { title: "Cliente | Apontamento" };
 
@@ -20,14 +20,19 @@ export default async function ClientPage({ params }: PageProps<"/clientes/[id]">
   await requireRole(["admin", "gestor"]);
   const supabase = await createClient();
 
-  const [{ data: client }, { data: areas }, { data: clientAreas }, { data: contracts }] = await Promise.all([
-    supabase.from("clients").select("*").eq("id", id).maybeSingle(),
-    supabase.from("areas").select("id, name, active").order("name"),
-    supabase.from("client_areas").select("area_id").eq("client_id", id),
-    supabase.from("contracts").select("*").eq("client_id", id).order("start_date", { ascending: false }),
-  ]);
+  const [{ data: client }, { data: areas }, { data: clientAreas }, { data: contracts }, { data: clientActivities }] =
+    await Promise.all([
+      supabase.from("clients").select("*").eq("id", id).maybeSingle(),
+      supabase.from("areas").select("id, name, active").order("name"),
+      supabase.from("client_areas").select("area_id").eq("client_id", id),
+      supabase.from("contracts").select("*").eq("client_id", id).order("start_date", { ascending: false }),
+      supabase.from("activities").select("*, areas(name)").eq("client_id", id).order("name"),
+    ]);
 
   if (!client) notFound();
+
+  const assignedAreaIds = (clientAreas ?? []).map((a) => a.area_id);
+  const assignedAreas = (areas ?? []).filter((a) => assignedAreaIds.includes(a.id) && a.active);
 
   return (
     <div className="grid gap-6">
@@ -66,9 +71,25 @@ export default async function ClientPage({ params }: PageProps<"/clientes/[id]">
               />
             </CardContent>
           </Card>
-
         </div>
       </div>
+
+      {/* Atividades vinculadas a este cliente */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Atividades do Cliente</CardTitle>
+          <CardDescription>
+            Atividades específicas deste cliente organizadas por área de consultoria.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ClientActivitiesSection
+            clientId={client.id}
+            clientAreas={assignedAreas.length > 0 ? assignedAreas : (areas ?? [])}
+            activities={(clientActivities ?? []) as (Tables<"activities"> & { areas?: { name: string } | null })[]}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-wrap items-start justify-between gap-3">
