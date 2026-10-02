@@ -263,6 +263,12 @@ const optionalTimeSchema = fromForm(
 
 export const timeEntrySchema = z
   .object({
+    clientId: z
+      .string()
+      .trim()
+      .transform((v) => (v === "" ? null : v))
+      .refine((v) => v === null || z.uuid().safeParse(v).success, "Cliente inválido.")
+      .optional(),
     contractId: z
       .string()
       .trim()

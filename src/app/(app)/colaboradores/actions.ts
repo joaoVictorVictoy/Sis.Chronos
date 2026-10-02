@@ -164,3 +164,41 @@ export async function grantAccessAction(_prev: ActionState, formData: FormData):
     link: gerado.link,
   };
 }
+
+export async function toggleEmployeeActiveAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireRole(["admin", "gestor"]);
+  const parsed = parseForm(
+    z.object({
+      id: z.uuid(),
+      active: z.enum(["true", "false"]).transform((v) => v === "true"),
+    }),
+    formData,
+  );
+  if (!parsed.ok) return parsed.state;
+
+  const supabase = await createClient();
+  const { data: employee, error } = await supabase
+    .from("employees")
+    .update({ active: parsed.data.active, is_active: parsed.data.active })
+    .eq("id", parsed.data.id)
+    .select("profile_id, full_name")
+    .single();
+
+  if (error) return { error: translateError(error) };
+
+  // Se o colaborador possui login vinculado, sincroniza a suspensão com o profile
+  if (employee?.profile_id) {
+    await supabase.from("profiles").update({ active: parsed.data.active }).eq("id", employee.profile_id);
+  }
+
+  revalidatePath("/colaboradores");
+  revalidatePath(`/colaboradores/${parsed.data.id}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/apontamentos");
+
+  return {
+    success: parsed.data.active
+      ? `Colaborador "${employee?.full_name}" ativado com sucesso.`
+      : `Colaborador "${employee?.full_name}" desativado. Novos lançamentos e acessos foram bloqueados.`,
+  };
+}

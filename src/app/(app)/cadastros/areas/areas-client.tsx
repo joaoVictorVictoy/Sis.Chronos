@@ -58,21 +58,12 @@ function AreaRow({ area }: { area: Tables<"areas"> & { activities: { count: numb
               {activityCount} atividade(s)
             </span>
           </div>
-          {activityCount > 0 ? (
-            <span
-              className="text-xs text-muted-foreground"
-              title="Mova ou exclua as atividades antes de excluir a área."
-            >
-              —
-            </span>
-          ) : (
-            <DeleteButton
-              action={deleteAreaAction}
-              hiddenFields={{ id: area.id }}
-              title="Excluir área"
-              description={`Tem certeza que deseja excluir a área "${area.name}"? Essa ação não pode ser desfeita.`}
-            />
-          )}
+          <DeleteButton
+            action={deleteAreaAction}
+            hiddenFields={{ id: area.id }}
+            title="Excluir área"
+            description={`Tem certeza que deseja excluir a área "${area.name}"? Se houver histórico de apontamentos, ela será desativada para preservar os relatórios.`}
+          />
           {state.error || state.success ? (
             <div className="sm:col-span-5">
               <FormAlert state={state} />

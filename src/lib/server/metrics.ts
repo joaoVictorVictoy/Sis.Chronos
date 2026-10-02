@@ -164,3 +164,163 @@ export async function getMonthlyEvolution(
 
   return results;
 }
+
+export type TeamMemberReport = {
+  id: string;
+  name: string;
+  active: boolean;
+  jobTitle: string | null;
+  totalHours: number;
+  uniqueDays: number;
+  dailyAverage: number;
+  totalCost: number;
+  entries: {
+    id: string;
+    date: string;
+    clientName: string;
+    areaName: string;
+    activityName: string;
+    hours: number;
+    cost: number;
+    billable: boolean;
+    status: string;
+  }[];
+};
+
+export type TeamOperationalReport = {
+  totalHours: number;
+  uniqueDaysWorked: number;
+  averageDailyHours: number;
+  totalLaborCost: number;
+  topConsumingActivities: {
+    name: string;
+    areaName: string;
+    avgHours: number;
+    totalHours: number;
+    totalCost: number;
+  }[];
+  members: TeamMemberReport[];
+};
+
+/** Relatório operacional da equipe: blocos de resumo + lista expansível de colaboradores */
+export async function getTeamOperationalReport(period: Period): Promise<TeamOperationalReport> {
+  await requireRole(["admin", "gestor"]);
+  const supabase = await createClient();
+
+  const [{ data: employeesData }, { data: entriesData }, { data: activitiesData }] = await Promise.all([
+    supabase.from("employees").select("id, full_name, active, job_title").order("full_name"),
+    supabase
+      .from("time_entries")
+      .select(`
+        id,
+        employee_id,
+        entry_date,
+        minutes,
+        cost_amount,
+        billable,
+        status,
+        client_id,
+        clients(legal_name, trade_name),
+        contract_id,
+        contracts(name, clients(legal_name, trade_name)),
+        activities(name, area_id, areas(name))
+      `)
+      .gte("entry_date", period.from)
+      .lte("entry_date", period.to)
+      .neq("status", "rejeitado")
+      .order("entry_date", { ascending: false }),
+    supabase.rpc("activity_metrics", { p_from: period.from, p_to: period.to }),
+  ]);
+
+  const employees = employeesData ?? [];
+  const rawEntries = entriesData ?? [];
+
+  const topConsumingActivities = (activitiesData ?? [])
+    .map((a) => ({
+      name: a.activity_name,
+      areaName: a.area_name,
+      avgHours: Number(a.avg_hours) || (a.entries_count > 0 ? Number(a.hours) / a.entries_count : 0),
+      totalHours: Number(a.hours),
+      totalCost: Number(a.labor_cost),
+    }))
+    .sort((a, b) => b.avgHours - a.avgHours)
+    .slice(0, 5);
+
+  const entriesByEmployee = new Map<string, typeof rawEntries>();
+  const allUniqueDates = new Set<string>();
+  let totalHours = 0;
+  let totalLaborCost = 0;
+
+  for (const entry of rawEntries) {
+    totalHours += entry.minutes / 60;
+    totalLaborCost += Number(entry.cost_amount) || 0;
+    allUniqueDates.add(entry.entry_date);
+
+    const list = entriesByEmployee.get(entry.employee_id) ?? [];
+    list.push(entry);
+    entriesByEmployee.set(entry.employee_id, list);
+  }
+
+  const uniqueDaysWorked = allUniqueDates.size;
+  const averageDailyHours = uniqueDaysWorked > 0 ? totalHours / uniqueDaysWorked : 0;
+
+  const members: TeamMemberReport[] = employees.map((emp) => {
+    const empEntries = entriesByEmployee.get(emp.id) ?? [];
+    const empDays = new Set(empEntries.map((e) => e.entry_date)).size;
+    const empHours = empEntries.reduce((acc, e) => acc + e.minutes / 60, 0);
+    const empCost = empEntries.reduce((acc, e) => acc + (Number(e.cost_amount) || 0), 0);
+    const dailyAverage = empDays > 0 ? empHours / empDays : 0;
+
+    const formattedEntries = empEntries.map((e) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const anyE = e as any;
+      const clientName =
+        anyE.clients?.trade_name ||
+        anyE.clients?.legal_name ||
+        anyE.contracts?.clients?.trade_name ||
+        anyE.contracts?.clients?.legal_name ||
+        "Interno";
+
+      const areaName = anyE.activities?.areas?.name || "Sem área";
+      const activityName = anyE.activities?.name || "Atividade";
+
+      return {
+        id: e.id,
+        date: e.entry_date,
+        clientName,
+        areaName,
+        activityName,
+        hours: e.minutes / 60,
+        cost: Number(e.cost_amount) || 0,
+        billable: e.billable,
+        status: e.status,
+      };
+    });
+
+    return {
+      id: emp.id,
+      name: emp.full_name,
+      active: emp.active,
+      jobTitle: emp.job_title,
+      totalHours: empHours,
+      uniqueDays: empDays,
+      dailyAverage,
+      totalCost: empCost,
+      entries: formattedEntries,
+    };
+  });
+
+  members.sort((a, b) => {
+    if (a.active !== b.active) return a.active ? -1 : 1;
+    return b.totalHours - a.totalHours;
+  });
+
+  return {
+    totalHours,
+    uniqueDaysWorked,
+    averageDailyHours,
+    totalLaborCost,
+    topConsumingActivities,
+    members,
+  };
+}

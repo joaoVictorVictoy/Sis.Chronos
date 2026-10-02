@@ -97,12 +97,49 @@ export async function deleteClientAction(_prev: ActionState, formData: FormData)
   if (!parsed.ok) return parsed.state;
 
   const supabase = await createClient();
+
+  // Verifica se há apontamentos vinculados diretamente ao cliente
+  const { count: directCount } = await supabase
+    .from("time_entries")
+    .select("id", { count: "exact", head: true })
+    .eq("client_id", parsed.data.id);
+
+  // Verifica se há contratos com apontamentos
+  const { data: contracts } = await supabase
+    .from("contracts")
+    .select("id")
+    .eq("client_id", parsed.data.id);
+
+  let hasLinkedEntries = (directCount ?? 0) > 0;
+  if (!hasLinkedEntries && contracts && contracts.length > 0) {
+    const contractIds = contracts.map((c) => c.id);
+    const { count: contractEntries } = await supabase
+      .from("time_entries")
+      .select("id", { count: "exact", head: true })
+      .in("contract_id", contractIds);
+    if ((contractEntries ?? 0) > 0) hasLinkedEntries = true;
+  }
+
+  // Se tiver histórico de apontamentos, faz soft delete para não quebrar relatórios passados
+  if (hasLinkedEntries) {
+    const { error } = await supabase
+      .from("clients")
+      .update({ active: false, is_active: false })
+      .eq("id", parsed.data.id);
+    if (error) return { error: translateError(error) };
+
+    revalidatePath("/clientes");
+    revalidatePath(`/clientes/${parsed.data.id}`);
+    return { success: "Cliente possui histórico de apontamentos e foi desativado para preservar relatórios." };
+  }
+
+  // Se não tiver apontamentos, tenta exclusão física
   const { error } = await supabase.from("clients").delete().eq("id", parsed.data.id);
   if (error) {
-    if (error.code === "23503") {
-      return { error: "Este cliente tem contratos cadastrados. Desative o cliente em vez de excluir." };
-    }
-    return { error: translateError(error) };
+    // Se ainda houver restrição de integridade (ex: contratos vazios), desativa
+    await supabase.from("clients").update({ active: false, is_active: false }).eq("id", parsed.data.id);
+    revalidatePath("/clientes");
+    return { success: "Cliente desativado para preservar a integridade dos dados." };
   }
 
   revalidatePath("/clientes");

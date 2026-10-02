@@ -4,12 +4,9 @@ import { useState } from "react";
 import { PencilLineIcon, TimerIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { Tables } from "@/lib/database.types";
-import type { ContractOption } from "./page";
+import type { ActivityOption, AreaOption, ClientAreaOption, ClientOption, ContractOption } from "./page";
 import { EntryForm } from "./entry-form";
 import { TimerCard } from "./timer-card";
-
-type ActivityOption = Pick<Tables<"activities">, "id" | "name" | "billable" | "area_id">;
 
 const MODES = [
   { id: "cronometro", label: "Cronômetro", icon: TimerIcon },
@@ -20,13 +17,19 @@ type Mode = (typeof MODES)[number]["id"];
 
 /** Alterna entre cronômetro e lançamento manual, sem sair da página. */
 export function EntryModes({
-  contracts,
+  clients,
+  areas,
   activities,
+  contracts,
+  clientAreas,
   today,
   lockedThrough,
 }: {
-  contracts: ContractOption[];
+  clients: ClientOption[];
+  areas: AreaOption[];
   activities: ActivityOption[];
+  contracts: ContractOption[];
+  clientAreas: ClientAreaOption[];
   today: string;
   lockedThrough: string | null;
 }) {
@@ -71,9 +74,23 @@ export function EntryModes({
       </CardHeader>
       <CardContent>
         {mode === "cronometro" ? (
-          <TimerCard contracts={contracts} activities={activities} today={today} />
+          <TimerCard
+            clients={clients}
+            areas={areas}
+            activities={activities}
+            contracts={contracts}
+            clientAreas={clientAreas}
+            today={today}
+          />
         ) : (
-          <EntryForm contracts={contracts} activities={activities} today={today} />
+          <EntryForm
+            clients={clients}
+            areas={areas}
+            activities={activities}
+            contracts={contracts}
+            clientAreas={clientAreas}
+            today={today}
+          />
         )}
       </CardContent>
     </Card>

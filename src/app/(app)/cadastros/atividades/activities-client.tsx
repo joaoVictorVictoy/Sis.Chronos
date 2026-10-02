@@ -82,21 +82,12 @@ function ActivityRow({ activity, areas }: { activity: ActivityWithUsage; areas: 
           <SubmitButton size="sm" variant="outline">
             Salvar
           </SubmitButton>
-          {entriesCount > 0 ? (
-            <span
-              className="text-xs text-muted-foreground"
-              title="Já tem apontamentos registrados. Desative em vez de excluir."
-            >
-              {entriesCount} apontamento(s)
-            </span>
-          ) : (
-            <DeleteButton
-              action={deleteActivityAction}
-              hiddenFields={{ id: activity.id }}
-              title="Excluir atividade"
-              description={`Tem certeza que deseja excluir a atividade "${activity.name}"? Essa ação não pode ser desfeita.`}
-            />
-          )}
+          <DeleteButton
+            action={deleteActivityAction}
+            hiddenFields={{ id: activity.id }}
+            title="Excluir atividade"
+            description={`Tem certeza que deseja excluir a atividade "${activity.name}"? Se houver histórico de apontamentos, ela será desativada para preservar os relatórios.`}
+          />
           {state.error || state.success ? (
             <div className="sm:col-span-6">
               <FormAlert state={state} />

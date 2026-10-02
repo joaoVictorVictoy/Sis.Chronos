@@ -55,7 +55,12 @@ export type Database = {
           updated_at: string;
         };
         Insert: never;
-        Update: { full_name?: string };
+        Update: {
+          full_name?: string;
+          active?: boolean;
+          role?: AppRole;
+          can_view_costs?: boolean;
+        };
         Relationships: [
           {
             foreignKeyName: "profiles_tenant_id_fkey";
@@ -97,11 +102,12 @@ export type Database = {
           name: string;
           description: string | null;
           active: boolean;
+          is_active: boolean;
           created_at: string;
           updated_at: string;
         };
-        Insert: { tenant_id: string; name: string; description?: string | null; active?: boolean };
-        Update: { name?: string; description?: string | null; active?: boolean };
+        Insert: { tenant_id: string; name: string; description?: string | null; active?: boolean; is_active?: boolean };
+        Update: { name?: string; description?: string | null; active?: boolean; is_active?: boolean };
         Relationships: [];
       };
       activities: {
@@ -112,11 +118,12 @@ export type Database = {
           name: string;
           billable: boolean;
           active: boolean;
+          is_active: boolean;
           created_at: string;
           updated_at: string;
         };
-        Insert: { tenant_id: string; area_id: string; name: string; billable?: boolean; active?: boolean };
-        Update: { area_id?: string; name?: string; billable?: boolean; active?: boolean };
+        Insert: { tenant_id: string; area_id: string; name: string; billable?: boolean; active?: boolean; is_active?: boolean };
+        Update: { area_id?: string; name?: string; billable?: boolean; active?: boolean; is_active?: boolean };
         Relationships: [
           {
             foreignKeyName: "activities_area_id_fkey";
@@ -137,6 +144,7 @@ export type Database = {
           job_title: string | null;
           monthly_hours: number | null;
           active: boolean;
+          is_active: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -147,6 +155,7 @@ export type Database = {
           job_title?: string | null;
           monthly_hours?: number | null;
           active?: boolean;
+          is_active?: boolean;
         };
         Update: {
           full_name?: string;
@@ -154,6 +163,7 @@ export type Database = {
           job_title?: string | null;
           monthly_hours?: number | null;
           active?: boolean;
+          is_active?: boolean;
         };
         Relationships: [];
       };
@@ -217,6 +227,7 @@ export type Database = {
           phone: string | null;
           notes: string | null;
           active: boolean;
+          is_active: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -230,6 +241,7 @@ export type Database = {
           phone?: string | null;
           notes?: string | null;
           active?: boolean;
+          is_active?: boolean;
         };
         Update: {
           legal_name?: string;
@@ -240,6 +252,7 @@ export type Database = {
           phone?: string | null;
           notes?: string | null;
           active?: boolean;
+          is_active?: boolean;
         };
         Relationships: [];
       };
@@ -408,6 +421,7 @@ export type Database = {
           tenant_id: string;
           employee_id: string;
           contract_id: string | null;
+          client_id: string | null;
           activity_id: string;
           entry_date: string;
           start_time: string | null;
@@ -428,6 +442,7 @@ export type Database = {
           tenant_id: string;
           employee_id: string;
           contract_id?: string | null;
+          client_id?: string | null;
           activity_id: string;
           entry_date: string;
           start_time?: string | null;
@@ -437,6 +452,7 @@ export type Database = {
         };
         Update: {
           contract_id?: string | null;
+          client_id?: string | null;
           activity_id?: string;
           entry_date?: string;
           start_time?: string | null;
@@ -516,6 +532,7 @@ export type Database = {
           hours: number;
           labor_cost: number;
           entries_count: number;
+          avg_hours: number;
         }[];
       };
       employee_client_cost: {
@@ -583,6 +600,8 @@ export type Database = {
           labor_cost: number;
           entries_count: number;
           last_entry_date: string | null;
+          unique_days: number;
+          daily_average: number;
         }[];
       };
       my_hours_breakdown: {

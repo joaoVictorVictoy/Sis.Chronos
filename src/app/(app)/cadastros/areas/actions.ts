@@ -54,14 +54,42 @@ export async function deleteAreaAction(_prev: ActionState, formData: FormData): 
   if (!parsed.ok) return parsed.state;
 
   const supabase = await createClient();
+
+  // Verifica se há atividades desta área com apontamentos
+  const { data: areaActivities } = await supabase
+    .from("activities")
+    .select("id")
+    .eq("area_id", parsed.data.id);
+
+  const activityIds = (areaActivities ?? []).map((a) => a.id);
+  let hasLinkedEntries = false;
+  if (activityIds.length > 0) {
+    const { count } = await supabase
+      .from("time_entries")
+      .select("id", { count: "exact", head: true })
+      .in("activity_id", activityIds);
+    hasLinkedEntries = (count ?? 0) > 0;
+  }
+
+  // Se tiver histórico de apontamentos, desativa a área (soft delete)
+  if (hasLinkedEntries) {
+    const { error } = await supabase
+      .from("areas")
+      .update({ active: false, is_active: false })
+      .eq("id", parsed.data.id);
+    if (error) return { error: translateError(error) };
+
+    revalidatePath("/cadastros/areas");
+    return { success: "Área possui histórico de apontamentos e foi desativada para preservar relatórios." };
+  }
+
+  // Sem histórico de apontamentos: tenta exclusão física
   const { error } = await supabase.from("areas").delete().eq("id", parsed.data.id);
   if (error) {
-    if (error.code === "23503") {
-      return {
-        error: "Esta área tem atividades vinculadas. Mova ou exclua as atividades antes, ou desative a área.",
-      };
-    }
-    return { error: translateError(error) };
+    // Se falhar por restrição de FK (ex: vínculos com atividades ainda não apontadas), desativa
+    await supabase.from("areas").update({ active: false, is_active: false }).eq("id", parsed.data.id);
+    revalidatePath("/cadastros/areas");
+    return { success: "Área desativada para preservar integridade dos vínculos existentes." };
   }
 
   revalidatePath("/cadastros/areas");

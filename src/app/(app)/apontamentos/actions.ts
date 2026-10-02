@@ -34,10 +34,37 @@ export async function createTimeEntryAction(_prev: ActionState, formData: FormDa
   if ("error" in computed) return { error: computed.error };
 
   const supabase = await createClient();
+
+  // Bloqueia colaborador desativado
+  const { data: employee } = await supabase.from("employees").select("active").eq("id", employeeId).single();
+  if (employee && !employee.active) {
+    return { error: "Seu cadastro de colaborador está inativo. Novos apontamentos estão bloqueados." };
+  }
+
+  // Vincula automaticamente o contrato ativo do cliente se não tiver sido passado
+  let contractId = parsed.data.contractId;
+  const clientId = parsed.data.clientId || null;
+
+  if (!contractId && clientId) {
+    const { data: activeContract } = await supabase
+      .from("contracts")
+      .select("id")
+      .eq("client_id", clientId)
+      .eq("status", "ativo")
+      .order("start_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (activeContract) {
+      contractId = activeContract.id;
+    }
+  }
+
   const { error } = await supabase.from("time_entries").insert({
     tenant_id: tenant.id,
     employee_id: employeeId,
-    contract_id: parsed.data.contractId,
+    client_id: clientId,
+    contract_id: contractId,
     activity_id: parsed.data.activityId,
     entry_date: parsed.data.entryDate,
     start_time: parsed.data.startTime,
@@ -60,10 +87,30 @@ export async function updateTimeEntryAction(_prev: ActionState, formData: FormDa
   if ("error" in computed) return { error: computed.error };
 
   const supabase = await createClient();
+
+  let contractId = parsed.data.contractId;
+  const clientId = parsed.data.clientId || null;
+
+  if (!contractId && clientId) {
+    const { data: activeContract } = await supabase
+      .from("contracts")
+      .select("id")
+      .eq("client_id", clientId)
+      .eq("status", "ativo")
+      .order("start_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (activeContract) {
+      contractId = activeContract.id;
+    }
+  }
+
   const { error } = await supabase
     .from("time_entries")
     .update({
-      contract_id: parsed.data.contractId,
+      client_id: clientId,
+      contract_id: contractId,
       activity_id: parsed.data.activityId,
       entry_date: parsed.data.entryDate,
       start_time: parsed.data.startTime,

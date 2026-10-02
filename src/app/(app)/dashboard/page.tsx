@@ -24,10 +24,12 @@ import {
   getMonthlyEvolution,
   getPendingApprovalsCount,
   getProfitabilityReport,
+  getTeamOperationalReport,
 } from "@/lib/server/metrics";
 import { BarList, MarginEvolutionChart, MonthlyResultChart, RevenueMarginScatter } from "./charts";
 import { ClientsPanel, type PanelItem } from "./clients-panel";
 import { PeriodFilter } from "./period-filter";
+import { TeamOperationalView } from "./team-operational-view";
 
 export const metadata = { title: "Rentabilidade | Apontamento" };
 
@@ -78,7 +80,16 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   });
 
   const report = await getProfitabilityReport(period);
-  const [employees, missingCosts, pendingCount, areas, activities, employeeClients, evolution] = await Promise.all([
+  const [
+    employees,
+    missingCosts,
+    pendingCount,
+    areas,
+    activities,
+    employeeClients,
+    evolution,
+    teamOperationalReport,
+  ] = await Promise.all([
     getEmployeeMetrics(period),
     getMissingCosts(),
     getPendingApprovalsCount(),
@@ -86,6 +97,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     getActivityMetrics(period),
     getEmployeeClientCost(period),
     getMonthlyEvolution(monthsInRange(monthsBack(period.from, 5), period.to)),
+    getTeamOperationalReport(period),
   ]);
 
   const totals = report.totals;
@@ -244,6 +256,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           </div>
         </Kpi>
       </div>
+
+      <TeamOperationalView report={teamOperationalReport} />
 
       <ClientsPanel items={panelItems} />
 

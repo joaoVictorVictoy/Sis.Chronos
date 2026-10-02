@@ -13,11 +13,9 @@ import { initialActionState } from "@/lib/actions";
 import { formatDate, formatHours } from "@/lib/format";
 import { addDays, minutesToInput, WEEKDAY_LABELS } from "@/lib/time";
 import type { Tables, TimeEntryStatus } from "@/lib/database.types";
-import type { ContractOption } from "./page";
+import type { ActivityOption, AreaOption, ClientAreaOption, ClientOption, ContractOption } from "./page";
 import { deleteTimeEntryAction, updateTimeEntryAction } from "./actions";
-import { ActivitySelect, ContractSelect } from "./entry-form";
-
-type ActivityOption = Pick<Tables<"activities">, "id" | "name" | "billable" | "area_id">;
+import { CascadeSelectors } from "./entry-form";
 
 const STATUS_VARIANT: Record<TimeEntryStatus, "default" | "secondary" | "destructive"> = {
   pendente: "secondary",
@@ -33,13 +31,19 @@ const STATUS_LABEL: Record<TimeEntryStatus, string> = {
 
 function EntryRow({
   entry,
-  contracts,
+  clients,
+  areas,
   activities,
+  contracts,
+  clientAreas,
   locked,
 }: {
   entry: Tables<"time_entries">;
-  contracts: ContractOption[];
+  clients: ClientOption[];
+  areas: AreaOption[];
   activities: ActivityOption[];
+  contracts: ContractOption[];
+  clientAreas: ClientAreaOption[];
   locked: boolean;
 }) {
   const [editing, setEditing] = useState(false);
@@ -56,16 +60,20 @@ function EntryRow({
         <form action={formAction} className="grid gap-3">
           <input type="hidden" name="id" value={entry.id} />
           <FormAlert state={state} />
-          <div className="grid gap-3 sm:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <Field label="Data" htmlFor={`date-${entry.id}`} errors={state.fieldErrors?.entryDate}>
               <Input id={`date-${entry.id}`} name="entryDate" type="date" defaultValue={entry.entry_date} required />
             </Field>
-            <Field label="Cliente / contrato" htmlFor={`contract-${entry.id}`}>
-              <ContractSelect contracts={contracts} id={`contract-${entry.id}`} defaultValue={entry.contract_id} />
-            </Field>
-            <Field label="Atividade" htmlFor={`activity-${entry.id}`}>
-              <ActivitySelect activities={activities} id={`activity-${entry.id}`} defaultValue={entry.activity_id} />
-            </Field>
+            <CascadeSelectors
+              clients={clients}
+              areas={areas}
+              activities={activities}
+              contracts={contracts}
+              clientAreas={clientAreas}
+              defaultContractId={entry.contract_id}
+              defaultClientId={entry.client_id}
+              defaultActivityId={entry.activity_id}
+            />
             <Field label="Duração" htmlFor={`duration-${entry.id}`} errors={state.fieldErrors?.duration}>
               <Input id={`duration-${entry.id}`} name="duration" defaultValue={minutesToInput(entry.minutes)} required />
             </Field>
@@ -111,14 +119,20 @@ function EntryRow({
         <Badge variant={STATUS_VARIANT[entry.status]}>{STATUS_LABEL[entry.status]}</Badge>
         {canEdit ? (
           <>
-            <Button type="button" variant="ghost" size="icon-sm" onClick={() => setEditing(true)} aria-label="Editar">
+            <Button variant="ghost" size="icon-sm" onClick={() => setEditing(true)} aria-label="Editar">
               <PencilIcon />
             </Button>
             <form action={deleteAction}>
               <input type="hidden" name="id" value={entry.id} />
-              <SubmitButton variant="ghost" size="icon-sm">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                type="submit"
+                aria-label="Excluir"
+                className="text-destructive hover:bg-destructive/10"
+              >
                 <Trash2Icon />
-              </SubmitButton>
+              </Button>
             </form>
           </>
         ) : null}
@@ -131,8 +145,11 @@ export function WeekEntries({
   weekStart,
   days,
   entries,
-  contracts,
+  clients,
+  areas,
   activities,
+  contracts,
+  clientAreas,
   monthlyHours,
   lockedThrough,
   today,
@@ -140,8 +157,11 @@ export function WeekEntries({
   weekStart: string;
   days: string[];
   entries: Tables<"time_entries">[];
-  contracts: ContractOption[];
+  clients: ClientOption[];
+  areas: AreaOption[];
   activities: ActivityOption[];
+  contracts: ContractOption[];
+  clientAreas: ClientAreaOption[];
   monthlyHours: number;
   lockedThrough: string | null;
   today: string;
@@ -221,8 +241,11 @@ export function WeekEntries({
                   <EntryRow
                     key={entry.id}
                     entry={entry}
-                    contracts={contracts}
+                    clients={clients}
+                    areas={areas}
                     activities={activities}
+                    contracts={contracts}
+                    clientAreas={clientAreas}
                     locked={lockedThrough !== null && entry.entry_date <= lockedThrough}
                   />
                 ))}

@@ -60,12 +60,32 @@ export async function deleteActivityAction(_prev: ActionState, formData: FormDat
   if (!parsed.ok) return parsed.state;
 
   const supabase = await createClient();
+
+  // Verifica se há apontamentos nesta atividade
+  const { count } = await supabase
+    .from("time_entries")
+    .select("id", { count: "exact", head: true })
+    .eq("activity_id", parsed.data.id);
+
+  // Se tiver histórico de apontamentos, realiza soft delete
+  if ((count ?? 0) > 0) {
+    const { error } = await supabase
+      .from("activities")
+      .update({ active: false, is_active: false })
+      .eq("id", parsed.data.id);
+    if (error) return { error: translateError(error) };
+
+    revalidatePath("/cadastros/atividades");
+    return { success: "Atividade possui histórico de apontamentos e foi desativada para preservar relatórios." };
+  }
+
+  // Sem histórico: tenta exclusão física
   const { error } = await supabase.from("activities").delete().eq("id", parsed.data.id);
   if (error) {
-    if (error.code === "23503") {
-      return { error: "Esta atividade já tem apontamentos registrados. Desative-a em vez de excluir." };
-    }
-    return { error: translateError(error) };
+    // Se falhar por restrição de FK (ex: contract_activities), desativa
+    await supabase.from("activities").update({ active: false, is_active: false }).eq("id", parsed.data.id);
+    revalidatePath("/cadastros/atividades");
+    return { success: "Atividade desativada para preservar a integridade dos vínculos existentes." };
   }
 
   revalidatePath("/cadastros/atividades");

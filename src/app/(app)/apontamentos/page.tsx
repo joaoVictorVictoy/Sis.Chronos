@@ -10,10 +10,33 @@ import { WeekEntries } from "./week-entries";
 
 export const metadata = { title: "Apontamentos | Apontamento" };
 
+export type ClientOption = {
+  id: string;
+  name: string;
+};
+
+export type AreaOption = {
+  id: string;
+  name: string;
+};
+
+export type ActivityOption = {
+  id: string;
+  name: string;
+  billable: boolean;
+  area_id: string;
+};
+
 export type ContractOption = {
   id: string;
   name: string;
+  clientId: string;
   clientName: string;
+};
+
+export type ClientAreaOption = {
+  clientId: string;
+  areaId: string;
 };
 
 export default async function TimeEntriesPage({ searchParams }: PageProps<"/apontamentos">) {
@@ -24,30 +47,63 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
   const days = weekDays(weekStart);
   const supabase = await createClient();
 
-  const [{ data: contracts }, { data: clients }, { data: activities }, { data: lock }, { data: entries }] =
-    await Promise.all([
-      supabase.from("contract_options").select("id, name, client_id, status").eq("status", "ativo").order("name"),
-      supabase.from("clients").select("id, legal_name, trade_name").eq("active", true),
-      supabase.from("activities").select("id, name, billable, area_id").eq("active", true).order("name"),
-      supabase.from("period_locks").select("locked_through").maybeSingle(),
-      employeeId
-        ? supabase
-            .from("time_entries")
-            .select("*")
-            .eq("employee_id", employeeId)
-            .gte("entry_date", days[0])
-            .lte("entry_date", days[6])
-            .order("entry_date")
-        : Promise.resolve({ data: [] }),
-    ]);
+  const [
+    { data: contractsData },
+    { data: clientsData },
+    { data: areasData },
+    { data: activitiesData },
+    { data: clientAreasData },
+    { data: lock },
+    { data: entries },
+  ] = await Promise.all([
+    supabase.from("contract_options").select("id, name, client_id, status").eq("status", "ativo").order("name"),
+    supabase.from("clients").select("id, legal_name, trade_name").eq("active", true).order("legal_name"),
+    supabase.from("areas").select("id, name, active").eq("active", true).order("name"),
+    supabase.from("activities").select("id, name, billable, area_id").eq("active", true).order("name"),
+    supabase.from("client_areas").select("client_id, area_id"),
+    supabase.from("period_locks").select("locked_through").maybeSingle(),
+    employeeId
+      ? supabase
+          .from("time_entries")
+          .select("*")
+          .eq("employee_id", employeeId)
+          .gte("entry_date", days[0])
+          .lte("entry_date", days[6])
+          .order("entry_date")
+      : Promise.resolve({ data: [] }),
+  ]);
 
-  const clientNames = new Map((clients ?? []).map((c) => [c.id, c.trade_name || c.legal_name]));
-  const contractOptions: ContractOption[] = (contracts ?? []).map((c) => ({
+  const clientMap = new Map((clientsData ?? []).map((c) => [c.id, c.trade_name || c.legal_name]));
+
+  const clientOptions: ClientOption[] = (clientsData ?? []).map((c) => ({
+    id: c.id,
+    name: c.trade_name || c.legal_name,
+  }));
+
+  const areaOptions: AreaOption[] = (areasData ?? []).map((a) => ({
+    id: a.id,
+    name: a.name,
+  }));
+
+  const activityOptions: ActivityOption[] = (activitiesData ?? []).map((act) => ({
+    id: act.id,
+    name: act.name,
+    billable: act.billable,
+    area_id: act.area_id,
+  }));
+
+  const contractOptions: ContractOption[] = (contractsData ?? []).map((c) => ({
     id: c.id,
     name: c.name,
-    clientName: clientNames.get(c.client_id) ?? "Cliente",
+    clientId: c.client_id,
+    clientName: clientMap.get(c.client_id) ?? "Cliente",
   }));
-  const activityOptions = (activities ?? []) as Pick<Tables<"activities">, "id" | "name" | "billable" | "area_id">[];
+
+  const clientAreaOptions: ClientAreaOption[] = (clientAreasData ?? []).map((ca) => ({
+    clientId: ca.client_id,
+    areaId: ca.area_id,
+  }));
+
   const lockedThrough = lock?.locked_through ?? null;
 
   if (!employeeId) {
@@ -71,12 +127,15 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
     <div className="grid gap-6">
       <PageHeader
         title="Apontamentos"
-        description="Lance suas horas por cliente, contrato e atividade. Enquanto estiverem pendentes, você pode editar."
+        description="Lance suas horas selecionando Cliente, Área e Atividade. O contrato vigente é vinculado automaticamente."
       />
 
       <EntryModes
-        contracts={contractOptions}
+        clients={clientOptions}
+        areas={areaOptions}
         activities={activityOptions}
+        contracts={contractOptions}
+        clientAreas={clientAreaOptions}
         today={today}
         lockedThrough={lockedThrough}
       />
@@ -85,8 +144,11 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
         weekStart={weekStart}
         days={days}
         entries={(entries ?? []) as Tables<"time_entries">[]}
-        contracts={contractOptions}
+        clients={clientOptions}
+        areas={areaOptions}
         activities={activityOptions}
+        contracts={contractOptions}
+        clientAreas={clientAreaOptions}
         monthlyHours={Number(tenant.monthly_hours)}
         lockedThrough={lockedThrough}
         today={today}
