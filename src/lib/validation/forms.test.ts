@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { parseForm } from "@/lib/actions";
-import { activitySchema, clientSchema, employeeSchema, expenseSchema, timeEntrySchema } from "./schemas";
+import {
+  activitySchema,
+  clientSchema,
+  employeeSchema,
+  expenseSchema,
+  forgotPasswordSchema,
+  timeEntrySchema,
+} from "./schemas";
 
 /**
  * Regressão: formulários enviam só os campos que estão na tela. Campos
@@ -111,5 +118,15 @@ describe("formulários com campos ausentes", () => {
 
     const cnpjInvalido = parseForm(clientSchema, form({ legalName: "Cliente", cnpj: "11.222.333/0001-00" }));
     expect(cnpjInvalido.ok).toBe(false);
+  });
+
+  it("valida formulário de esqueci minha senha", () => {
+    const valido = parseForm(forgotPasswordSchema, form({ email: "usuario@empresa.com" }));
+    expect(valido.ok).toBe(true);
+    if (valido.ok) expect(valido.data.email).toBe("usuario@empresa.com");
+
+    const invalido = parseForm(forgotPasswordSchema, form({ email: "email-invalido" }));
+    expect(invalido.ok).toBe(false);
+    if (!invalido.ok) expect(invalido.state.fieldErrors?.email).toBeDefined();
   });
 });

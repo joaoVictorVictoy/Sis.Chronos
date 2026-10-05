@@ -7,7 +7,7 @@ import { getOrigin } from "@/lib/server/origin";
 import { isExistingAccount } from "@/lib/auth/signup";
 import { translateError } from "@/lib/auth/errors";
 import { parseForm, type ActionState } from "@/lib/actions";
-import { emailSchema, loginSchema, signupSchema } from "@/lib/validation/schemas";
+import { forgotPasswordSchema, loginSchema, signupSchema } from "@/lib/validation/schemas";
 
 /** Evita open redirect: só caminhos internos. */
 function safeNext(next: FormDataEntryValue | null): string {
@@ -61,7 +61,7 @@ export async function signupAction(_prev: ActionState, formData: FormData): Prom
 }
 
 export async function forgotPasswordAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const parsed = parseForm(emailSchema.transform((email) => ({ email })), formData);
+  const parsed = parseForm(forgotPasswordSchema, formData);
   if (!parsed.ok) return parsed.state;
 
   const supabase = await createClient();

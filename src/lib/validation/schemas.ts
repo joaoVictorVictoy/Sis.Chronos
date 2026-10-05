@@ -53,6 +53,8 @@ export const checkboxSchema = z.preprocess((v) => v === "on" || v === "true" || 
 
 export const loginSchema = z.object({ email: emailSchema, password: z.string().min(1, "Informe a senha.") });
 
+export const forgotPasswordSchema = z.object({ email: emailSchema });
+
 export const signupSchema = z
   .object({
     email: emailSchema,
