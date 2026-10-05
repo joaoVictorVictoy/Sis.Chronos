@@ -17,13 +17,13 @@ function MemberRow({ member, isCurrentUser }: { member: Tables<"profiles">; isCu
 
   return (
     <TableRow>
-      <TableCell>
+      <TableCell className="align-top whitespace-normal">
         <div className="grid">
           <span className="font-medium">
             {member.full_name}
             {isCurrentUser ? <span className="ml-1 text-xs text-muted-foreground">(você)</span> : null}
           </span>
-          <span className="text-xs text-muted-foreground">{member.email}</span>
+          <span className="text-xs text-muted-foreground break-all">{member.email}</span>
           {state.error || state.success ? (
             <div className="mt-2 max-w-md">
               <FormAlert state={state} />
@@ -31,22 +31,22 @@ function MemberRow({ member, isCurrentUser }: { member: Tables<"profiles">; isCu
           ) : null}
         </div>
       </TableCell>
-      <TableCell colSpan={4} className="p-0">
-        <form action={formAction} className="flex flex-wrap items-center gap-4 px-3 py-2">
+      <TableCell className="p-0 align-top whitespace-normal">
+        <form action={formAction} className="flex flex-wrap items-center gap-3 px-3 py-2">
           <input type="hidden" name="profileId" value={member.id} />
           <NativeSelect
             aria-label={`Perfil de ${member.full_name}`}
             name="role"
             value={role}
             onChange={(e) => setRole(e.target.value as AppRole)}
-            className="w-40"
+            className="w-36"
           >
             <option value="colaborador">Colaborador</option>
             <option value="gestor">Gestor</option>
             <option value="admin">Administrador</option>
           </NativeSelect>
 
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-1.5 text-sm whitespace-nowrap">
             <NativeCheckbox
               name="canViewCosts"
               defaultChecked={member.can_view_costs}
@@ -56,7 +56,7 @@ function MemberRow({ member, isCurrentUser }: { member: Tables<"profiles">; isCu
             <span className={role === "gestor" ? "" : "text-muted-foreground"}>Vê custos</span>
           </label>
 
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-1.5 text-sm whitespace-nowrap">
             <NativeCheckbox name="active" defaultChecked={member.active} />
             Ativo
           </label>
@@ -75,7 +75,7 @@ function MemberRow({ member, isCurrentUser }: { member: Tables<"profiles">; isCu
           </SubmitButton>
           {linkState.error ? <p className="mt-1 text-xs text-destructive">{linkState.error}</p> : null}
           {linkState.link ? (
-            <div className="mt-2 max-w-xl">
+            <div className="mt-2 max-w-xl min-w-0">
               <CopyLink
                 link={linkState.link}
                 hint={`Mande para ${member.full_name} criar ou trocar a senha sem depender de e-mail.`}
@@ -90,11 +90,11 @@ function MemberRow({ member, isCurrentUser }: { member: Tables<"profiles">; isCu
 
 export function MembersTable({ members, currentUserId }: { members: Tables<"profiles">[]; currentUserId: string }) {
   return (
-    <Table>
+    <Table className="table-fixed w-full">
       <TableHeader>
         <TableRow>
-          <TableHead>Pessoa</TableHead>
-          <TableHead colSpan={4}>Acesso</TableHead>
+          <TableHead className="w-[30%] min-w-[180px]">Pessoa</TableHead>
+          <TableHead className="w-[70%]">Acesso</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -103,7 +103,7 @@ export function MembersTable({ members, currentUserId }: { members: Tables<"prof
         ))}
         {members.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={5} className="text-center text-muted-foreground">
+            <TableCell colSpan={2} className="text-center text-muted-foreground">
               Nenhum membro ainda.
             </TableCell>
           </TableRow>

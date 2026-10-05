@@ -19,17 +19,26 @@ export function CopyLink({ link, hint }: { link: string; hint?: string }) {
   };
 
   return (
-    <div className="grid gap-2 rounded-lg border bg-muted/40 p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <code className="min-w-0 flex-1 truncate rounded bg-background px-2 py-1 text-xs" title={link}>
+    <div className="grid gap-2 rounded-lg border bg-muted/40 p-3 w-full max-w-full min-w-0 overflow-hidden">
+      <div className="flex items-center gap-2 w-full min-w-0">
+        <code
+          className="min-w-0 flex-1 truncate rounded bg-background px-2 py-1 text-xs font-mono select-all"
+          title={link}
+        >
           {link}
         </code>
-        <Button type="button" size="sm" variant={copiado ? "secondary" : "default"} onClick={copiar}>
-          {copiado ? <CheckIcon /> : <CopyIcon />}
+        <Button
+          type="button"
+          size="sm"
+          variant={copiado ? "secondary" : "default"}
+          onClick={copiar}
+          className="shrink-0"
+        >
+          {copiado ? <CheckIcon className="size-4" /> : <CopyIcon className="size-4" />}
           {copiado ? "Copiado" : "Copiar link"}
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground whitespace-normal leading-relaxed break-words">
         {hint ?? "Envie por WhatsApp, Teams ou e-mail. Quem abrir define a senha e já entra na empresa."} O link vale
         por 1 hora.
       </p>
