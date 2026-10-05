@@ -90,7 +90,7 @@ export default async function EmployeePage({ params }: PageProps<"/colaboradores
                 today={todayISO()}
               />
             ) : null}
-            <CostHistory costs={(costs ?? []) as Tables<"employee_costs">[]} />
+            <CostHistory costs={(costs ?? []) as Tables<"employee_costs">[]} canDelete={isAdmin} />
           </CardContent>
         </Card>
       ) : null}

@@ -6,11 +6,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { NativeCheckbox, NativeSelect } from "@/components/native-select";
 import { EmptyState } from "@/components/page-header";
 import { CopyLink } from "@/components/copy-link";
+import { DeleteButton } from "@/components/delete-button";
 import { Field, FormAlert, SubmitButton } from "@/components/form";
 import { initialActionState } from "@/lib/actions";
 import { formatCurrency, formatDate, formatHours } from "@/lib/format";
 import type { Tables } from "@/lib/database.types";
-import { grantAccessAction, setEmployeeAreasAction, setEmployeeCostAction, updateEmployeeAction } from "../actions";
+import {
+  deleteEmployeeCostAction,
+  grantAccessAction,
+  setEmployeeAreasAction,
+  setEmployeeCostAction,
+  updateEmployeeAction,
+} from "../actions";
 
 export function EmployeeDetailsForm({
   employee,
@@ -145,7 +152,13 @@ export function NewCostForm({
   );
 }
 
-export function CostHistory({ costs }: { costs: Tables<"employee_costs">[] }) {
+export function CostHistory({
+  costs,
+  canDelete = false,
+}: {
+  costs: Tables<"employee_costs">[];
+  canDelete?: boolean;
+}) {
   if (!costs.length) return <EmptyState>Nenhum custo registrado — a rentabilidade não considerará estas horas.</EmptyState>;
 
   return (
@@ -158,6 +171,7 @@ export function CostHistory({ costs }: { costs: Tables<"employee_costs">[] }) {
           <TableHead>Benefícios</TableHead>
           <TableHead>Horas</TableHead>
           <TableHead>Custo hora</TableHead>
+          {canDelete ? <TableHead className="w-10 text-right">Ações</TableHead> : null}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -176,6 +190,17 @@ export function CostHistory({ costs }: { costs: Tables<"employee_costs">[] }) {
             <TableCell>{formatCurrency(Number(cost.benefits))}</TableCell>
             <TableCell>{formatHours(Number(cost.monthly_hours))}</TableCell>
             <TableCell className="font-medium">{formatCurrency(Number(cost.hourly_cost))}</TableCell>
+            {canDelete ? (
+              <TableCell className="text-right">
+                <DeleteButton
+                  action={deleteEmployeeCostAction}
+                  hiddenFields={{ id: cost.id, employeeId: cost.employee_id }}
+                  title="Excluir vigência de custo"
+                  description={`Tem certeza que deseja excluir esta vigência de custo (iniciada em ${formatDate(cost.valid_from)})?`}
+                  label="Excluir"
+                />
+              </TableCell>
+            ) : null}
           </TableRow>
         ))}
       </TableBody>

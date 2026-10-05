@@ -108,6 +108,44 @@ export async function setEmployeeCostAction(_prev: ActionState, formData: FormDa
   return { success: "Custo registrado com a nova vigência." };
 }
 
+export async function deleteEmployeeCostAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireRole(["admin"]);
+  const parsed = parseForm(z.object({ id: z.uuid(), employeeId: z.uuid() }), formData);
+  if (!parsed.ok) return parsed.state;
+
+  const supabase = await createClient();
+
+  // Exclui a vigência de custo
+  const { error } = await supabase
+    .from("employee_costs")
+    .delete()
+    .eq("id", parsed.data.id)
+    .eq("employee_id", parsed.data.employeeId);
+
+  if (error) return { error: translateError(error) };
+
+  // Se havia vigência anterior que foi fechada com valid_to, reabre a última restante como vigente
+  const { data: latestRemaining } = await supabase
+    .from("employee_costs")
+    .select("id, valid_from")
+    .eq("employee_id", parsed.data.employeeId)
+    .order("valid_from", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latestRemaining) {
+    await supabase
+      .from("employee_costs")
+      .update({ valid_to: null })
+      .eq("id", latestRemaining.id);
+  }
+
+  revalidatePath(`/colaboradores/${parsed.data.employeeId}`);
+  revalidatePath("/colaboradores");
+  revalidatePath("/dashboard");
+  return { success: "Vigência de custo excluída." };
+}
+
 const grantAccessSchema = z.object({
   employeeId: z.uuid(),
   email: z.email("Informe um e-mail válido.").trim().toLowerCase(),

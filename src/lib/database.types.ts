@@ -212,7 +212,15 @@ export type Database = {
           created_at: string;
         };
         Insert: never;
-        Update: never;
+        Update: {
+          valid_to?: string | null;
+          monthly_salary?: number;
+          charges_percent?: number;
+          charges_amount?: number;
+          benefits?: number;
+          monthly_hours?: number;
+          valid_from?: string;
+        };
         Relationships: [
           {
             foreignKeyName: "employee_costs_employee_id_fkey";
