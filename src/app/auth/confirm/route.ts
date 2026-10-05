@@ -34,9 +34,21 @@ export async function GET(request: NextRequest) {
   if (tokenHash && type) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
     if (!error) return response;
+    console.error("[auth/confirm] Falha ao verificar token:", {
+      type,
+      tokenHashPrefix: tokenHash.slice(0, 10),
+      message: error.message,
+      code: error.code,
+      status: error.status,
+    });
   } else if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) return response;
+    console.error("[auth/confirm] Falha ao trocar código por sessão:", {
+      codePrefix: code.slice(0, 10),
+      message: error.message,
+      status: error.status,
+    });
   }
 
   return NextResponse.redirect(new URL("/login?erro=link-invalido", origin));

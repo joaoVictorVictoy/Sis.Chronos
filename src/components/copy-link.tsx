@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { CheckIcon, CopyIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CheckIcon, CopyIcon, ExternalLinkIcon } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /** Mostra um link de acesso pronto para o admin copiar e enviar por onde quiser. */
 export function CopyLink({ link, hint }: { link: string; hint?: string }) {
@@ -14,33 +15,50 @@ export function CopyLink({ link, hint }: { link: string; hint?: string }) {
       setCopiado(true);
       setTimeout(() => setCopiado(false), 2500);
     } catch {
-      // Sem permissão de área de transferência: o link continua visível para copiar à mão
+      // Fallback: se o navegador bloquear clipboard, o input com select-all já facilita copiar à mão
     }
   };
 
   return (
     <div className="grid gap-2 rounded-lg border bg-muted/40 p-3 w-full max-w-full min-w-0 overflow-hidden">
-      <div className="flex items-center gap-2 w-full min-w-0">
-        <code
-          className="min-w-0 flex-1 truncate rounded bg-background px-2 py-1 text-xs font-mono select-all"
-          title={link}
-        >
-          {link}
-        </code>
-        <Button
-          type="button"
-          size="sm"
-          variant={copiado ? "secondary" : "default"}
-          onClick={copiar}
-          className="shrink-0"
-        >
-          {copiado ? <CheckIcon className="size-4" /> : <CopyIcon className="size-4" />}
-          {copiado ? "Copiado" : "Copiar link"}
-        </Button>
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full min-w-0">
+        <input
+          type="text"
+          readOnly
+          value={link}
+          onClick={(e) => {
+            e.currentTarget.select();
+            void copiar();
+          }}
+          className="min-w-0 flex-1 rounded border bg-background px-2.5 py-1 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-ring select-all"
+          title="Clique para selecionar e copiar"
+        />
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Button
+            type="button"
+            size="sm"
+            variant={copiado ? "secondary" : "default"}
+            onClick={copiar}
+            className="shrink-0"
+          >
+            {copiado ? <CheckIcon className="size-4" /> : <CopyIcon className="size-4" />}
+            {copiado ? "Copiado" : "Copiar link"}
+          </Button>
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Abrir link em nova aba"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
+          >
+            <ExternalLinkIcon className="size-4" />
+            <span className="sr-only sm:not-sr-only">Abrir</span>
+          </a>
+        </div>
       </div>
       <p className="text-xs text-muted-foreground whitespace-normal leading-relaxed break-words">
         {hint ?? "Envie por WhatsApp, Teams ou e-mail. Quem abrir define a senha e já entra na empresa."} O link vale
-        por 1 hora.
+        por 1 hora e só pode ser usado uma vez.
       </p>
     </div>
   );
