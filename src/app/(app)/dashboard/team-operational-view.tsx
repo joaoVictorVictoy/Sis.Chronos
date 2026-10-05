@@ -6,53 +6,15 @@ import {
   ChevronUpIcon,
   ClockIcon,
   DollarSignIcon,
-  UserCheckIcon,
-  UserXIcon,
   TrendingUpIcon,
   AlertCircleIcon,
   LayersIcon,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency, formatDate, formatHours } from "@/lib/format";
 import type { TeamOperationalReport } from "@/lib/server/metrics";
-import { toggleEmployeeActiveAction } from "@/app/(app)/colaboradores/actions";
-import { useActionState } from "react";
-import { initialActionState } from "@/lib/actions";
-import { FormAlert, SubmitButton } from "@/components/form";
-
-function EmployeeStatusToggle({ employeeId, active }: { employeeId: string; active: boolean }) {
-  const [state, formAction] = useActionState(toggleEmployeeActiveAction, initialActionState);
-
-  return (
-    <form action={formAction} className="inline-flex items-center gap-2">
-      <input type="hidden" name="id" value={employeeId} />
-      <input type="hidden" name="active" value={active ? "false" : "true"} />
-      {active ? (
-        <SubmitButton
-          size="sm"
-          variant="outline"
-          className="h-8 gap-1.5 border-destructive/30 text-xs text-destructive hover:bg-destructive/10"
-        >
-          <UserXIcon className="size-3.5" />
-          Desativar
-        </SubmitButton>
-      ) : (
-        <SubmitButton
-          size="sm"
-          variant="outline"
-          className="h-8 gap-1.5 border-emerald-500/30 text-xs text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
-        >
-          <UserCheckIcon className="size-3.5" />
-          Reativar
-        </SubmitButton>
-      )}
-      {state.error ? <FormAlert state={state} /> : null}
-    </form>
-  );
-}
 
 export function TeamOperationalView({ report }: { report: TeamOperationalReport }) {
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
@@ -226,10 +188,6 @@ export function TeamOperationalView({ report }: { report: TeamOperationalReport 
                           {formatCurrency(member.totalCost)}
                         </span>
                       </div>
-
-                      <div className="pl-2">
-                        <EmployeeStatusToggle employeeId={member.id} active={member.active} />
-                      </div>
                     </div>
                   </div>
 
@@ -311,6 +269,51 @@ export function TeamOperationalView({ report }: { report: TeamOperationalReport 
           )}
         </CardContent>
       </Card>
+
+      {/* 3. Análise de Hora Média e Consumo por Atividade */}
+      {report.topConsumingActivities.length > 0 ? (
+        <Card className="border-border/60 shadow-xs">
+          <CardHeader className="border-b bg-muted/10 pb-4">
+            <CardTitle className="text-lg font-semibold tracking-tight">Análise de Hora Média por Atividade</CardTitle>
+            <CardDescription>
+              Média de horas consumidas por apontamento e impacto no custo operacional da equipe no período.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="text-xs">
+                    <TableHead>Atividade</TableHead>
+                    <TableHead>Área</TableHead>
+                    <TableHead className="text-right">Hora Média / Apontamento</TableHead>
+                    <TableHead className="text-right">Total Horas</TableHead>
+                    <TableHead className="text-right">Custo Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {report.topConsumingActivities.map((act, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className="font-medium text-foreground">{act.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{act.areaName}</TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums text-foreground">
+                        {formatHours(act.avgHours)}
+                        <span className="ml-1 text-[11px] font-normal text-muted-foreground">/apont</span>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {formatHours(act.totalHours)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums text-foreground">
+                        {formatCurrency(act.totalCost)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

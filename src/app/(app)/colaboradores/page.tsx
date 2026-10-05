@@ -8,7 +8,7 @@ import { requireRole } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { formatCurrency, formatHours } from "@/lib/format";
 import type { Tables } from "@/lib/database.types";
-import { NewEmployeeForm } from "./employees-client";
+import { NewEmployeeForm, EmployeeStatusToggle } from "./employees-client";
 
 export const metadata = { title: "Colaboradores | Apontamento" };
 
@@ -68,6 +68,7 @@ export default async function EmployeesPage() {
                   <TableHead>Horas/mês</TableHead>
                   {canSeeCosts ? <TableHead>Custo hora</TableHead> : null}
                   <TableHead>Acesso</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -80,11 +81,6 @@ export default async function EmployeesPage() {
                         <Link href={`/colaboradores/${employee.id}`} className="font-medium hover:underline">
                           {employee.full_name}
                         </Link>
-                        {!employee.active ? (
-                          <Badge variant="secondary" className="ml-2">
-                            inativo
-                          </Badge>
-                        ) : null}
                         {employee.email ? (
                           <p className="text-xs text-muted-foreground">{employee.email}</p>
                         ) : null}
@@ -111,6 +107,22 @@ export default async function EmployeesPage() {
                         ) : (
                           <span className="text-xs text-muted-foreground">sem acesso</span>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {!employee.active ? (
+                            <Badge variant="secondary">inativo</Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400">
+                              ativo
+                            </Badge>
+                          )}
+                          <EmployeeStatusToggle
+                            employeeId={employee.id}
+                            active={employee.active}
+                            employeeName={employee.full_name}
+                          />
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <Link href={`/colaboradores/${employee.id}`} aria-label={`Abrir ${employee.full_name}`}>

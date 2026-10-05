@@ -202,7 +202,7 @@ describe("apontamento de horas, aprovação e fechamento", () => {
     expect(del.affectedRows).toBe(1);
   });
 
-  it("não aceita apontamento já nascendo aprovado", async () => {
+  it("não aceita apontamento já nascendo aprovado fora do prazo", async () => {
     const msg = await asUser(db, gestor, () =>
       expectError(
         db.query(
@@ -213,6 +213,35 @@ describe("apontamento de horas, aprovação e fechamento", () => {
       ),
     );
     expect(msg).toContain("pendentes");
+  });
+
+  it("aprova automaticamente apontamento lançado em até 36 horas e permite ajuste pelo colaborador", async () => {
+    const hoje = new Date().toISOString().slice(0, 10);
+    const res = await asUser(db, colaborador, () =>
+      db.query<{ id: string; status: string; review_comment: string }>(
+        `insert into public.time_entries (tenant_id, employee_id, activity_id, entry_date, minutes, description)
+         values ($1, $2, $3, $4, 60, 'Trabalho recente')
+         returning id, status, review_comment`,
+        [tenant, carlaId, activityId, hoje],
+      ),
+    );
+    expect(res.rows[0].status).toBe("aprovado");
+    expect(res.rows[0].review_comment).toContain("36h");
+
+    // Colaborador pode alterar seu próprio apontamento auto-aprovado recente
+    await asUser(db, colaborador, () =>
+      db.query("update public.time_entries set minutes = 120 where id = $1", [res.rows[0].id]),
+    );
+    const updated = await db.query<{ minutes: number }>("select minutes from public.time_entries where id = $1", [
+      res.rows[0].id,
+    ]);
+    expect(updated.rows[0].minutes).toBe(120);
+
+    // E pode excluir
+    const del = await asUser(db, colaborador, () =>
+      db.query("delete from public.time_entries where id = $1", [res.rows[0].id]),
+    );
+    expect(del.affectedRows).toBe(1);
   });
 
   describe("fechamento de período", () => {

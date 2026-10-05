@@ -75,7 +75,16 @@ export async function createTimeEntryAction(_prev: ActionState, formData: FormDa
   if (error) return { error: translateError(error) };
 
   revalidatePath("/apontamentos");
-  return { success: "Apontamento registrado." };
+  revalidatePath("/dashboard");
+
+  const entryEndMs = new Date(`${parsed.data.entryDate}T${parsed.data.endTime || "23:59:59"}`).getTime();
+  const isWithin36h = Date.now() <= entryEndMs + 36 * 60 * 60 * 1000;
+
+  return {
+    success: isWithin36h
+      ? "Apontamento registrado e aprovado automaticamente (dentro do prazo de 36h)."
+      : "Apontamento registrado (aguardando aprovação do gestor).",
+  };
 }
 
 export async function updateTimeEntryAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
