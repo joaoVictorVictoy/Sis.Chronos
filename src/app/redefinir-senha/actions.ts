@@ -20,6 +20,16 @@ export async function resetPasswordAction(_prev: ActionState, formData: FormData
   if (!parsed.ok) return parsed.state;
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      error: "Sessão não encontrada ou expirada. Solicite um novo link de recuperação.",
+    };
+  }
+
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
   if (error) return { error: translateError(error) };
 

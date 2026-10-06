@@ -4,7 +4,7 @@
  * Por isso o tratamento é feito no cliente, a partir do que está aqui.
  */
 export type AuthHashResult =
-  | { kind: "session"; accessToken: string; refreshToken: string; needsPassword: boolean }
+  | { kind: "session"; accessToken: string; refreshToken: string; needsPassword: boolean; type?: string | null }
   | { kind: "error"; message: string }
   | null;
 
@@ -35,5 +35,6 @@ export function parseAuthHash(hash: string): AuthHashResult {
     accessToken,
     refreshToken,
     needsPassword: type === "invite" || type === "recovery",
+    type,
   };
 }

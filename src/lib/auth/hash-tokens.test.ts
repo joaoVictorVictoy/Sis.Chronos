@@ -11,6 +11,7 @@ describe("links de convite e recuperação", () => {
       accessToken: "abc.def.ghi",
       refreshToken: "rt123",
       needsPassword: true,
+      type: "invite",
     });
   });
 

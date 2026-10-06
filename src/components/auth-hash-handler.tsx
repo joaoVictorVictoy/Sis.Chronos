@@ -45,10 +45,18 @@ export function AuthHashHandler() {
       .then(({ error }) => {
         clean();
         if (error) {
-          router.replace("/login?erro=link-invalido");
+          router.replace(
+            `/login?erro=${encodeURIComponent("O link expirou ou já foi usado. Solicite um novo link de recuperação.")}`,
+          );
           return;
         }
-        router.replace(parsed.needsPassword ? "/redefinir-senha?convite=1" : "/inicio");
+        const target =
+          parsed.type === "invite"
+            ? "/redefinir-senha?convite=1"
+            : parsed.needsPassword
+              ? "/redefinir-senha"
+              : "/inicio";
+        router.replace(target);
         router.refresh();
       });
   }, [hash, router]);
