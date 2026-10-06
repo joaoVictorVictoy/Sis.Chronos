@@ -2421,7 +2421,6 @@ drop index if exists public.activities_tenant_name_key;
 create unique index if not exists activities_tenant_client_area_name_key
   on public.activities (tenant_id, area_id, coalesce(client_id, '00000000-0000-0000-0000-000000000000'::uuid), lower(name));
 
-
 -- ======== 20260917000012_aprovacao_automatica_36h.sql ========
 -- =====================================================================
 -- Etapa 12: Aprovação automática de apontamentos em até 36 horas (Opção C)
@@ -2556,7 +2555,6 @@ begin
 end;
 $$;
 
-
 -- ======== 20260917000013_set_employee_cost_upsert.sql ========
 -- =====================================================================
 -- Etapa 13: Permitir atualização de custo na mesma data inicial
@@ -2639,12 +2637,29 @@ revoke execute on function public.set_employee_cost(uuid, numeric, numeric, nume
 grant execute on function public.set_employee_cost(uuid, numeric, numeric, numeric, numeric, numeric, date)
   to authenticated;
 
+-- ======== 20260917000014_colaborador_criar_atividades.sql ========
 -- =====================================================================
 -- Etapa 14: Permitir que colaboradores criem atividades
+-- Permite que colaboradores cadastrem novas atividades para seu tenant,
+-- mantendo a edição e exclusão restritas a gestores e administradores.
 -- =====================================================================
+
+-- 1. Atualiza política de INSERT na tabela activities
 drop policy if exists activities_insert on public.activities;
 
 create policy activities_insert on public.activities
   for insert to authenticated
   with check (tenant_id = (select private.current_tenant_id()));
 
+-- ======== 20260917000015_contrato_encerramento.sql ========
+-- =====================================================================
+-- Etapa 14: Encerramento e rescisão guiada de contratos
+-- Adiciona campos para motivo do término, notas de rescisão e data de corte.
+-- =====================================================================
+
+alter table public.contracts
+  add column if not exists termination_reason text check (
+    termination_reason is null or termination_reason in ('termino_prazo', 'rescisao_cliente', 'rescisao_consultoria', 'outro')
+  ),
+  add column if not exists termination_notes text,
+  add column if not exists terminated_at date;

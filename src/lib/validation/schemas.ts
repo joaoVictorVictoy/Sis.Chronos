@@ -318,3 +318,23 @@ export const updateMemberSchema = z.object({
   canViewCosts: checkboxSchema,
   active: checkboxSchema,
 });
+
+export const terminationReasonSchema = z.enum([
+  "termino_prazo",
+  "rescisao_cliente",
+  "rescisao_consultoria",
+  "outro",
+]);
+
+export const terminateContractSchema = z.object({
+  contractId: z.uuid(),
+  terminationReason: terminationReasonSchema,
+  terminatedAt: dateSchema,
+  terminationNotes: optionalText(1000),
+  deactivateClient: checkboxSchema,
+});
+
+export const reopenContractSchema = z.object({
+  contractId: z.uuid(),
+});
+

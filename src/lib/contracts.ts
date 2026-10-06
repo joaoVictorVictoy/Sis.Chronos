@@ -25,6 +25,15 @@ export const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
   encerrado: "Encerrado",
 };
 
+export type TerminationReason = "termino_prazo" | "rescisao_cliente" | "rescisao_consultoria" | "outro";
+
+export const TERMINATION_REASON_LABELS: Record<TerminationReason, string> = {
+  termino_prazo: "Término regular do prazo / Projeto concluído",
+  rescisao_cliente: "Rescisão pelo cliente (custo, insatisfação, estratégia)",
+  rescisao_consultoria: "Rescisão pela consultoria (inadimplência, escopo, rentabilidade)",
+  outro: "Outro motivo",
+};
+
 export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   deslocamento: "Deslocamento",
   software: "Software",

@@ -116,6 +116,40 @@ export function buildAlerts({
         href,
       });
     }
+
+    // Régua preventiva de renovação / término de vigência (45 e 30 dias)
+    if (row.contract_status === "ativo" && row.end_date) {
+      const todayMs = new Date(`${today}T00:00:00`).getTime();
+      const endMs = new Date(`${row.end_date}T00:00:00`).getTime();
+      const diffDays = Math.round((endMs - todayMs) / (1000 * 60 * 60 * 24));
+      const formattedEndDate = row.end_date.split("-").reverse().join("/");
+
+      if (diffDays < 0) {
+        alerts.push({
+          id: `vencido-${row.contract_id}`,
+          level: "critico",
+          title: `${name} com vigência vencida`,
+          detail: `Venceu há ${Math.abs(diffDays)} dia(s) (em ${formattedEndDate}). Encerre o contrato ou adite o prazo de vigência.`,
+          href,
+        });
+      } else if (diffDays <= 30) {
+        alerts.push({
+          id: `renovacao-30-${row.contract_id}`,
+          level: "atencao",
+          title: `${name} vence em ${diffDays === 0 ? "hoje" : `${diffDays} dia(s)`}`,
+          detail: `Vigência encerra em ${formattedEndDate} (menos de 30 dias). Inicie a negociação de renovação ou aditivo.`,
+          href,
+        });
+      } else if (diffDays <= 45) {
+        alerts.push({
+          id: `renovacao-45-${row.contract_id}`,
+          level: "info",
+          title: `${name} vence em ${diffDays} dias`,
+          detail: `Término previsto para ${formattedEndDate} (aviso de 45 dias). Planeje a continuidade ou renovação.`,
+          href,
+        });
+      }
+    }
   }
 
   for (const employee of employees) {

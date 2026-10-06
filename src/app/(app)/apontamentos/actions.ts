@@ -60,6 +60,41 @@ export async function createTimeEntryAction(_prev: ActionState, formData: FormDa
     }
   }
 
+  // Bloqueia cliente inativo
+  if (clientId) {
+    const { data: client } = await supabase
+      .from("clients")
+      .select("active, legal_name, trade_name")
+      .eq("id", clientId)
+      .single();
+    if (client && !client.active) {
+      return {
+        error: `O cliente "${client.trade_name || client.legal_name}" está inativo. Novos apontamentos estão bloqueados.`,
+      };
+    }
+  }
+
+  // Bloqueia contrato encerrado ou apontamentos além da data de corte
+  if (contractId) {
+    const { data: contract } = await supabase
+      .from("contracts")
+      .select("name, status, end_date, terminated_at")
+      .eq("id", contractId)
+      .single();
+
+    if (contract && contract.status === "encerrado") {
+      const cutOff = contract.terminated_at || contract.end_date;
+      if (cutOff && parsed.data.entryDate > cutOff) {
+        return {
+          error: `O contrato "${contract.name}" foi encerrado em ${cutOff}. Apontamentos após essa data estão bloqueados.`,
+        };
+      }
+      return {
+        error: `O contrato "${contract.name}" está encerrado. Novos apontamentos estão bloqueados.`,
+      };
+    }
+  }
+
   const { error } = await supabase.from("time_entries").insert({
     tenant_id: tenant.id,
     employee_id: employeeId,
@@ -112,6 +147,41 @@ export async function updateTimeEntryAction(_prev: ActionState, formData: FormDa
 
     if (activeContract) {
       contractId = activeContract.id;
+    }
+  }
+
+  // Bloqueia cliente inativo
+  if (clientId) {
+    const { data: client } = await supabase
+      .from("clients")
+      .select("active, legal_name, trade_name")
+      .eq("id", clientId)
+      .single();
+    if (client && !client.active) {
+      return {
+        error: `O cliente "${client.trade_name || client.legal_name}" está inativo. Edição para este cliente está bloqueada.`,
+      };
+    }
+  }
+
+  // Bloqueia contrato encerrado ou apontamentos além da data de corte
+  if (contractId) {
+    const { data: contract } = await supabase
+      .from("contracts")
+      .select("name, status, end_date, terminated_at")
+      .eq("id", contractId)
+      .single();
+
+    if (contract && contract.status === "encerrado") {
+      const cutOff = contract.terminated_at || contract.end_date;
+      if (cutOff && parsed.data.entryDate > cutOff) {
+        return {
+          error: `O contrato "${contract.name}" foi encerrado em ${cutOff}. Apontamentos após essa data estão bloqueados.`,
+        };
+      }
+      return {
+        error: `O contrato "${contract.name}" está encerrado. Novos apontamentos estão bloqueados.`,
+      };
     }
   }
 

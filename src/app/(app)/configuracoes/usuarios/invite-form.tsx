@@ -22,7 +22,7 @@ export function InviteForm() {
   return (
     <form action={formAction} className="grid gap-4">
       <FormAlert state={state} />
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3 sm:items-start">
         <Field label="Nome" htmlFor="fullName" errors={state.fieldErrors?.fullName}>
           <Input id="fullName" name="fullName" required />
         </Field>

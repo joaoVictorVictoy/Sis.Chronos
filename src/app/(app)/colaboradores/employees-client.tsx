@@ -12,7 +12,7 @@ export function NewEmployeeForm({ defaultMonthlyHours }: { defaultMonthlyHours: 
   return (
     <form action={formAction} className="grid gap-4">
       <FormAlert state={state} />
-      <div className="grid gap-4 sm:grid-cols-4 sm:items-end">
+      <div className="grid gap-4 sm:grid-cols-4 sm:items-start">
         <Field label="Nome" htmlFor="fullName" errors={state.fieldErrors?.fullName}>
           <Input id="fullName" name="fullName" required />
         </Field>

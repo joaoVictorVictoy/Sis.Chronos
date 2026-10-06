@@ -308,6 +308,9 @@ export type Database = {
           tax_rate: number;
           expected_hours: number | null;
           status: ContractStatus;
+          termination_reason: string | null;
+          termination_notes: string | null;
+          terminated_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -324,6 +327,9 @@ export type Database = {
           tax_rate?: number;
           expected_hours?: number | null;
           status?: ContractStatus;
+          termination_reason?: string | null;
+          termination_notes?: string | null;
+          terminated_at?: string | null;
         };
         Update: {
           name?: string;
@@ -336,6 +342,9 @@ export type Database = {
           tax_rate?: number;
           expected_hours?: number | null;
           status?: ContractStatus;
+          termination_reason?: string | null;
+          termination_notes?: string | null;
+          terminated_at?: string | null;
         };
         Relationships: [
           {
