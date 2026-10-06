@@ -14,7 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { NativeCheckbox, NativeSelect } from "@/components/native-select";
+import { NativeSelect } from "@/components/native-select";
 import { Field, FormAlert } from "@/components/form";
 import { initialActionState, type ActionState } from "@/lib/actions";
 import { createActivityAction } from "@/app/(app)/cadastros/atividades/actions";
@@ -41,7 +41,6 @@ export function QuickActivityDialog({
   const [clientId, setClientId] = useState(initialClientId);
   const [areaId, setAreaId] = useState(initialAreaId);
   const [activityName, setActivityName] = useState("");
-  const [billable, setBillable] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [state, setState] = useState<ActionState>(initialActionState);
 
@@ -51,7 +50,6 @@ export function QuickActivityDialog({
       setClientId(initialClientId);
       setAreaId(initialAreaId);
       setActivityName("");
-      setBillable(true);
       setState(initialActionState);
     }
     setOpen(nextOpen);
@@ -93,8 +91,10 @@ export function QuickActivityDialog({
     const formData = new FormData();
     formData.append("name", activityName.trim());
     formData.append("areaId", areaId);
-    if (clientId) formData.append("clientId", clientId);
-    if (billable) formData.append("billable", "on");
+    if (clientId) {
+      formData.append("clientId", clientId);
+      formData.append("billable", "on");
+    }
 
     try {
       const result = await createActivityAction(initialActionState, formData);
@@ -190,18 +190,8 @@ export function QuickActivityDialog({
                 required
                 disabled={submitting}
                 autoFocus
-              >
-              </Input>
-            </Field>
-
-            <label className="flex items-center gap-2 pt-1 text-sm">
-              <NativeCheckbox
-                checked={billable}
-                onChange={(e) => setBillable(e.target.checked)}
-                disabled={submitting}
               />
-              Faturável
-            </label>
+            </Field>
           </div>
 
           <DialogFooter>
