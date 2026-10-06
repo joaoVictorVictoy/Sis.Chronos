@@ -311,6 +311,7 @@ export type Database = {
           termination_reason: string | null;
           termination_notes: string | null;
           terminated_at: string | null;
+          termination_penalty: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -330,6 +331,7 @@ export type Database = {
           termination_reason?: string | null;
           termination_notes?: string | null;
           terminated_at?: string | null;
+          termination_penalty?: number | null;
         };
         Update: {
           name?: string;
@@ -345,6 +347,7 @@ export type Database = {
           termination_reason?: string | null;
           termination_notes?: string | null;
           terminated_at?: string | null;
+          termination_penalty?: number | null;
         };
         Relationships: [
           {

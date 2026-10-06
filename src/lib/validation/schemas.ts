@@ -330,6 +330,10 @@ export const terminateContractSchema = z.object({
   contractId: z.uuid(),
   terminationReason: terminationReasonSchema,
   terminatedAt: dateSchema,
+  terminationPenalty: optionalDecimalSchema.refine(
+    (v) => v === null || v >= 0,
+    "A multa rescisória não pode ser negativa.",
+  ),
   terminationNotes: optionalText(1000),
   deactivateClient: checkboxSchema,
 });

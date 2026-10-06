@@ -159,6 +159,7 @@ export async function terminateContractAction(_prev: ActionState, formData: Form
       termination_reason: parsed.data.terminationReason,
       termination_notes: parsed.data.terminationNotes || null,
       terminated_at: parsed.data.terminatedAt,
+      termination_penalty: parsed.data.terminationPenalty ?? null,
       end_date: parsed.data.terminatedAt,
     })
     .eq("id", contract.id);
@@ -209,6 +210,7 @@ export async function reopenContractAction(_prev: ActionState, formData: FormDat
       termination_reason: null,
       termination_notes: null,
       terminated_at: null,
+      termination_penalty: null,
     })
     .eq("id", contract.id);
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatCnpj, formatCurrency, formatDate, formatHours, formatPercent, todayISO } from "@/lib/format";
 import { isValidCnpj } from "./cnpj";
-import { decimalSchema, optionalCnpjSchema, signupSchema, tenantSettingsSchema } from "./schemas";
+import { decimalSchema, optionalCnpjSchema, signupSchema, tenantSettingsSchema, terminateContractSchema } from "./schemas";
 
 describe("CNPJ", () => {
   it("valida dígitos verificadores", () => {
@@ -62,3 +62,49 @@ describe("formatação pt-BR", () => {
     expect(todayISO(new Date("2026-03-01T02:00:00Z"))).toBe("2026-02-28");
   });
 });
+
+describe("rescisão e multa contratual", () => {
+  it("valida encerramento com multa formatada em pt-BR", () => {
+    const res = terminateContractSchema.safeParse({
+      contractId: "00000000-0000-0000-0000-000000000001",
+      terminationReason: "rescisao_cliente",
+      terminatedAt: "2026-10-15",
+      terminationPenalty: "5.500,50",
+      terminationNotes: "Cliente solicitou cancelamento com aviso prévio",
+      deactivateClient: "true",
+    });
+    expect(res.success).toBe(true);
+    if (res.success) {
+      expect(res.data.terminationPenalty).toBe(5500.5);
+      expect(res.data.terminationReason).toBe("rescisao_cliente");
+      expect(res.data.deactivateClient).toBe(true);
+    }
+  });
+
+  it("aceita encerramento sem multa rescisória", () => {
+    const res = terminateContractSchema.safeParse({
+      contractId: "00000000-0000-0000-0000-000000000001",
+      terminationReason: "termino_prazo",
+      terminatedAt: "2026-10-15",
+      terminationPenalty: "",
+      terminationNotes: "",
+      deactivateClient: "false",
+    });
+    expect(res.success).toBe(true);
+    if (res.success) {
+      expect(res.data.terminationPenalty).toBeNull();
+    }
+  });
+
+  it("rejeita multa rescisória com valor negativo", () => {
+    const res = terminateContractSchema.safeParse({
+      contractId: "00000000-0000-0000-0000-000000000001",
+      terminationReason: "outro",
+      terminatedAt: "2026-10-15",
+      terminationPenalty: "-100",
+      deactivateClient: "false",
+    });
+    expect(res.success).toBe(false);
+  });
+});
+

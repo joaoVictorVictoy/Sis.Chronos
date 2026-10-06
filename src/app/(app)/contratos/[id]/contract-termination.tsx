@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { AlertTriangleIcon, CheckCircle2Icon, LockIcon, RotateCcwIcon, XCircleIcon } from "lucide-react";
+import { LockIcon, PencilIcon, RotateCcwIcon, XCircleIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { initialActionState } from "@/lib/actions";
 import { TERMINATION_REASON_LABELS, type TerminationReason } from "@/lib/contracts";
-import { formatDate } from "@/lib/format";
+import { formatCurrency, formatDate } from "@/lib/format";
 import type { Tables } from "@/lib/database.types";
 import { reopenContractAction, terminateContractAction } from "../actions";
 
@@ -28,10 +28,12 @@ export function TerminateContractDialog({
   contract,
   otherActiveContractsCount,
   today,
+  trigger,
 }: {
   contract: Tables<"contracts">;
   otherActiveContractsCount: number;
   today: string;
+  trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction] = useActionState(async (prev: any, formData: FormData) => {
@@ -40,27 +42,30 @@ export function TerminateContractDialog({
     return result;
   }, initialActionState);
 
-  const defaultDate = contract.end_date || today;
+  const defaultDate = contract.terminated_at || contract.end_date || today;
+  const isEditing = contract.status === "encerrado";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button
-            type="button"
-            variant="outline"
-            className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
-          >
-            <LockIcon className="size-4" />
-            Encerrar contrato
-          </Button>
+          trigger ?? (
+            <Button
+              type="button"
+              variant="outline"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+            >
+              <LockIcon className="size-4" />
+              Encerrar contrato
+            </Button>
+          )
         }
       />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Encerrar ou Rescindir Contrato</DialogTitle>
+          <DialogTitle>{isEditing ? "Ajustar Dados da Rescisão" : "Encerrar ou Rescindir Contrato"}</DialogTitle>
           <DialogDescription>
-            Defina o motivo do encerramento, a data de corte e as diretrizes operacionais para apontamentos.
+            Defina o motivo, a data de corte e eventuais valores de multa ou aviso prévio indenizado.
           </DialogDescription>
         </DialogHeader>
 
@@ -69,7 +74,12 @@ export function TerminateContractDialog({
           <FormAlert state={state} />
 
           <Field label="Motivo do encerramento" htmlFor="terminationReason" errors={state.fieldErrors?.terminationReason}>
-            <NativeSelect id="terminationReason" name="terminationReason" defaultValue="termino_prazo" required>
+            <NativeSelect
+              id="terminationReason"
+              name="terminationReason"
+              defaultValue={contract.termination_reason ?? "termino_prazo"}
+              required
+            >
               {Object.entries(TERMINATION_REASON_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
@@ -81,21 +91,41 @@ export function TerminateContractDialog({
           <Field
             label="Data de término / corte"
             htmlFor="terminatedAt"
-            hint="Apontamentos de horas após esta data serão bloqueados para este contrato."
+            hint="Apontamentos de horas após esta data são bloqueados para este contrato."
             errors={state.fieldErrors?.terminatedAt}
           >
             <Input id="terminatedAt" name="terminatedAt" type="date" defaultValue={defaultDate} required />
           </Field>
 
           <Field
+            label="Multa rescisória / Receita extraordinária (R$)"
+            htmlFor="terminationPenalty"
+            hint="Opcional. Valor extraordinário da rescisão (ex: 50% das parcelas restantes ou aviso prévio). Será somado à receita final para apurar o lucro."
+            errors={state.fieldErrors?.terminationPenalty}
+          >
+            <Input
+              id="terminationPenalty"
+              name="terminationPenalty"
+              inputMode="decimal"
+              placeholder="0,00"
+              defaultValue={
+                contract.termination_penalty
+                  ? String(Number(contract.termination_penalty)).replace(".", ",")
+                  : ""
+              }
+            />
+          </Field>
+
+          <Field
             label="Observações / Justificativa"
             htmlFor="terminationNotes"
-            hint="Opcional. Registre aprendizados, alinhamentos ou motivos da saída."
+            hint="Opcional. Registre aprendizados, alinhamentos ou motivos da rescisão."
             errors={state.fieldErrors?.terminationNotes}
           >
             <Textarea
               id="terminationNotes"
               name="terminationNotes"
+              defaultValue={contract.termination_notes ?? ""}
               placeholder="Ex.: Projeto concluído no prazo / Cliente optou por rescisão antecipada..."
               rows={3}
             />
@@ -121,7 +151,9 @@ export function TerminateContractDialog({
 
           <DialogFooter className="mt-2">
             <DialogClose render={<Button type="button" variant="outline" />}>Cancelar</DialogClose>
-            <SubmitButton variant="destructive">Confirmar encerramento</SubmitButton>
+            <SubmitButton variant="destructive">
+              {isEditing ? "Salvar alterações" : "Confirmar encerramento"}
+            </SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -129,7 +161,15 @@ export function TerminateContractDialog({
   );
 }
 
-export function TerminationBanner({ contract }: { contract: Tables<"contracts"> }) {
+export function TerminationBanner({
+  contract,
+  otherActiveContractsCount = 0,
+  today,
+}: {
+  contract: Tables<"contracts">;
+  otherActiveContractsCount?: number;
+  today?: string;
+}) {
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reopenState, reopenFormAction] = useActionState(async (prev: any, formData: FormData) => {
     const result = await reopenContractAction(prev, formData);
@@ -140,11 +180,12 @@ export function TerminationBanner({ contract }: { contract: Tables<"contracts"> 
   const reasonKey = contract.termination_reason as TerminationReason | null;
   const reasonLabel = reasonKey ? TERMINATION_REASON_LABELS[reasonKey] ?? reasonKey : "Não informado";
   const cutOffDate = contract.terminated_at || contract.end_date;
+  const penalty = Number(contract.termination_penalty) || 0;
 
   return (
     <Card className="border-destructive/40 bg-destructive/5">
-      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="grid gap-1">
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="grid gap-1.5">
           <div className="flex items-center gap-2">
             <XCircleIcon className="size-5 text-destructive shrink-0" />
             <CardTitle className="text-base font-semibold text-destructive">
@@ -155,35 +196,62 @@ export function TerminationBanner({ contract }: { contract: Tables<"contracts"> 
             {cutOffDate ? `Encerrado em ${formatDate(cutOffDate)}.` : "Contrato com vigência finalizada."}{" "}
             Motivo: <strong>{reasonLabel}</strong>
           </CardDescription>
+
+          {penalty > 0 ? (
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+              <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-emerald-800 dark:text-emerald-300 font-medium">
+                Multa / Acerto rescisório: <strong>{formatCurrency(penalty)}</strong>
+              </span>
+              <span className="text-xs text-muted-foreground">
+                (receita extraordinária integrada ao cálculo de rentabilidade)
+              </span>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">Nenhuma multa rescisória informada.</p>
+          )}
         </div>
 
-        <Dialog open={reopenOpen} onOpenChange={setReopenOpen}>
-          <DialogTrigger
-            render={
-              <Button type="button" variant="outline" size="sm" className="self-start">
-                <RotateCcwIcon className="size-3.5" />
-                Reabrir contrato
+        <div className="flex flex-wrap items-center gap-2 self-start">
+          <TerminateContractDialog
+            contract={contract}
+            otherActiveContractsCount={otherActiveContractsCount}
+            today={today ?? cutOffDate ?? ""}
+            trigger={
+              <Button type="button" variant="outline" size="sm" className="gap-1.5">
+                <PencilIcon className="size-3.5" />
+                Ajustar rescisão
               </Button>
             }
           />
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Reabrir Contrato</DialogTitle>
-              <DialogDescription>
-                Tem certeza que deseja reativar este contrato? Ele voltará a ficar ativo e aceitará novos apontamentos
-                da equipe.
-              </DialogDescription>
-            </DialogHeader>
-            <form action={reopenFormAction} className="grid gap-4">
-              <input type="hidden" name="contractId" value={contract.id} />
-              <FormAlert state={reopenState} />
-              <DialogFooter>
-                <DialogClose render={<Button type="button" variant="outline" />}>Cancelar</DialogClose>
-                <SubmitButton>Reativar contrato</SubmitButton>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+
+          <Dialog open={reopenOpen} onOpenChange={setReopenOpen}>
+            <DialogTrigger
+              render={
+                <Button type="button" variant="outline" size="sm" className="gap-1.5">
+                  <RotateCcwIcon className="size-3.5" />
+                  Reabrir contrato
+                </Button>
+              }
+            />
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Reabrir Contrato</DialogTitle>
+                <DialogDescription>
+                  Tem certeza que deseja reativar este contrato? Ele voltará a ficar ativo, aceitará novos apontamentos
+                  da equipe e os dados de encerramento serão redefinidos.
+                </DialogDescription>
+              </DialogHeader>
+              <form action={reopenFormAction} className="grid gap-4">
+                <input type="hidden" name="contractId" value={contract.id} />
+                <FormAlert state={reopenState} />
+                <DialogFooter>
+                  <DialogClose render={<Button type="button" variant="outline" />}>Cancelar</DialogClose>
+                  <SubmitButton>Reativar contrato</SubmitButton>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </CardHeader>
 
       <CardContent className="grid gap-3 pt-0">

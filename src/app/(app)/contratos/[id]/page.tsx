@@ -18,6 +18,7 @@ import type { Tables } from "@/lib/database.types";
 import { ContractForm } from "../contract-form";
 import { ContractLinksForm, ExpensesCard } from "./contract-detail";
 import { TerminateContractDialog, TerminationBanner } from "./contract-termination";
+import { ContractPostMortemCard } from "./contract-post-mortem";
 
 export const metadata = { title: "Contrato | Apontamento" };
 
@@ -105,7 +106,16 @@ export default async function ContractPage({ params, searchParams }: PageProps<"
         </div>
       </PageHeader>
 
-      {contract.status === "encerrado" ? <TerminationBanner contract={contract} /> : null}
+      {contract.status === "encerrado" ? (
+        <>
+          <TerminationBanner
+            contract={contract}
+            otherActiveContractsCount={otherActiveContractsCount ?? 0}
+            today={todayISO()}
+          />
+          <ContractPostMortemCard contract={contract} />
+        </>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
