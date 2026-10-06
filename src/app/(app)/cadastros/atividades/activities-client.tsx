@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { NativeCheckbox, NativeSelect } from "@/components/native-select";
 import { DeleteButton } from "@/components/delete-button";
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/page-header";
 import { Field, FormAlert, SubmitButton } from "@/components/form";
 import { initialActionState } from "@/lib/actions";
@@ -176,13 +177,18 @@ export function ActivitiesTable({
   activities,
   areas,
   clients,
+  canManage = true,
 }: {
   activities: ActivityWithUsage[];
   areas: AreaOption[];
   clients: ClientOption[];
+  canManage?: boolean;
 }) {
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [areaFilter, setAreaFilter] = useState<string>("all");
+
+  const clientMap = useMemo(() => new Map(clients.map((c) => [c.id, c.name])), [clients]);
+  const areaMap = useMemo(() => new Map(areas.map((a) => [a.id, a.name])), [areas]);
 
   const filteredActivities = useMemo(() => {
     return activities.filter((act) => {
@@ -231,21 +237,53 @@ export function ActivitiesTable({
 
       <Table>
         <TableHeader>
-          <TableRow>
-            <TableHead colSpan={7}>Atividades</TableHead>
-          </TableRow>
+          {canManage ? (
+            <TableRow>
+              <TableHead colSpan={7}>Atividades</TableHead>
+            </TableRow>
+          ) : (
+            <TableRow>
+              <TableHead>Nome</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>Área</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          )}
         </TableHeader>
         <TableBody>
           {filteredActivities.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="text-center py-6 text-sm text-muted-foreground">
+              <TableCell colSpan={canManage ? 7 : 5} className="text-center py-6 text-sm text-muted-foreground">
                 Nenhuma atividade encontrada com os filtros selecionados.
               </TableCell>
             </TableRow>
           ) : (
-            filteredActivities.map((activity) => (
-              <ActivityRow key={activity.id} activity={activity} areas={areas} clients={clients} />
-            ))
+            filteredActivities.map((activity) =>
+              canManage ? (
+                <ActivityRow key={activity.id} activity={activity} areas={areas} clients={clients} />
+              ) : (
+                <TableRow key={activity.id}>
+                  <TableCell className="font-medium">{activity.name}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {activity.client_id ? clientMap.get(activity.client_id) ?? "Cliente" : "Geral"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {areaMap.get(activity.area_id) ?? "Área"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={activity.billable ? "default" : "secondary"}>
+                      {activity.billable ? "Faturável" : "Não faturável"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={activity.active ? "outline" : "secondary"}>
+                      {activity.active ? "Ativa" : "Inativa"}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              )
+            )
           )}
         </TableBody>
       </Table>

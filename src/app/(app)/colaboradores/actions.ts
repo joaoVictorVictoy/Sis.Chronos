@@ -104,7 +104,14 @@ export async function setEmployeeCostAction(_prev: ActionState, formData: FormDa
   });
   if (error) return { error: translateError(error) };
 
+  // Sincroniza as horas mensais vigentes no cadastro do colaborador
+  await supabase
+    .from("employees")
+    .update({ monthly_hours: parsed.data.monthlyHours })
+    .eq("id", parsed.data.employeeId);
+
   revalidatePath(`/colaboradores/${parsed.data.employeeId}`);
+  revalidatePath("/colaboradores");
   return { success: "Custo registrado com a nova vigência." };
 }
 
@@ -127,7 +134,7 @@ export async function deleteEmployeeCostAction(_prev: ActionState, formData: For
   // Se havia vigência anterior que foi fechada com valid_to, reabre a última restante como vigente
   const { data: latestRemaining } = await supabase
     .from("employee_costs")
-    .select("id, valid_from")
+    .select("id, valid_from, monthly_hours")
     .eq("employee_id", parsed.data.employeeId)
     .order("valid_from", { ascending: false })
     .limit(1)
@@ -138,6 +145,16 @@ export async function deleteEmployeeCostAction(_prev: ActionState, formData: For
       .from("employee_costs")
       .update({ valid_to: null })
       .eq("id", latestRemaining.id);
+
+    await supabase
+      .from("employees")
+      .update({ monthly_hours: latestRemaining.monthly_hours })
+      .eq("id", parsed.data.employeeId);
+  } else {
+    await supabase
+      .from("employees")
+      .update({ monthly_hours: null })
+      .eq("id", parsed.data.employeeId);
   }
 
   revalidatePath(`/colaboradores/${parsed.data.employeeId}`);

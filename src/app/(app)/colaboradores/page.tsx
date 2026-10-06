@@ -13,7 +13,7 @@ import { NewEmployeeForm, EmployeeStatusToggle } from "./employees-client";
 export const metadata = { title: "Colaboradores | Apontamento" };
 
 type EmployeeRow = Tables<"employees"> & {
-  employee_costs: Pick<Tables<"employee_costs">, "hourly_cost" | "valid_from" | "valid_to">[];
+  employee_costs: Pick<Tables<"employee_costs">, "hourly_cost" | "valid_from" | "valid_to" | "monthly_hours">[];
 };
 
 export default async function EmployeesPage() {
@@ -22,7 +22,7 @@ export default async function EmployeesPage() {
 
   const { data } = await supabase
     .from("employees")
-    .select("*, employee_costs(hourly_cost, valid_from, valid_to)")
+    .select("*, employee_costs(hourly_cost, valid_from, valid_to, monthly_hours)")
     .order("full_name");
 
   const employees = (data ?? []) as EmployeeRow[];
@@ -75,6 +75,10 @@ export default async function EmployeesPage() {
               <TableBody>
                 {employees.map((employee) => {
                   const current = employee.employee_costs?.find((c) => c.valid_to === null);
+                  const effectiveHours = current?.monthly_hours ?? employee.monthly_hours;
+                  const isDefault = effectiveHours === null || effectiveHours === undefined;
+                  const displayHours = effectiveHours ?? tenant.monthly_hours;
+
                   return (
                     <TableRow key={employee.id}>
                       <TableCell>
@@ -87,8 +91,8 @@ export default async function EmployeesPage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">{employee.job_title ?? "—"}</TableCell>
                       <TableCell>
-                        {formatHours(Number(employee.monthly_hours ?? tenant.monthly_hours))}
-                        {employee.monthly_hours === null ? (
+                        {formatHours(Number(displayHours))}
+                        {isDefault ? (
                           <span className="ml-1 text-xs text-muted-foreground">(padrão)</span>
                         ) : null}
                       </TableCell>

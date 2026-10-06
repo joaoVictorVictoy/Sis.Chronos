@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useCallback, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/native-select";
 import { Field, FormAlert, SubmitButton } from "@/components/form";
 import { initialActionState } from "@/lib/actions";
 import type { ActivityOption, AreaOption, ClientAreaOption, ClientOption, ContractOption } from "./page";
 import { createTimeEntryAction } from "./actions";
+import { QuickActivityDialog } from "./quick-activity-dialog";
 
 export function CascadeSelectors({
   clients,
@@ -44,6 +46,13 @@ export function CascadeSelectors({
   const [selectedAreaId, setSelectedAreaId] = useState<string>(initialAreaId);
 
   const [selectedActivityId, setSelectedActivityId] = useState<string>(defaultActivityId ?? "");
+  const [extraActivities, setExtraActivities] = useState<ActivityOption[]>([]);
+
+  const allActivities = useMemo(() => {
+    if (extraActivities.length === 0) return activities;
+    const existingIds = new Set(activities.map((a) => a.id));
+    return [...activities, ...extraActivities.filter((a) => !existingIds.has(a.id))];
+  }, [activities, extraActivities]);
 
   // Contrato ativo vigente do cliente selecionado (vinculado automaticamente)
   const activeContract = useMemo(() => {
@@ -68,23 +77,26 @@ export function CascadeSelectors({
   }, [selectedClientId, clientAreas, areas]);
 
   // Filtra atividades por área e vínculo com cliente
-  const filterActivities = (areaId: string, clientId: string) => {
-    if (!areaId) return [];
-    return activities.filter((act) => {
-      if (act.area_id !== areaId) return false;
-      // Se a atividade estiver associada a um cliente específico, só exibe para ele
-      if (act.client_id) {
-        return act.client_id === clientId;
-      }
-      // Atividades sem cliente específico (gerais da área) ficam disponíveis
-      return true;
-    });
-  };
+  const filterActivities = useCallback(
+    (areaId: string, clientId: string) => {
+      if (!areaId) return [];
+      return allActivities.filter((act) => {
+        if (act.area_id !== areaId) return false;
+        // Se a atividade estiver associada a um cliente específico, só exibe para ele
+        if (act.client_id) {
+          return act.client_id === clientId;
+        }
+        // Atividades sem cliente específico (gerais da área) ficam disponíveis
+        return true;
+      });
+    },
+    [allActivities],
+  );
 
   // Atividades pertencentes à área selecionada e ao cliente selecionado
   const availableActivities = useMemo(() => {
     return filterActivities(selectedAreaId, selectedClientId);
-  }, [selectedAreaId, selectedClientId, activities]);
+  }, [selectedAreaId, selectedClientId, filterActivities]);
 
   const handleClientChange = (newClientId: string) => {
     setSelectedClientId(newClientId);
@@ -126,7 +138,17 @@ export function CascadeSelectors({
       <input type="hidden" name="contractId" value={activeContract?.id ?? defaultContractId ?? ""} />
 
       {/* 1. Cliente */}
-      <Field label="Cliente" htmlFor="clientId">
+      <div className="grid gap-1.5">
+        <div className="flex h-5 items-center justify-between gap-1">
+          <Label htmlFor="clientId">Cliente</Label>
+          {activeContract ? (
+            <span className="text-[11px] text-muted-foreground truncate max-w-[140px]" title={activeContract.name}>
+              Contrato: <strong className="font-medium text-foreground">{activeContract.name}</strong>
+            </span>
+          ) : selectedClientId ? (
+            <span className="text-[11px] text-muted-foreground">Sem contrato ativo</span>
+          ) : null}
+        </div>
         <NativeSelect
           id="clientId"
           name="clientId"
@@ -141,17 +163,13 @@ export function CascadeSelectors({
             </option>
           ))}
         </NativeSelect>
-        {activeContract ? (
-          <p className="mt-1 text-[11px] text-muted-foreground truncate" title={activeContract.name}>
-            Contrato: <span className="font-medium text-foreground">{activeContract.name}</span>
-          </p>
-        ) : selectedClientId ? (
-          <p className="mt-1 text-[11px] text-muted-foreground">Sem contrato ativo</p>
-        ) : null}
-      </Field>
+      </div>
 
       {/* 2. Área de Atuação */}
-      <Field label="Área de atuação" htmlFor="areaId">
+      <div className="grid gap-1.5">
+        <div className="flex h-5 items-center">
+          <Label htmlFor="areaId">Área de atuação</Label>
+        </div>
         <NativeSelect
           id="areaId"
           name="areaId"
@@ -169,10 +187,32 @@ export function CascadeSelectors({
             </option>
           ))}
         </NativeSelect>
-      </Field>
+      </div>
 
       {/* 3. Atividade */}
-      <Field label="Atividade" htmlFor="activityId">
+      <div className="grid gap-1.5">
+        <div className="flex h-5 items-center justify-between gap-1">
+          <Label htmlFor="activityId">Atividade</Label>
+          <QuickActivityDialog
+            clients={clients}
+            areas={availableAreas.length > 0 ? availableAreas : areas}
+            clientAreas={clientAreas}
+            initialClientId={selectedClientId}
+            initialAreaId={selectedAreaId}
+            disabled={disabled}
+            onActivityCreated={(newAct) => {
+              setExtraActivities((prev) => {
+                if (prev.some((a) => a.id === newAct.id)) return prev;
+                return [...prev, newAct];
+              });
+              if (newAct.client_id && newAct.client_id !== selectedClientId) {
+                handleClientChange(newAct.client_id);
+              }
+              setSelectedAreaId(newAct.area_id);
+              setSelectedActivityId(newAct.id);
+            }}
+          />
+        </div>
         <NativeSelect
           id="activityId"
           name="activityId"
@@ -195,7 +235,7 @@ export function CascadeSelectors({
             </option>
           ))}
         </NativeSelect>
-      </Field>
+      </div>
     </>
   );
 }
@@ -223,9 +263,15 @@ export function EntryForm({
       <FormAlert state={state} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Field label="Data" htmlFor="entryDate" errors={state.fieldErrors?.entryDate}>
-          <Input id="entryDate" name="entryDate" type="date" defaultValue={today} required />
-        </Field>
+        <div className="grid gap-1.5">
+          <div className="flex h-5 items-center">
+            <Label htmlFor="entryDate">Data</Label>
+          </div>
+          <Input id="entryDate" name="entryDate" type="date" className="h-9" defaultValue={today} required />
+          {state.fieldErrors?.entryDate ? (
+            <p className="text-xs text-destructive">{state.fieldErrors.entryDate[0]}</p>
+          ) : null}
+        </div>
 
         <CascadeSelectors
           clients={clients}
@@ -237,17 +283,30 @@ export function EntryForm({
 
         {useInterval ? (
           <div className="grid grid-cols-2 gap-2">
-            <Field label="Início" htmlFor="startTime" errors={state.fieldErrors?.startTime}>
-              <Input id="startTime" name="startTime" type="time" required />
-            </Field>
-            <Field label="Fim" htmlFor="endTime" errors={state.fieldErrors?.endTime}>
-              <Input id="endTime" name="endTime" type="time" required />
-            </Field>
+            <div className="grid gap-1.5">
+              <div className="flex h-5 items-center">
+                <Label htmlFor="startTime">Início</Label>
+              </div>
+              <Input id="startTime" name="startTime" type="time" className="h-9" required />
+            </div>
+            <div className="grid gap-1.5">
+              <div className="flex h-5 items-center">
+                <Label htmlFor="endTime">Fim</Label>
+              </div>
+              <Input id="endTime" name="endTime" type="time" className="h-9" required />
+            </div>
           </div>
         ) : (
-          <Field label="Duração" htmlFor="duration" hint="1:30 · 1,5 · 90m" errors={state.fieldErrors?.duration}>
-            <Input id="duration" name="duration" placeholder="1:30" required />
-          </Field>
+          <div className="grid gap-1.5">
+            <div className="flex h-5 items-center justify-between gap-1">
+              <Label htmlFor="duration">Duração</Label>
+              <span className="text-[11px] text-muted-foreground">1:30 · 1,5 · 90m</span>
+            </div>
+            <Input id="duration" name="duration" className="h-9" placeholder="1:30" required />
+            {state.fieldErrors?.duration ? (
+              <p className="text-xs text-destructive">{state.fieldErrors.duration[0]}</p>
+            ) : null}
+          </div>
         )}
       </div>
 

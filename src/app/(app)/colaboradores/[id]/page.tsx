@@ -86,7 +86,7 @@ export default async function EmployeePage({ params }: PageProps<"/colaboradores
             {isAdmin ? (
               <NewCostForm
                 employeeId={employee.id}
-                defaultMonthlyHours={Number(employee.monthly_hours ?? tenant.monthly_hours)}
+                defaultMonthlyHours={Number(costs?.[0]?.monthly_hours ?? employee.monthly_hours ?? tenant.monthly_hours)}
                 today={todayISO()}
               />
             ) : null}

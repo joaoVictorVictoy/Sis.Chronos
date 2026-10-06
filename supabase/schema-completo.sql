@@ -2638,3 +2638,13 @@ revoke execute on function public.set_employee_cost(uuid, numeric, numeric, nume
   from public, anon;
 grant execute on function public.set_employee_cost(uuid, numeric, numeric, numeric, numeric, numeric, date)
   to authenticated;
+
+-- =====================================================================
+-- Etapa 14: Permitir que colaboradores criem atividades
+-- =====================================================================
+drop policy if exists activities_insert on public.activities;
+
+create policy activities_insert on public.activities
+  for insert to authenticated
+  with check (tenant_id = (select private.current_tenant_id()));
+

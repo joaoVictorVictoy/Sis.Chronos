@@ -49,7 +49,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { href: "/clientes", label: "Clientes e contratos", icon: BriefcaseIcon, roles: ["admin", "gestor"] },
       { href: "/colaboradores", label: "Colaboradores", icon: UsersIcon, roles: ["admin", "gestor"] },
       { href: "/cadastros/areas", label: "Áreas de atuação", icon: LayersIcon, roles: ["admin", "gestor"] },
-      { href: "/cadastros/atividades", label: "Atividades", icon: ListChecksIcon, roles: ["admin", "gestor"] },
+      { href: "/cadastros/atividades", label: "Atividades", icon: ListChecksIcon, roles: ["admin", "gestor", "colaborador"] },
     ],
   },
   {

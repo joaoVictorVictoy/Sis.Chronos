@@ -53,7 +53,7 @@ describe("cadastros: áreas, atividades, colaboradores e clientes", () => {
     ).rows[0].id;
   });
 
-  it("gestor cadastra atividades; colaborador só lê", async () => {
+  it("gestor e colaborador cadastram atividades; colaborador não pode excluir", async () => {
     await asUser(db, gestor, () =>
       db.query(
         "insert into public.activities (tenant_id, area_id, name, billable) values ($1, $2, 'Apuração fiscal', true)",
@@ -63,9 +63,19 @@ describe("cadastros: áreas, atividades, colaboradores e clientes", () => {
     const read = await asUser(db, colaborador, () => db.query("select * from public.activities"));
     expect(read.rows).toHaveLength(1);
 
+    // Colaborador cadastra nova atividade com sucesso
+    const colabInsert = await asUser(db, colaborador, () =>
+      db.query<{ id: string }>(
+        "insert into public.activities (tenant_id, area_id, name, billable) values ($1, $2, 'Atividade Colab', true) returning id",
+        [tenant, areaId],
+      ),
+    );
+    expect(colabInsert.rows).toHaveLength(1);
+
+    // Mas colaborador não pode excluir atividade
     const msg = await asUser(db, colaborador, () =>
       expectError(
-        db.query("insert into public.activities (tenant_id, name) values ($1, 'Inventada')", [tenant]),
+        db.query("delete from public.activities where id = $1", [colabInsert.rows[0].id]),
       ),
     );
     expect(msg).toContain("row-level security");

@@ -4,7 +4,8 @@ import { useActionState, useEffect, useMemo, useRef, useState, useSyncExternalSt
 import { PauseIcon, PlayIcon, SquareIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Field, FormAlert, SubmitButton } from "@/components/form";
+import { Label } from "@/components/ui/label";
+import { FormAlert, SubmitButton } from "@/components/form";
 import { initialActionState, type ActionState } from "@/lib/actions";
 import type { ActivityOption, AreaOption, ClientAreaOption, ClientOption, ContractOption } from "./page";
 import { createTimeEntryAction } from "./actions";
@@ -120,17 +121,23 @@ export function TimerCard({
           defaultActivityId={timer.activityId}
         />
 
-        <Field label="Descrição" htmlFor="timerDescription">
+        <div className="grid gap-1.5">
+          <div className="flex h-5 items-center">
+            <Label htmlFor="timerDescription">Descrição</Label>
+          </div>
           <div className="flex gap-2">
             <Input
               id="timerDescription"
               name="description"
+              className="h-9"
               defaultValue={timer.description}
               placeholder="No que você está trabalhando"
             />
-            <SubmitButton variant="outline">Lançar</SubmitButton>
+            <SubmitButton variant="outline" className="h-9 shrink-0">
+              Lançar
+            </SubmitButton>
           </div>
-        </Field>
+        </div>
       </form>
     </div>
   );

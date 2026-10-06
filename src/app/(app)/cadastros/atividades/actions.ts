@@ -8,20 +8,35 @@ import { translateError } from "@/lib/auth/errors";
 import { parseForm, type ActionState } from "@/lib/actions";
 import { activitySchema } from "@/lib/validation/schemas";
 
-export async function createActivityAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const { tenant } = await requireRole(["admin", "gestor"]);
+export type CreateActivityState = ActionState & {
+  createdActivity?: {
+    id: string;
+    name: string;
+    area_id: string;
+    client_id: string | null;
+    billable: boolean;
+  };
+};
+
+export async function createActivityAction(_prev: CreateActivityState, formData: FormData): Promise<CreateActivityState> {
+  const { tenant } = await requireRole(["admin", "gestor", "colaborador"]);
   const parsed = parseForm(activitySchema, formData);
   if (!parsed.ok) return parsed.state;
 
   const supabase = await createClient();
-  const { error } = await supabase.from("activities").insert({
-    tenant_id: tenant.id,
-    name: parsed.data.name,
-    area_id: parsed.data.areaId,
-    client_id: parsed.data.clientId ?? null,
-    billable: parsed.data.billable,
-    active: true,
-  });
+  const { data, error } = await supabase
+    .from("activities")
+    .insert({
+      tenant_id: tenant.id,
+      name: parsed.data.name,
+      area_id: parsed.data.areaId,
+      client_id: parsed.data.clientId ?? null,
+      billable: parsed.data.billable,
+      active: true,
+    })
+    .select("id, name, area_id, client_id, billable")
+    .single();
+
   if (error) {
     if (error.code === "23505") return { error: "Já existe uma atividade com esse nome para este cliente/área." };
     return { error: translateError(error) };
@@ -30,7 +45,18 @@ export async function createActivityAction(_prev: ActionState, formData: FormDat
   revalidatePath("/cadastros/atividades");
   revalidatePath("/apontamentos");
   revalidatePath("/clientes");
-  return { success: "Atividade criada." };
+  return {
+    success: "Atividade criada.",
+    createdActivity: data
+      ? {
+          id: data.id,
+          name: data.name,
+          area_id: data.area_id,
+          client_id: data.client_id,
+          billable: data.billable,
+        }
+      : undefined,
+  };
 }
 
 export async function updateActivityAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

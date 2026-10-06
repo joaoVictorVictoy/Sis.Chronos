@@ -9,7 +9,8 @@ import { ActivitiesTable, ActivityForm } from "./activities-client";
 export const metadata = { title: "Atividades | Apontamento" };
 
 export default async function ActivitiesPage() {
-  await requireRole(["admin", "gestor"]);
+  const { profile } = await requireRole(["admin", "gestor", "colaborador"]);
+  const canManage = profile.role === "admin" || profile.role === "gestor";
   const supabase = await createClient();
 
   const [{ data: activities }, { data: areas }, { data: clients }, { data: clientAreas }] = await Promise.all([
@@ -71,6 +72,7 @@ export default async function ActivitiesPage() {
             activities={(activities ?? []) as (Tables<"activities"> & { time_entries: { count: number }[] })[]}
             areas={areaOptions}
             clients={clientOptions}
+            canManage={canManage}
           />
         </CardContent>
       </Card>
