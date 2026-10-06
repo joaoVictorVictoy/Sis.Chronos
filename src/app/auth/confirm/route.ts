@@ -49,6 +49,12 @@ export async function GET(request: NextRequest) {
       message: error.message,
       status: error.status,
     });
+  } else {
+    // Quando o Supabase redireciona com tokens na hash (#access_token=...),
+    // o servidor não recebe esses dados no HTTP GET. Redirecionamos para
+    // a página de destino (ex: /redefinir-senha) para que o cliente (AuthHashHandler)
+    // processe os tokens na hash do navegador.
+    return response;
   }
 
   return NextResponse.redirect(new URL("/login?erro=link-invalido", origin));
