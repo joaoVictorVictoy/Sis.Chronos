@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { LockIcon, PencilIcon, RotateCcwIcon, XCircleIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -19,7 +20,13 @@ import { NativeCheckbox, NativeSelect } from "@/components/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { initialActionState } from "@/lib/actions";
-import { TERMINATION_REASON_LABELS, type TerminationReason } from "@/lib/contracts";
+import {
+  SUB_REASONS_BY_MAIN_REASON,
+  TERMINATION_REASON_LABELS,
+  TERMINATION_SUB_REASON_LABELS,
+  type TerminationReason,
+  type TerminationSubReason,
+} from "@/lib/contracts";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { Tables } from "@/lib/database.types";
 import { reopenContractAction, terminateContractAction } from "../actions";
@@ -36,6 +43,9 @@ export function TerminateContractDialog({
   trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState<TerminationReason>(
+    (contract.termination_reason as TerminationReason) ?? "termino_prazo"
+  );
   const [state, formAction] = useActionState(async (prev: any, formData: FormData) => {
     const result = await terminateContractAction(prev, formData);
     if (result.success) setOpen(false);
@@ -44,6 +54,7 @@ export function TerminateContractDialog({
 
   const defaultDate = contract.terminated_at || contract.end_date || today;
   const isEditing = contract.status === "encerrado";
+  const subReasons = SUB_REASONS_BY_MAIN_REASON[reason] ?? [];
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -65,7 +76,7 @@ export function TerminateContractDialog({
         <DialogHeader>
           <DialogTitle>{isEditing ? "Ajustar Dados da Rescisão" : "Encerrar ou Rescindir Contrato"}</DialogTitle>
           <DialogDescription>
-            Defina o motivo, a data de corte e eventuais valores de multa ou aviso prévio indenizado.
+            Defina o motivo estratégico, a data de corte e eventuais valores de multa ou aviso prévio indenizado.
           </DialogDescription>
         </DialogHeader>
 
@@ -73,16 +84,36 @@ export function TerminateContractDialog({
           <input type="hidden" name="contractId" value={contract.id} />
           <FormAlert state={state} />
 
-          <Field label="Motivo do encerramento" htmlFor="terminationReason" errors={state.fieldErrors?.terminationReason}>
+          <Field label="Tipo / Motivo do encerramento" htmlFor="terminationReason" errors={state.fieldErrors?.terminationReason}>
             <NativeSelect
               id="terminationReason"
               name="terminationReason"
-              defaultValue={contract.termination_reason ?? "termino_prazo"}
+              value={reason}
+              onChange={(e) => setReason(e.target.value as TerminationReason)}
               required
             >
               {Object.entries(TERMINATION_REASON_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+
+          <Field
+            label="Causa específica (Churn Analysis)"
+            htmlFor="terminationSubReason"
+            hint="Classificação para análise de gargalos operacionais e atendimento no dashboard."
+            errors={state.fieldErrors?.terminationSubReason}
+          >
+            <NativeSelect
+              id="terminationSubReason"
+              name="terminationSubReason"
+              defaultValue={contract.termination_sub_reason ?? subReasons[0]?.value ?? ""}
+            >
+              {subReasons.map((sub) => (
+                <option key={sub.value} value={sub.value}>
+                  {sub.label}
                 </option>
               ))}
             </NativeSelect>
@@ -119,14 +150,14 @@ export function TerminateContractDialog({
           <Field
             label="Observações / Justificativa"
             htmlFor="terminationNotes"
-            hint="Opcional. Registre aprendizados, alinhamentos ou motivos da rescisão."
+            hint="Opcional. Registre detalhes, aprendizados e acordos da rescisão."
             errors={state.fieldErrors?.terminationNotes}
           >
             <Textarea
               id="terminationNotes"
               name="terminationNotes"
               defaultValue={contract.termination_notes ?? ""}
-              placeholder="Ex.: Projeto concluído no prazo / Cliente optou por rescisão antecipada..."
+              placeholder="Ex.: Projeto concluído no prazo / Cliente optou por corte de custos geral..."
               rows={3}
             />
           </Field>
@@ -179,8 +210,14 @@ export function TerminationBanner({
 
   const reasonKey = contract.termination_reason as TerminationReason | null;
   const reasonLabel = reasonKey ? TERMINATION_REASON_LABELS[reasonKey] ?? reasonKey : "Não informado";
+
+  const subReasonKey = contract.termination_sub_reason as TerminationSubReason | null;
+  const subReasonLabel = subReasonKey ? TERMINATION_SUB_REASON_LABELS[subReasonKey] ?? subReasonKey : null;
+
   const cutOffDate = contract.terminated_at || contract.end_date;
   const penalty = Number(contract.termination_penalty) || 0;
+
+  const isDeliveryIssue = subReasonKey === "insatisfacao" || subReasonKey === "escopo_inviavel";
 
   return (
     <Card className="border-destructive/40 bg-destructive/5">
@@ -197,18 +234,19 @@ export function TerminationBanner({
             Motivo: <strong>{reasonLabel}</strong>
           </CardDescription>
 
-          {penalty > 0 ? (
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-              <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-emerald-800 dark:text-emerald-300 font-medium">
-                Multa / Acerto rescisório: <strong>{formatCurrency(penalty)}</strong>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+            {subReasonLabel ? (
+              <Badge variant={isDeliveryIssue ? "destructive" : "secondary"} className="text-xs">
+                {subReasonLabel}
+              </Badge>
+            ) : null}
+
+            {penalty > 0 ? (
+              <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+                Multa rescisória: <strong>{formatCurrency(penalty)}</strong>
               </span>
-              <span className="text-xs text-muted-foreground">
-                (receita extraordinária integrada ao cálculo de rentabilidade)
-              </span>
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">Nenhuma multa rescisória informada.</p>
-          )}
+            ) : null}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 self-start">

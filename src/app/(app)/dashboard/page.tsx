@@ -26,7 +26,9 @@ import {
   getProfitabilityReport,
   getTeamOperationalReport,
 } from "@/lib/server/metrics";
+import { getChurnReport } from "@/lib/server/churn";
 import { BarList, MarginEvolutionChart, MonthlyResultChart, RevenueMarginScatter } from "./charts";
+import { ChurnAnalysisCard } from "./churn-analysis";
 import { ClientsPanel, type PanelItem } from "./clients-panel";
 import { PeriodFilter } from "./period-filter";
 import { TeamOperationalView } from "./team-operational-view";
@@ -89,6 +91,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     employeeClients,
     evolution,
     teamOperationalReport,
+    churnReport,
   ] = await Promise.all([
     getEmployeeMetrics(period),
     getMissingCosts(),
@@ -98,6 +101,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     getEmployeeClientCost(period),
     getMonthlyEvolution(monthsInRange(monthsBack(period.from, 5), period.to)),
     getTeamOperationalReport(period),
+    getChurnReport(period),
   ]);
 
   const totals = report.totals;
@@ -260,6 +264,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       <TeamOperationalView report={teamOperationalReport} />
 
       <ClientsPanel items={panelItems} />
+
+      <ChurnAnalysisCard report={churnReport} />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>

@@ -309,6 +309,7 @@ export type Database = {
           expected_hours: number | null;
           status: ContractStatus;
           termination_reason: string | null;
+          termination_sub_reason: string | null;
           termination_notes: string | null;
           terminated_at: string | null;
           termination_penalty: number | null;
@@ -329,6 +330,7 @@ export type Database = {
           expected_hours?: number | null;
           status?: ContractStatus;
           termination_reason?: string | null;
+          termination_sub_reason?: string | null;
           termination_notes?: string | null;
           terminated_at?: string | null;
           termination_penalty?: number | null;
@@ -345,6 +347,7 @@ export type Database = {
           expected_hours?: number | null;
           status?: ContractStatus;
           termination_reason?: string | null;
+          termination_sub_reason?: string | null;
           termination_notes?: string | null;
           terminated_at?: string | null;
           termination_penalty?: number | null;

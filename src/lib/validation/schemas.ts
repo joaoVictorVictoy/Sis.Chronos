@@ -326,9 +326,30 @@ export const terminationReasonSchema = z.enum([
   "outro",
 ]);
 
+export const terminationSubReasonSchema = z.enum([
+  "conclusao_projeto",
+  "fim_vigencia",
+  "corte_custos",
+  "insatisfacao",
+  "trocou_fornecedor",
+  "mudanca_estrategia",
+  "inadimplencia",
+  "escopo_inviavel",
+  "rentabilidade_negativa",
+  "conflito_relacionamento",
+  "outro",
+]);
+
 export const terminateContractSchema = z.object({
   contractId: z.uuid(),
   terminationReason: terminationReasonSchema,
+  terminationSubReason: fromForm(
+    z
+      .string()
+      .trim()
+      .transform((v) => (v === "" ? null : v))
+      .pipe(terminationSubReasonSchema.nullable().optional()),
+  ),
   terminatedAt: dateSchema,
   terminationPenalty: optionalDecimalSchema.refine(
     (v) => v === null || v >= 0,

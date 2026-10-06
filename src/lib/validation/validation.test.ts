@@ -96,12 +96,29 @@ describe("rescisão e multa contratual", () => {
     }
   });
 
-  it("rejeita multa rescisória com valor negativo", () => {
+  it("valida encerramento com motivo e sub-motivo específicos de Churn", () => {
     const res = terminateContractSchema.safeParse({
       contractId: "00000000-0000-0000-0000-000000000001",
-      terminationReason: "outro",
+      terminationReason: "rescisao_cliente",
+      terminationSubReason: "insatisfacao",
       terminatedAt: "2026-10-15",
-      terminationPenalty: "-100",
+      terminationPenalty: "3.000,00",
+      terminationNotes: "Gargalo de entrega",
+      deactivateClient: "false",
+    });
+    expect(res.success).toBe(true);
+    if (res.success) {
+      expect(res.data.terminationSubReason).toBe("insatisfacao");
+      expect(res.data.terminationPenalty).toBe(3000);
+    }
+  });
+
+  it("rejeita sub-motivo inválido", () => {
+    const res = terminateContractSchema.safeParse({
+      contractId: "00000000-0000-0000-0000-000000000001",
+      terminationReason: "rescisao_cliente",
+      terminationSubReason: "motivo_inexistente",
+      terminatedAt: "2026-10-15",
       deactivateClient: "false",
     });
     expect(res.success).toBe(false);

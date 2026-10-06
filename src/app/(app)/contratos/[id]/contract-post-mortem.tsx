@@ -23,6 +23,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/session";
 import { formatCurrency, formatDate, formatHours, formatPercent, todayISO } from "@/lib/format";
+import { TERMINATION_SUB_REASON_LABELS, type TerminationSubReason } from "@/lib/contracts";
 import type { Tables } from "@/lib/database.types";
 import type { ContractMetricsRow } from "@/lib/profitability";
 
@@ -134,6 +135,12 @@ export async function ContractPostMortemCard({
               <VerdictIcon className="size-3.5" />
               {verdictTitle}
             </Badge>
+            {contract.termination_sub_reason ? (
+              <Badge variant="outline" className="text-xs">
+                {TERMINATION_SUB_REASON_LABELS[contract.termination_sub_reason as TerminationSubReason] ??
+                  contract.termination_sub_reason}
+              </Badge>
+            ) : null}
           </div>
           <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">
             Relatório Post-Mortem de Rentabilidade
