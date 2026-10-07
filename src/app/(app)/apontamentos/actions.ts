@@ -24,11 +24,20 @@ function entryPayload(data: z.output<typeof timeEntrySchema>): { minutes: number
 }
 
 export async function createTimeEntryAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const { tenant, employeeId } = await requireContext();
-  if (!employeeId) return { error: "Seu usuário não está vinculado a um colaborador. Fale com o administrador." };
+  const { tenant, employeeId: loggedEmployeeId, profile } = await requireContext();
+  const isManagerUser = profile.role === "admin" || profile.role === "gestor";
 
   const parsed = parseForm(timeEntrySchema, formData);
   if (!parsed.ok) return parsed.state;
+
+  let targetEmployeeId = loggedEmployeeId;
+  if (isManagerUser && parsed.data.employeeId) {
+    targetEmployeeId = parsed.data.employeeId;
+  }
+
+  if (!targetEmployeeId) {
+    return { error: "Seu usuário não está vinculado a um colaborador e nenhum colaborador foi selecionado." };
+  }
 
   const computed = entryPayload(parsed.data);
   if ("error" in computed) return { error: computed.error };
@@ -36,9 +45,9 @@ export async function createTimeEntryAction(_prev: ActionState, formData: FormDa
   const supabase = await createClient();
 
   // Bloqueia colaborador desativado
-  const { data: employee } = await supabase.from("employees").select("active").eq("id", employeeId).single();
+  const { data: employee } = await supabase.from("employees").select("active").eq("id", targetEmployeeId).single();
   if (employee && !employee.active) {
-    return { error: "Seu cadastro de colaborador está inativo. Novos apontamentos estão bloqueados." };
+    return { error: "O cadastro do colaborador selecionado está inativo. Novos apontamentos estão bloqueados." };
   }
 
   // Vincula automaticamente o contrato ativo do cliente se não tiver sido passado
@@ -97,7 +106,7 @@ export async function createTimeEntryAction(_prev: ActionState, formData: FormDa
 
   const { error } = await supabase.from("time_entries").insert({
     tenant_id: tenant.id,
-    employee_id: employeeId,
+    employee_id: targetEmployeeId,
     client_id: clientId,
     contract_id: contractId,
     activity_id: parsed.data.activityId,

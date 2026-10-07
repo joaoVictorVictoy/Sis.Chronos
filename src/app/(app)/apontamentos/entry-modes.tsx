@@ -4,7 +4,7 @@ import { useState } from "react";
 import { PencilLineIcon, TimerIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { ActivityOption, AreaOption, ClientAreaOption, ClientOption, ContractOption } from "./page";
+import type { ActivityOption, AreaOption, ClientAreaOption, ClientOption, ContractOption, EmployeeOption } from "./page";
 import { EntryForm } from "./entry-form";
 import { TimerCard } from "./timer-card";
 
@@ -24,6 +24,10 @@ export function EntryModes({
   clientAreas,
   today,
   lockedThrough,
+  employees,
+  selectedEmployeeId,
+  currentEmployeeId,
+  isManagerUser,
 }: {
   clients: ClientOption[];
   areas: AreaOption[];
@@ -32,6 +36,10 @@ export function EntryModes({
   clientAreas: ClientAreaOption[];
   today: string;
   lockedThrough: string | null;
+  employees?: EmployeeOption[];
+  selectedEmployeeId?: string;
+  currentEmployeeId?: string | null;
+  isManagerUser?: boolean;
 }) {
   const [mode, setMode] = useState<Mode>("cronometro");
 
@@ -90,6 +98,10 @@ export function EntryModes({
             contracts={contracts}
             clientAreas={clientAreas}
             today={today}
+            employees={employees}
+            selectedEmployeeId={selectedEmployeeId}
+            currentEmployeeId={currentEmployeeId}
+            isManagerUser={isManagerUser}
           />
         )}
       </CardContent>

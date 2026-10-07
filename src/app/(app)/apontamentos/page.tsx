@@ -40,13 +40,41 @@ export type ClientAreaOption = {
   areaId: string;
 };
 
+export type EmployeeOption = {
+  id: string;
+  name: string;
+  active: boolean;
+};
+
+export type TimeEntryWithEmployee = Tables<"time_entries"> & {
+  employees?: { id: string; full_name: string } | null;
+};
+
 export default async function TimeEntriesPage({ searchParams }: PageProps<"/apontamentos">) {
-  const { semana } = await searchParams;
+  const { semana, colaborador } = await searchParams;
   const { tenant, profile, employeeId } = await requireContext();
+  const isManagerUser = profile.role === "admin" || profile.role === "gestor";
   const today = todayISO();
   const weekStart = startOfWeek(typeof semana === "string" && /^\d{4}-\d{2}-\d{2}$/.test(semana) ? semana : today);
   const days = weekDays(weekStart);
   const supabase = await createClient();
+
+  if (!employeeId && !isManagerUser) {
+    return (
+      <div className="grid gap-6">
+        <PageHeader title="Apontamentos" />
+        <Card>
+          <CardHeader>
+            <CardTitle>Sem cadastro de colaborador</CardTitle>
+            <CardDescription>
+              Seu login ainda não está vinculado a um colaborador, então não é possível apontar horas. Peça ao
+              administrador para vincular seu cadastro em Colaboradores.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
 
   const [
     { data: contractsData },
@@ -55,7 +83,7 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
     { data: activitiesData },
     { data: clientAreasData },
     { data: lock },
-    { data: entries },
+    { data: employeesData },
   ] = await Promise.all([
     supabase.from("contract_options").select("id, name, client_id, status").eq("status", "ativo").order("name"),
     supabase.from("clients").select("id, legal_name, trade_name").eq("active", true).order("legal_name"),
@@ -63,16 +91,44 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
     supabase.from("activities").select("id, name, billable, area_id, client_id").eq("active", true).order("name"),
     supabase.from("client_areas").select("client_id, area_id"),
     supabase.from("period_locks").select("locked_through").maybeSingle(),
-    employeeId
-      ? supabase
-          .from("time_entries")
-          .select("*")
-          .eq("employee_id", employeeId)
-          .gte("entry_date", days[0])
-          .lte("entry_date", days[6])
-          .order("entry_date")
+    isManagerUser
+      ? supabase.from("employees").select("id, full_name, active").order("full_name")
       : Promise.resolve({ data: [] }),
   ]);
+
+  const employees: EmployeeOption[] = (employeesData ?? []).map((e) => ({
+    id: e.id,
+    name: e.full_name,
+    active: e.active,
+  }));
+
+  // Resolução do colaborador selecionado para filtro da semana
+  let selectedEmployeeId: string = "todos";
+  if (isManagerUser) {
+    if (typeof colaborador === "string" && colaborador) {
+      selectedEmployeeId = colaborador;
+    } else if (employeeId) {
+      selectedEmployeeId = employeeId;
+    } else {
+      selectedEmployeeId = "todos";
+    }
+  } else {
+    selectedEmployeeId = employeeId!;
+  }
+
+  // Busca de apontamentos
+  let entriesQuery = supabase
+    .from("time_entries")
+    .select("*, employees(id, full_name)")
+    .gte("entry_date", days[0])
+    .lte("entry_date", days[6])
+    .order("entry_date");
+
+  if (selectedEmployeeId !== "todos") {
+    entriesQuery = entriesQuery.eq("employee_id", selectedEmployeeId);
+  }
+
+  const { data: entries } = await entriesQuery;
 
   const clientMap = new Map((clientsData ?? []).map((c) => [c.id, c.trade_name || c.legal_name]));
 
@@ -108,23 +164,6 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
 
   const lockedThrough = lock?.locked_through ?? null;
 
-  if (!employeeId) {
-    return (
-      <div className="grid gap-6">
-        <PageHeader title="Apontamentos" />
-        <Card>
-          <CardHeader>
-            <CardTitle>Sem cadastro de colaborador</CardTitle>
-            <CardDescription>
-              Seu login ainda não está vinculado a um colaborador, então não é possível apontar horas. Peça ao
-              administrador para vincular seu cadastro em Colaboradores.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="grid gap-6">
       <PageHeader
@@ -140,12 +179,16 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
         clientAreas={clientAreaOptions}
         today={today}
         lockedThrough={lockedThrough}
+        employees={employees}
+        selectedEmployeeId={selectedEmployeeId}
+        currentEmployeeId={employeeId ?? null}
+        isManagerUser={isManagerUser}
       />
 
       <WeekEntries
         weekStart={weekStart}
         days={days}
-        entries={(entries ?? []) as Tables<"time_entries">[]}
+        entries={(entries ?? []) as TimeEntryWithEmployee[]}
         clients={clientOptions}
         areas={areaOptions}
         activities={activityOptions}
@@ -155,6 +198,9 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
         lockedThrough={lockedThrough}
         today={today}
         role={profile.role}
+        employees={employees}
+        selectedEmployeeId={selectedEmployeeId}
+        currentEmployeeId={employeeId ?? null}
       />
     </div>
   );
