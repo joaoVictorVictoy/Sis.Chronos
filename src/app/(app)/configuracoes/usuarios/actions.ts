@@ -94,33 +94,69 @@ export async function updateMemberAction(_prev: ActionState, formData: FormData)
   const parsed = parseForm(updateMemberSchema, formData);
   if (!parsed.ok) return parsed.state;
 
-  const supabase = await createClient();
   const canViewCosts = parsed.data.role === "gestor" ? Boolean(parsed.data.canViewCosts) : false;
   const active = Boolean(parsed.data.active);
 
-  const { error: rpcError } = await supabase.rpc("admin_update_member", {
-    p_profile_id: parsed.data.profileId,
-    p_role: parsed.data.role,
-    p_can_view_costs: canViewCosts,
-    p_active: active,
-  });
+  let adminClient;
+  try {
+    adminClient = createAdminClient();
+  } catch {
+    adminClient = null;
+  }
 
-  if (rpcError) {
-    // Fallback: se o RPC falhar por restrição de contexto ou cache de schema, realiza o update direto validando o tenant
-    const { error: directError } = await supabase
+  const client = adminClient ?? (await createClient());
+
+  // 1. Valida se o membro pertence à mesma empresa
+  const { data: targetMember, error: fetchError } = await client
+    .from("profiles")
+    .select("id, role, active, tenant_id")
+    .eq("id", parsed.data.profileId)
+    .eq("tenant_id", profile.tenant_id)
+    .maybeSingle();
+
+  if (fetchError || !targetMember) {
+    return { error: "Membro não encontrado na sua empresa." };
+  }
+
+  // 2. Proteção: a empresa precisa de pelo menos 1 admin ativo
+  if (
+    targetMember.role === "admin" &&
+    targetMember.active &&
+    (parsed.data.role !== "admin" || !active)
+  ) {
+    const { count, error: countError } = await client
       .from("profiles")
-      .update({
-        role: parsed.data.role,
-        can_view_costs: canViewCosts,
-        active: active,
-      })
-      .eq("id", parsed.data.profileId)
-      .eq("tenant_id", profile.tenant_id);
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", profile.tenant_id)
+      .eq("role", "admin")
+      .eq("active", true);
 
-    if (directError) {
-      return { error: translateError(rpcError || directError) };
+    if (!countError && (count ?? 0) <= 1) {
+      return { error: "A empresa precisa de pelo menos um administrador ativo." };
     }
   }
+
+  // 3. Executa a atualização
+  const { error: updateError } = await client
+    .from("profiles")
+    .update({
+      role: parsed.data.role,
+      can_view_costs: canViewCosts,
+      active: active,
+    })
+    .eq("id", parsed.data.profileId)
+    .eq("tenant_id", profile.tenant_id);
+
+  if (updateError) {
+    return { error: translateError(updateError) };
+  }
+
+  // Sincroniza status ativo na tabela de colaboradores se existir vínculo
+  await client
+    .from("employees")
+    .update({ active: active })
+    .eq("profile_id", parsed.data.profileId)
+    .eq("tenant_id", profile.tenant_id);
 
   revalidatePath("/configuracoes/usuarios");
   revalidatePath("/", "layout");
