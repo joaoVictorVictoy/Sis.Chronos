@@ -279,18 +279,18 @@ function EntryRow({
             )
           ) : (
             /* Quando NÃO há solicitação de exclusão */
-            <>
+            <div className="flex items-center gap-0.5">
               {canEdit ? (
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant="ghost"
+                  size="icon-sm"
+                  type="button"
                   onClick={() => setEditing(true)}
                   aria-label="Alterar apontamento"
                   title="Alterar dados deste apontamento"
-                  className="h-7 gap-1 px-2.5 text-xs font-medium"
+                  className="text-muted-foreground hover:text-foreground hover:bg-muted/80"
                 >
-                  <PencilIcon className="size-3" />
-                  <span>Alterar</span>
+                  <PencilIcon className="size-3.5" />
                 </Button>
               ) : null}
 
@@ -306,33 +306,31 @@ function EntryRow({
                   >
                     <input type="hidden" name="id" value={entry.id} />
                     <Button
-                      variant="outline"
-                      size="sm"
+                      variant="ghost"
+                      size="icon-sm"
                       type="submit"
                       aria-label="Apagar apontamento"
-                      title="Apagar apontamento diretamente (dentro do prazo de 24h)"
-                      className="h-7 gap-1 px-2.5 text-xs font-medium text-destructive hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                      title="Apagar apontamento diretamente"
+                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                     >
-                      <Trash2Icon className="size-3" />
-                      <span>Apagar</span>
+                      <Trash2Icon className="size-3.5" />
                     </Button>
                   </form>
                 ) : (
                   <Button
-                    variant="outline"
-                    size="sm"
+                    variant="ghost"
+                    size="icon-sm"
                     type="button"
                     onClick={() => setRequestingDeletion(true)}
-                    aria-label="Apagar apontamento"
-                    title="Passou de 24 horas: solicitar aprovação do gestor/administrador para apagar"
-                    className="h-7 gap-1 px-2.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/10"
+                    aria-label="Solicitar exclusão do apontamento"
+                    title="Passou de 24 horas: solicitar aprovação do gestor para apagar"
+                    className="text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-500/10"
                   >
-                    <Trash2Icon className="size-3" />
-                    <span>Apagar</span>
+                    <Trash2Icon className="size-3.5" />
                   </Button>
                 )
               ) : null}
-            </>
+            </div>
           )}
         </div>
       </div>
