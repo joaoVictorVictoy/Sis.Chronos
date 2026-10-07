@@ -9,6 +9,8 @@ import { createClient } from "@/lib/supabase/server";
 import { formatCurrency, formatHours } from "@/lib/format";
 import type { Tables } from "@/lib/database.types";
 import { NewEmployeeForm, EmployeeStatusToggle } from "./employees-client";
+import { EmployeeLeavesManager } from "./employee-leaves-manager";
+import type { LeaveRecord } from "../minhas-analises/leaves-dialog";
 
 export const metadata = { title: "Colaboradores | Apontamento" };
 
@@ -20,12 +22,19 @@ export default async function EmployeesPage() {
   const { tenant, profile } = await requireRole(["admin", "gestor"]);
   const supabase = await createClient();
 
-  const { data } = await supabase
-    .from("employees")
-    .select("*, employee_costs(hourly_cost, valid_from, valid_to, monthly_hours)")
-    .order("full_name");
+  const [{ data: employeesData }, { data: leavesData }] = await Promise.all([
+    supabase
+      .from("employees")
+      .select("*, employee_costs(hourly_cost, valid_from, valid_to, monthly_hours)")
+      .order("full_name"),
+    supabase
+      .from("employee_leaves")
+      .select("id, start_date, end_date, type, notes, employee_id")
+      .order("start_date", { ascending: false }),
+  ]);
 
-  const employees = (data ?? []) as EmployeeRow[];
+  const employees = (employeesData ?? []) as EmployeeRow[];
+  const leaves = (leavesData ?? []) as LeaveRecord[];
   const canSeeCosts = profile.role === "admin" || profile.can_view_costs;
 
   return (
@@ -141,6 +150,15 @@ export default async function EmployeesPage() {
           )}
         </CardContent>
       </Card>
+
+      <EmployeeLeavesManager
+        employees={employees.map((e) => ({
+          id: e.id,
+          full_name: e.full_name,
+          active: e.active,
+        }))}
+        leaves={leaves}
+      />
     </div>
   );
 }

@@ -9,6 +9,8 @@ import { createClient } from "@/lib/supabase/server";
 import { todayISO } from "@/lib/format";
 import type { Tables } from "@/lib/database.types";
 import { CostHistory, EmployeeAreasForm, EmployeeDetailsForm, GrantAccessForm, NewCostForm } from "./employee-detail";
+import { EmployeeLeavesManager } from "../employee-leaves-manager";
+import type { LeaveRecord } from "../../minhas-analises/leaves-dialog";
 
 export const metadata = { title: "Colaborador | Apontamento" };
 
@@ -17,11 +19,22 @@ export default async function EmployeePage({ params }: PageProps<"/colaboradores
   const { tenant, profile } = await requireRole(["admin", "gestor"]);
   const supabase = await createClient();
 
-  const [{ data: employee }, { data: areas }, { data: employeeAreas }, { data: invitation }] = await Promise.all([
+  const [
+    { data: employee },
+    { data: areas },
+    { data: employeeAreas },
+    { data: invitation },
+    { data: leaves },
+  ] = await Promise.all([
     supabase.from("employees").select("*").eq("id", id).maybeSingle(),
     supabase.from("areas").select("id, name, active").order("name"),
     supabase.from("employee_areas").select("area_id").eq("employee_id", id),
     supabase.from("invitations").select("email, role, created_at").eq("employee_id", id).is("accepted_at", null).maybeSingle(),
+    supabase
+      .from("employee_leaves")
+      .select("id, start_date, end_date, type, notes, employee_id")
+      .eq("employee_id", id)
+      .order("start_date", { ascending: false }),
   ]);
 
   if (!employee) notFound();
@@ -72,6 +85,12 @@ export default async function EmployeePage({ params }: PageProps<"/colaboradores
           </CardContent>
         </Card>
       </div>
+
+      <EmployeeLeavesManager
+        employees={[{ id: employee.id, full_name: employee.full_name, active: employee.active }]}
+        leaves={(leaves ?? []) as LeaveRecord[]}
+        defaultEmployeeId={employee.id}
+      />
 
       {canSeeCosts ? (
         <Card>
