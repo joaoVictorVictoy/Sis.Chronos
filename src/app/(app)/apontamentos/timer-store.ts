@@ -11,6 +11,8 @@ export type TimerState = {
   /** Momento (ms) do início/retomada; null = pausado. */
   startedAt: number | null;
   contractId: string;
+  clientId?: string;
+  areaId?: string;
   activityId: string;
   description: string;
 };
@@ -19,6 +21,8 @@ export const EMPTY_TIMER: TimerState = {
   elapsed: 0,
   startedAt: null,
   contractId: "",
+  clientId: "",
+  areaId: "",
   activityId: "",
   description: "",
 };

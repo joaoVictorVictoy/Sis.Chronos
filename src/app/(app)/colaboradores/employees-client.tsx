@@ -25,7 +25,7 @@ export function NewEmployeeForm({ defaultMonthlyHours }: { defaultMonthlyHours: 
         <Field
           label="Horas/mês"
           htmlFor="monthlyHours"
-          hint={`Padrão: ${defaultMonthlyHours.toLocaleString("pt-BR")}h`}
+          hint={`Padrão: ${defaultMonthlyHours.toLocaleString("pt-BR")}h/mês (≈ ${(defaultMonthlyHours / 21).toFixed(1).replace(".", ",")}h/dia)`}
           errors={state.fieldErrors?.monthlyHours}
         >
           <Input id="monthlyHours" name="monthlyHours" inputMode="decimal" placeholder={String(defaultMonthlyHours)} />

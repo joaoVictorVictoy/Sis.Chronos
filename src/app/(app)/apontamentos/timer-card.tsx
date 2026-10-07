@@ -27,6 +27,27 @@ function formatClock(totalSeconds: number) {
   return [h, m, sec].map((n) => n.toString().padStart(2, "0")).join(":");
 }
 
+export interface TimerCardProps {
+  clients: ClientOption[];
+  areas: AreaOption[];
+  activities: ActivityOption[];
+  contracts: ContractOption[];
+  clientAreas: ClientAreaOption[];
+  today: string;
+  idPrefix?: string;
+  selectedClientId?: string;
+  onClientChange?: (id: string) => void;
+  selectedAreaId?: string;
+  onAreaChange?: (id: string) => void;
+  selectedActivityId?: string;
+  onActivityChange?: (id: string) => void;
+  description?: string;
+  onDescriptionChange?: (desc: string) => void;
+  entryDate?: string;
+  onEntryDateChange?: (date: string) => void;
+  onSuccess?: () => void;
+}
+
 export function TimerCard({
   clients,
   areas,
@@ -34,23 +55,57 @@ export function TimerCard({
   contracts,
   clientAreas,
   today,
-}: {
-  clients: ClientOption[];
-  areas: AreaOption[];
-  activities: ActivityOption[];
-  contracts: ContractOption[];
-  clientAreas: ClientAreaOption[];
-  today: string;
-}) {
+  idPrefix = "timer-",
+  selectedClientId,
+  onClientChange,
+  selectedAreaId,
+  onAreaChange,
+  selectedActivityId,
+  onActivityChange,
+  description: controlledDescription,
+  onDescriptionChange,
+  entryDate: controlledEntryDate,
+  onSuccess,
+}: TimerCardProps) {
   const raw = useSyncExternalStore(subscribeTimer, getTimerSnapshot, getTimerServerSnapshot);
   const timer = useMemo(() => parseTimer(raw), [raw]);
   const [now, setNow] = useState(() => Date.now());
   const formRef = useRef<HTMLFormElement>(null);
 
+  const isControlledDescription = controlledDescription !== undefined;
+  const isControlledEntryDate = controlledEntryDate !== undefined;
+  const currentDescription = isControlledDescription ? (controlledDescription ?? "") : timer.description;
+  const currentEntryDate = isControlledEntryDate ? (controlledEntryDate ?? today) : today;
+
+  const handleClientChange = (cId: string) => {
+    onClientChange?.(cId);
+    const contract = contracts.find((c) => c.clientId === cId);
+    saveTimer({ ...timer, clientId: cId, contractId: contract?.id ?? "" });
+  };
+
+  const handleAreaChange = (aId: string) => {
+    onAreaChange?.(aId);
+    saveTimer({ ...timer, areaId: aId });
+  };
+
+  const handleActivityChange = (actId: string) => {
+    onActivityChange?.(actId);
+    saveTimer({ ...timer, activityId: actId });
+  };
+
+  const handleDescriptionChange = (desc: string) => {
+    if (isControlledDescription) onDescriptionChange?.(desc);
+    saveTimer({ ...timer, description: desc });
+  };
+
   // Zera o cronômetro quando o apontamento é criado com sucesso
   const [state, formAction] = useActionState(async (prev: ActionState, formData: FormData) => {
     const result = await createTimeEntryAction(prev, formData);
-    if (result.success) saveTimer(EMPTY_TIMER);
+    if (result.success) {
+      saveTimer(EMPTY_TIMER);
+      if (isControlledDescription) onDescriptionChange?.("");
+      onSuccess?.();
+    }
     return result;
   }, initialActionState);
 
@@ -100,7 +155,14 @@ export function TimerCard({
             Parar e lançar
           </Button>
           {seconds > 0 ? (
-            <Button type="button" variant="ghost" onClick={() => saveTimer(EMPTY_TIMER)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                saveTimer(EMPTY_TIMER);
+                if (isControlledDescription) onDescriptionChange?.("");
+              }}
+            >
               Descartar
             </Button>
           ) : null}
@@ -108,29 +170,37 @@ export function TimerCard({
       </div>
 
       <form ref={formRef} action={formAction} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <input type="hidden" name="entryDate" value={today} />
+        <input type="hidden" name="entryDate" value={currentEntryDate} />
         <input type="hidden" name="duration" value={`${minutes}m`} />
 
         <CascadeSelectors
+          idPrefix={idPrefix}
           clients={clients}
           areas={areas}
           activities={activities}
           contracts={contracts}
           clientAreas={clientAreas}
+          selectedClientId={selectedClientId}
+          onClientChange={handleClientChange}
+          selectedAreaId={selectedAreaId}
+          onAreaChange={handleAreaChange}
+          selectedActivityId={selectedActivityId}
+          onActivityChange={handleActivityChange}
           defaultContractId={timer.contractId}
           defaultActivityId={timer.activityId}
         />
 
         <div className="grid gap-1.5">
           <div className="flex h-5 items-center">
-            <Label htmlFor="timerDescription">Descrição</Label>
+            <Label htmlFor={`${idPrefix}description`}>Descrição</Label>
           </div>
           <div className="flex gap-2">
             <Input
-              id="timerDescription"
+              id={`${idPrefix}description`}
               name="description"
               className="h-9"
-              defaultValue={timer.description}
+              value={currentDescription}
+              onChange={(e) => handleDescriptionChange(e.target.value)}
               placeholder="No que você está trabalhando"
             />
             <SubmitButton variant="outline" className="h-9 shrink-0">

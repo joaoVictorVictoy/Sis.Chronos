@@ -17,6 +17,16 @@ const dateTime = new Intl.DateTimeFormat(APP_LOCALE, {
   year: "numeric",
   hour: "2-digit",
   minute: "2-digit",
+  hour12: false,
+  hourCycle: "h23",
+});
+
+const timeOnly = new Intl.DateTimeFormat(APP_LOCALE, {
+  timeZone: APP_TIMEZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  hourCycle: "h23",
 });
 
 export function formatCurrency(value: number | null | undefined): string {
@@ -58,6 +68,14 @@ export function formatDate(value: string | Date | null | undefined): string {
 export function formatDateTime(value: string | Date | null | undefined): string {
   if (!value) return "";
   return dateTime.format(typeof value === "string" ? new Date(value) : value);
+}
+
+export function formatTime24(value: string | Date | null | undefined): string {
+  if (!value) return "";
+  if (typeof value === "string" && /^\d{2}:\d{2}/.test(value)) {
+    return value.slice(0, 5);
+  }
+  return timeOnly.format(typeof value === "string" ? new Date(value) : value);
 }
 
 /** Data de hoje (aaaa-mm-dd) no fuso de São Paulo. */

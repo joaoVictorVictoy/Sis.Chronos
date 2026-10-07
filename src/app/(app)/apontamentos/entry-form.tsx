@@ -1,14 +1,35 @@
 "use client";
 
-import { useActionState, useCallback, useMemo, useState } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/native-select";
 import { Field, FormAlert, SubmitButton } from "@/components/form";
-import { initialActionState } from "@/lib/actions";
+import { initialActionState, type ActionState } from "@/lib/actions";
+import { TimeInput24h } from "@/components/time-input-24h";
 import type { ActivityOption, AreaOption, ClientAreaOption, ClientOption, ContractOption } from "./page";
 import { createTimeEntryAction } from "./actions";
 import { QuickActivityDialog } from "./quick-activity-dialog";
+
+export interface CascadeSelectorsProps {
+  clients: ClientOption[];
+  areas: AreaOption[];
+  activities: ActivityOption[];
+  contracts: ContractOption[];
+  clientAreas: ClientAreaOption[];
+  idPrefix?: string;
+  selectedClientId?: string;
+  onClientChange?: (id: string) => void;
+  selectedAreaId?: string;
+  onAreaChange?: (id: string) => void;
+  selectedActivityId?: string;
+  onActivityChange?: (id: string) => void;
+  defaultClientId?: string | null;
+  defaultAreaId?: string | null;
+  defaultActivityId?: string | null;
+  defaultContractId?: string | null;
+  disabled?: boolean;
+}
 
 export function CascadeSelectors({
   clients,
@@ -16,37 +37,60 @@ export function CascadeSelectors({
   activities,
   contracts,
   clientAreas,
+  idPrefix = "",
+  selectedClientId: controlledClientId,
+  onClientChange,
+  selectedAreaId: controlledAreaId,
+  onAreaChange,
+  selectedActivityId: controlledActivityId,
+  onActivityChange,
   defaultClientId,
   defaultAreaId,
   defaultActivityId,
   defaultContractId,
   disabled,
-}: {
-  clients: ClientOption[];
-  areas: AreaOption[];
-  activities: ActivityOption[];
-  contracts: ContractOption[];
-  clientAreas: ClientAreaOption[];
-  defaultClientId?: string | null;
-  defaultAreaId?: string | null;
-  defaultActivityId?: string | null;
-  defaultContractId?: string | null;
-  disabled?: boolean;
-}) {
+}: CascadeSelectorsProps) {
+  const isControlledClient = controlledClientId !== undefined;
+  const isControlledArea = controlledAreaId !== undefined;
+  const isControlledActivity = controlledActivityId !== undefined;
+
   // Inicialização inteligente: se o contrato foi passado, busca o cliente desse contrato
   const initialClientId =
     defaultClientId ??
     (defaultContractId ? contracts.find((c) => c.id === defaultContractId)?.clientId ?? "" : "");
-  const [selectedClientId, setSelectedClientId] = useState<string>(initialClientId);
+  const [internalClientId, setInternalClientId] = useState<string>(initialClientId);
 
   // Se a atividade foi passada, busca a área dela
   const initialAreaId =
     defaultAreaId ??
     (defaultActivityId ? activities.find((a) => a.id === defaultActivityId)?.area_id ?? "" : "");
-  const [selectedAreaId, setSelectedAreaId] = useState<string>(initialAreaId);
+  const [internalAreaId, setInternalAreaId] = useState<string>(initialAreaId);
 
-  const [selectedActivityId, setSelectedActivityId] = useState<string>(defaultActivityId ?? "");
+  const [internalActivityId, setInternalActivityId] = useState<string>(defaultActivityId ?? "");
   const [extraActivities, setExtraActivities] = useState<ActivityOption[]>([]);
+
+  // Sincroniza se default mudar externamente no modo não-controlado
+  useEffect(() => {
+    if (!isControlledClient && defaultClientId !== undefined && defaultClientId !== null) {
+      setInternalClientId(defaultClientId);
+    }
+  }, [isControlledClient, defaultClientId]);
+
+  useEffect(() => {
+    if (!isControlledArea && defaultAreaId !== undefined && defaultAreaId !== null) {
+      setInternalAreaId(defaultAreaId);
+    }
+  }, [isControlledArea, defaultAreaId]);
+
+  useEffect(() => {
+    if (!isControlledActivity && defaultActivityId !== undefined && defaultActivityId !== null) {
+      setInternalActivityId(defaultActivityId);
+    }
+  }, [isControlledActivity, defaultActivityId]);
+
+  const selectedClientId = isControlledClient ? (controlledClientId ?? "") : internalClientId;
+  const selectedAreaId = isControlledArea ? (controlledAreaId ?? "") : internalAreaId;
+  const selectedActivityId = isControlledActivity ? (controlledActivityId ?? "") : internalActivityId;
 
   const allActivities = useMemo(() => {
     if (extraActivities.length === 0) return activities;
@@ -99,7 +143,11 @@ export function CascadeSelectors({
   }, [selectedAreaId, selectedClientId, filterActivities]);
 
   const handleClientChange = (newClientId: string) => {
-    setSelectedClientId(newClientId);
+    if (isControlledClient) {
+      onClientChange?.(newClientId);
+    } else {
+      setInternalClientId(newClientId);
+    }
 
     // Identifica as áreas válidas para o novo cliente
     let newAvailableAreas = areas;
@@ -115,23 +163,53 @@ export function CascadeSelectors({
     let targetAreaId = selectedAreaId;
     if (!newAvailableAreas.some((a) => a.id === selectedAreaId)) {
       targetAreaId = newAvailableAreas[0]?.id ?? "";
-      setSelectedAreaId(targetAreaId);
+      if (isControlledArea) {
+        onAreaChange?.(targetAreaId);
+      } else {
+        setInternalAreaId(targetAreaId);
+      }
     }
 
     // Atualiza atividade para condizer com o novo cliente + área
     const newActs = filterActivities(targetAreaId, newClientId);
     if (!newActs.some((act) => act.id === selectedActivityId)) {
-      setSelectedActivityId(newActs[0]?.id ?? "");
+      const nextActId = newActs[0]?.id ?? "";
+      if (isControlledActivity) {
+        onActivityChange?.(nextActId);
+      } else {
+        setInternalActivityId(nextActId);
+      }
     }
   };
 
   const handleAreaChange = (newAreaId: string) => {
-    setSelectedAreaId(newAreaId);
+    if (isControlledArea) {
+      onAreaChange?.(newAreaId);
+    } else {
+      setInternalAreaId(newAreaId);
+    }
     const newActs = filterActivities(newAreaId, selectedClientId);
     if (!newActs.some((act) => act.id === selectedActivityId)) {
-      setSelectedActivityId(newActs[0]?.id ?? "");
+      const nextActId = newActs[0]?.id ?? "";
+      if (isControlledActivity) {
+        onActivityChange?.(nextActId);
+      } else {
+        setInternalActivityId(nextActId);
+      }
     }
   };
+
+  const handleActivityChange = (newActId: string) => {
+    if (isControlledActivity) {
+      onActivityChange?.(newActId);
+    } else {
+      setInternalActivityId(newActId);
+    }
+  };
+
+  const clientIdAttr = `${idPrefix}clientId`;
+  const areaIdAttr = `${idPrefix}areaId`;
+  const activityIdAttr = `${idPrefix}activityId`;
 
   return (
     <>
@@ -140,7 +218,7 @@ export function CascadeSelectors({
       {/* 1. Cliente */}
       <div className="grid gap-1.5">
         <div className="flex h-5 items-center justify-between gap-1">
-          <Label htmlFor="clientId">Cliente</Label>
+          <Label htmlFor={clientIdAttr}>Cliente</Label>
           {activeContract ? (
             <span className="text-[11px] text-muted-foreground truncate max-w-[140px]" title={activeContract.name}>
               Contrato: <strong className="font-medium text-foreground">{activeContract.name}</strong>
@@ -150,7 +228,7 @@ export function CascadeSelectors({
           ) : null}
         </div>
         <NativeSelect
-          id="clientId"
+          id={clientIdAttr}
           name="clientId"
           value={selectedClientId}
           onChange={(e) => handleClientChange(e.target.value)}
@@ -168,10 +246,10 @@ export function CascadeSelectors({
       {/* 2. Área de Atuação */}
       <div className="grid gap-1.5">
         <div className="flex h-5 items-center">
-          <Label htmlFor="areaId">Área de atuação</Label>
+          <Label htmlFor={areaIdAttr}>Área de atuação</Label>
         </div>
         <NativeSelect
-          id="areaId"
+          id={areaIdAttr}
           name="areaId"
           value={selectedAreaId}
           onChange={(e) => handleAreaChange(e.target.value)}
@@ -192,7 +270,7 @@ export function CascadeSelectors({
       {/* 3. Atividade */}
       <div className="grid gap-1.5">
         <div className="flex h-5 items-center justify-between gap-1">
-          <Label htmlFor="activityId">Atividade</Label>
+          <Label htmlFor={activityIdAttr}>Atividade</Label>
           <QuickActivityDialog
             clients={clients}
             areas={availableAreas.length > 0 ? availableAreas : areas}
@@ -208,16 +286,19 @@ export function CascadeSelectors({
               if (newAct.client_id && newAct.client_id !== selectedClientId) {
                 handleClientChange(newAct.client_id);
               }
-              setSelectedAreaId(newAct.area_id);
-              setSelectedActivityId(newAct.id);
+              if (isControlledArea) onAreaChange?.(newAct.area_id);
+              else setInternalAreaId(newAct.area_id);
+
+              if (isControlledActivity) onActivityChange?.(newAct.id);
+              else setInternalActivityId(newAct.id);
             }}
           />
         </div>
         <NativeSelect
-          id="activityId"
+          id={activityIdAttr}
           name="activityId"
           value={selectedActivityId}
-          onChange={(e) => setSelectedActivityId(e.target.value)}
+          onChange={(e) => handleActivityChange(e.target.value)}
           disabled={disabled || !selectedAreaId}
           required
         >
@@ -240,6 +321,35 @@ export function CascadeSelectors({
   );
 }
 
+export interface EntryFormProps {
+  clients: ClientOption[];
+  areas: AreaOption[];
+  activities: ActivityOption[];
+  contracts: ContractOption[];
+  clientAreas: ClientAreaOption[];
+  today: string;
+  idPrefix?: string;
+  selectedClientId?: string;
+  onClientChange?: (id: string) => void;
+  selectedAreaId?: string;
+  onAreaChange?: (id: string) => void;
+  selectedActivityId?: string;
+  onActivityChange?: (id: string) => void;
+  description?: string;
+  onDescriptionChange?: (val: string) => void;
+  entryDate?: string;
+  onEntryDateChange?: (val: string) => void;
+  duration?: string;
+  onDurationChange?: (val: string) => void;
+  startTime?: string;
+  onStartTimeChange?: (val: string) => void;
+  endTime?: string;
+  onEndTimeChange?: (val: string) => void;
+  useInterval?: boolean;
+  onUseIntervalChange?: (val: boolean) => void;
+  onSuccess?: () => void;
+}
+
 export function EntryForm({
   clients,
   areas,
@@ -247,16 +357,92 @@ export function EntryForm({
   contracts,
   clientAreas,
   today,
-}: {
-  clients: ClientOption[];
-  areas: AreaOption[];
-  activities: ActivityOption[];
-  contracts: ContractOption[];
-  clientAreas: ClientAreaOption[];
-  today: string;
-}) {
-  const [state, formAction] = useActionState(createTimeEntryAction, initialActionState);
-  const [useInterval, setUseInterval] = useState(false);
+  idPrefix = "manual-",
+  selectedClientId,
+  onClientChange,
+  selectedAreaId,
+  onAreaChange,
+  selectedActivityId,
+  onActivityChange,
+  description: controlledDescription,
+  onDescriptionChange,
+  entryDate: controlledEntryDate,
+  onEntryDateChange,
+  duration: controlledDuration,
+  onDurationChange,
+  startTime: controlledStartTime,
+  onStartTimeChange,
+  endTime: controlledEndTime,
+  onEndTimeChange,
+  useInterval: controlledUseInterval,
+  onUseIntervalChange,
+  onSuccess,
+}: EntryFormProps) {
+  const isControlledDescription = controlledDescription !== undefined;
+  const isControlledEntryDate = controlledEntryDate !== undefined;
+  const isControlledDuration = controlledDuration !== undefined;
+  const isControlledStartTime = controlledStartTime !== undefined;
+  const isControlledEndTime = controlledEndTime !== undefined;
+  const isControlledUseInterval = controlledUseInterval !== undefined;
+
+  const [internalDescription, setInternalDescription] = useState<string>("");
+  const [internalEntryDate, setInternalEntryDate] = useState<string>(today);
+  const [internalDuration, setInternalDuration] = useState<string>("");
+  const [internalStartTime, setInternalStartTime] = useState<string>("");
+  const [internalEndTime, setInternalEndTime] = useState<string>("");
+  const [internalUseInterval, setInternalUseInterval] = useState<boolean>(false);
+
+  const currentDescription = isControlledDescription ? (controlledDescription ?? "") : internalDescription;
+  const currentEntryDate = isControlledEntryDate ? (controlledEntryDate ?? today) : internalEntryDate;
+  const currentDuration = isControlledDuration ? (controlledDuration ?? "") : internalDuration;
+  const currentStartTime = isControlledStartTime ? (controlledStartTime ?? "") : internalStartTime;
+  const currentEndTime = isControlledEndTime ? (controlledEndTime ?? "") : internalEndTime;
+  const currentUseInterval = isControlledUseInterval ? Boolean(controlledUseInterval) : internalUseInterval;
+
+  const handleDescriptionChange = (val: string) => {
+    if (isControlledDescription) onDescriptionChange?.(val);
+    else setInternalDescription(val);
+  };
+
+  const handleEntryDateChange = (val: string) => {
+    if (isControlledEntryDate) onEntryDateChange?.(val);
+    else setInternalEntryDate(val);
+  };
+
+  const handleDurationChange = (val: string) => {
+    if (isControlledDuration) onDurationChange?.(val);
+    else setInternalDuration(val);
+  };
+
+  const handleStartTimeChange = (val: string) => {
+    if (isControlledStartTime) onStartTimeChange?.(val);
+    else setInternalStartTime(val);
+  };
+
+  const handleEndTimeChange = (val: string) => {
+    if (isControlledEndTime) onEndTimeChange?.(val);
+    else setInternalEndTime(val);
+  };
+
+  const handleToggleInterval = () => {
+    const nextVal = !currentUseInterval;
+    if (isControlledUseInterval) onUseIntervalChange?.(nextVal);
+    else setInternalUseInterval(nextVal);
+  };
+
+  // Mantém todas as informações selecionadas se houver erro (formato inválido, etc.).
+  // Limpa apenas quando o apontamento for salvo com sucesso!
+  const [state, formAction] = useActionState(async (prev: ActionState, formData: FormData) => {
+    const result = await createTimeEntryAction(prev, formData);
+    if (result.success) {
+      handleDurationChange("");
+      handleStartTimeChange("");
+      handleEndTimeChange("");
+      handleDescriptionChange("");
+      onSuccess?.();
+    }
+    return result;
+  }, initialActionState);
 
   return (
     <form action={formAction} className="grid gap-4">
@@ -265,9 +451,17 @@ export function EntryForm({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="grid gap-1.5">
           <div className="flex h-5 items-center">
-            <Label htmlFor="entryDate">Data</Label>
+            <Label htmlFor={`${idPrefix}entryDate`}>Data</Label>
           </div>
-          <Input id="entryDate" name="entryDate" type="date" className="h-9" defaultValue={today} required />
+          <Input
+            id={`${idPrefix}entryDate`}
+            name="entryDate"
+            type="date"
+            className="h-9"
+            value={currentEntryDate}
+            onChange={(e) => handleEntryDateChange(e.target.value)}
+            required
+          />
           {state.fieldErrors?.entryDate ? (
             <p className="text-xs text-destructive">{state.fieldErrors.entryDate[0]}</p>
           ) : null}
@@ -279,30 +473,67 @@ export function EntryForm({
           activities={activities}
           contracts={contracts}
           clientAreas={clientAreas}
+          idPrefix={idPrefix}
+          selectedClientId={selectedClientId}
+          onClientChange={onClientChange}
+          selectedAreaId={selectedAreaId}
+          onAreaChange={onAreaChange}
+          selectedActivityId={selectedActivityId}
+          onActivityChange={onActivityChange}
         />
 
-        {useInterval ? (
+        {currentUseInterval ? (
           <div className="grid grid-cols-2 gap-2">
             <div className="grid gap-1.5">
-              <div className="flex h-5 items-center">
-                <Label htmlFor="startTime">Início</Label>
+              <div className="flex h-5 items-center justify-between gap-1">
+                <Label htmlFor={`${idPrefix}startTime`}>Início (24h)</Label>
+                <span className="text-[10px] text-muted-foreground font-mono">00:00</span>
               </div>
-              <Input id="startTime" name="startTime" type="time" className="h-9" required />
+              <TimeInput24h
+                id={`${idPrefix}startTime`}
+                name="startTime"
+                value={currentStartTime}
+                onChange={handleStartTimeChange}
+                hasError={Boolean(state.fieldErrors?.startTime)}
+                required
+              />
+              {state.fieldErrors?.startTime ? (
+                <p className="text-xs text-destructive">{state.fieldErrors.startTime[0]}</p>
+              ) : null}
             </div>
             <div className="grid gap-1.5">
-              <div className="flex h-5 items-center">
-                <Label htmlFor="endTime">Fim</Label>
+              <div className="flex h-5 items-center justify-between gap-1">
+                <Label htmlFor={`${idPrefix}endTime`}>Fim (24h)</Label>
+                <span className="text-[10px] text-muted-foreground font-mono">23:59</span>
               </div>
-              <Input id="endTime" name="endTime" type="time" className="h-9" required />
+              <TimeInput24h
+                id={`${idPrefix}endTime`}
+                name="endTime"
+                value={currentEndTime}
+                onChange={handleEndTimeChange}
+                hasError={Boolean(state.fieldErrors?.endTime)}
+                required
+              />
+              {state.fieldErrors?.endTime ? (
+                <p className="text-xs text-destructive">{state.fieldErrors.endTime[0]}</p>
+              ) : null}
             </div>
           </div>
         ) : (
           <div className="grid gap-1.5">
             <div className="flex h-5 items-center justify-between gap-1">
-              <Label htmlFor="duration">Duração</Label>
+              <Label htmlFor={`${idPrefix}duration`}>Duração</Label>
               <span className="text-[11px] text-muted-foreground">1:30 · 1,5 · 90m</span>
             </div>
-            <Input id="duration" name="duration" className="h-9" placeholder="1:30" required />
+            <Input
+              id={`${idPrefix}duration`}
+              name="duration"
+              className="h-9 font-mono"
+              placeholder="1:30"
+              value={currentDuration}
+              onChange={(e) => handleDurationChange(e.target.value)}
+              required
+            />
             {state.fieldErrors?.duration ? (
               <p className="text-xs text-destructive">{state.fieldErrors.duration[0]}</p>
             ) : null}
@@ -310,18 +541,24 @@ export function EntryForm({
         )}
       </div>
 
-      <Field label="Descrição" htmlFor="description" errors={state.fieldErrors?.description}>
-        <Input id="description" name="description" placeholder="O que foi feito no período" />
+      <Field label="Descrição" htmlFor={`${idPrefix}description`} errors={state.fieldErrors?.description}>
+        <Input
+          id={`${idPrefix}description`}
+          name="description"
+          placeholder="O que foi feito no período"
+          value={currentDescription}
+          onChange={(e) => handleDescriptionChange(e.target.value)}
+        />
       </Field>
 
       <div className="flex flex-wrap items-center gap-3">
         <SubmitButton>Lançar horas</SubmitButton>
         <button
           type="button"
-          onClick={() => setUseInterval(!useInterval)}
+          onClick={handleToggleInterval}
           className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
-          {useInterval ? "Informar apenas a duração" : "Informar horário de início e fim"}
+          {currentUseInterval ? "Informar apenas a duração" : "Informar horário de início e fim (24h)"}
         </button>
       </div>
     </form>

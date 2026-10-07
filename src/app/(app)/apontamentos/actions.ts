@@ -13,13 +13,17 @@ function entryPayload(data: z.output<typeof timeEntrySchema>): { minutes: number
   if (data.startTime && data.endTime) {
     const [sh, sm] = data.startTime.split(":").map(Number);
     const [eh, em] = data.endTime.split(":").map(Number);
+    if (sh < 0 || sh > 23 || sm < 0 || sm > 59 || eh < 0 || eh > 23 || em < 0 || em > 59) {
+      return { error: "Horário inválido. Use o formato de 24 horas (00:00 a 23:59)." };
+    }
     const minutes = eh * 60 + em - (sh * 60 + sm);
     if (minutes <= 0) return { error: "A hora final precisa ser depois da inicial." };
+    if (minutes > 1440) return { error: "Intervalo não pode ser maior que 24 horas." };
     return { minutes };
   }
   const minutes = parseDurationToMinutes(data.duration);
   if (minutes === null || minutes <= 0) return { error: "Duração inválida. Use 1:30, 1,5 ou 90m." };
-  if (minutes > 1440) return { error: "Duração maior que um dia." };
+  if (minutes > 1440) return { error: "Duração maior que 24 horas." };
   return { minutes };
 }
 

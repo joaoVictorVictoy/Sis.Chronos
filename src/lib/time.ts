@@ -77,12 +77,13 @@ export function businessDaysBetween(startISO: string, endISO: string): number {
   return count;
 }
 
-/** Hora atual (HH:MM) no fuso da aplicação. */
+/** Hora atual (HH:MM) no fuso da aplicação em formato 24 horas. */
 export function nowTime(now: Date = new Date()): string {
   return new Intl.DateTimeFormat("pt-BR", {
     timeZone: APP_TIMEZONE,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    hourCycle: "h23",
   }).format(now);
 }

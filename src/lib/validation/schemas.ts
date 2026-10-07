@@ -266,7 +266,22 @@ const optionalTimeSchema = fromForm(
     .string()
     .trim()
     .transform((v) => (v === "" ? null : v))
-    .refine((v) => v === null || /^\d{2}:\d{2}(:\d{2})?$/.test(v), "Informe um horário válido."),
+    .refine((v) => {
+      if (v === null) return true;
+      const match = v.match(/^(\d{1,2}):(\d{2})(:(\d{2}))?$/);
+      if (!match) return false;
+      const h = Number(match[1]);
+      const m = Number(match[2]);
+      const s = match[4] !== undefined ? Number(match[4]) : 0;
+      return h >= 0 && h <= 23 && m >= 0 && m <= 59 && s >= 0 && s <= 59;
+    }, "Informe um horário válido no formato 24h (00:00 a 23:59).")
+    .transform((v) => {
+      if (!v) return null;
+      const parts = v.split(":");
+      const h = parts[0].padStart(2, "0");
+      const m = parts[1].padStart(2, "0");
+      return parts.length > 2 ? `${h}:${m}:${parts[2].padStart(2, "0")}` : `${h}:${m}`;
+    }),
 );
 
 export const timeEntrySchema = z
@@ -277,11 +292,13 @@ export const timeEntrySchema = z
       .transform((v) => (v === "" ? null : v))
       .refine((v) => v === null || z.uuid().safeParse(v).success, "Cliente inválido.")
       .optional(),
-    contractId: z
-      .string()
-      .trim()
-      .transform((v) => (v === "" ? null : v))
-      .refine((v) => v === null || z.uuid().safeParse(v).success, "Contrato inválido."),
+    contractId: fromForm(
+      z
+        .string()
+        .trim()
+        .transform((v) => (v === "" ? null : v))
+        .refine((v) => v === null || z.uuid().safeParse(v).success, "Contrato inválido."),
+    ),
     activityId: z.uuid("Escolha uma atividade."),
     entryDate: dateSchema,
     startTime: optionalTimeSchema,

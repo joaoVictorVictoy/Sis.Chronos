@@ -129,4 +129,53 @@ describe("formulários com campos ausentes", () => {
     expect(invalido.ok).toBe(false);
     if (!invalido.ok) expect(invalido.state.fieldErrors?.email).toBeDefined();
   });
+
+  it("valida lançamento de horas no formato de 24 horas", () => {
+    // Horário 24h válido
+    const valido = parseForm(
+      timeEntrySchema,
+      form({
+        entryDate: "2026-09-17",
+        activityId: "0b5f2b3a-3f4a-4c56-9f0e-2b6f1a2c3d4e",
+        startTime: "14:30",
+        endTime: "18:00",
+      }),
+    );
+    expect(valido.ok).toBe(true);
+    if (valido.ok) {
+      expect(valido.data.startTime).toBe("14:30");
+      expect(valido.data.endTime).toBe("18:00");
+    }
+
+    // Normaliza dígito único na hora (ex: 8:00 -> 08:00)
+    const normalizado = parseForm(
+      timeEntrySchema,
+      form({
+        entryDate: "2026-09-17",
+        activityId: "0b5f2b3a-3f4a-4c56-9f0e-2b6f1a2c3d4e",
+        startTime: "8:00",
+        endTime: "17:30",
+      }),
+    );
+    expect(normalizado.ok).toBe(true);
+    if (normalizado.ok) {
+      expect(normalizado.data.startTime).toBe("08:00");
+      expect(normalizado.data.endTime).toBe("17:30");
+    }
+
+    // Rejeita horário fora de 24h (hora > 23 ou minutos > 59)
+    const horaInvalida = parseForm(
+      timeEntrySchema,
+      form({
+        entryDate: "2026-09-17",
+        activityId: "0b5f2b3a-3f4a-4c56-9f0e-2b6f1a2c3d4e",
+        startTime: "25:00",
+        endTime: "18:00",
+      }),
+    );
+    expect(horaInvalida.ok).toBe(false);
+    if (!horaInvalida.ok) {
+      expect(horaInvalida.state.fieldErrors?.startTime).toBeDefined();
+    }
+  });
 });
