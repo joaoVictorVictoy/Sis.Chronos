@@ -179,9 +179,12 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
   return (
     <div className="grid gap-6">
-      <PageHeader title="Rentabilidade" description={`${period.label} · ${report.contracts.length} contrato(s)`}>
+      <PageHeader
+        title={canSeeCosts ? "Rentabilidade" : "Visão Operacional"}
+        description={`${period.label} · ${report.contracts.length} contrato(s)`}
+      >
         <div className="flex flex-wrap gap-2">
-          <ExportMenu dataset="rentabilidade" label="Exportar rentabilidade" />
+          {canSeeCosts ? <ExportMenu dataset="rentabilidade" label="Exportar rentabilidade" /> : null}
           <ExportMenu dataset="apontamentos" label="Apontamentos" scope="todos" />
           <ExportMenu dataset="equipe" label="Equipe" />
         </div>
@@ -305,7 +308,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
       <ClientsPanel items={panelItems} canSeeCosts={canSeeCosts} />
 
-      <ChurnAnalysisCard report={churnReport} />
+      {canSeeCosts ? <ChurnAnalysisCard report={churnReport} /> : null}
 
       {canSeeCosts ? (
         <>
@@ -528,35 +531,39 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         </div>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Concentração de receita</CardTitle>
-          <CardDescription>
-            Os 3 maiores clientes representam {formatPercent(concentration)} da receita líquida do período.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {topClients.length === 0 ? (
-            <EmptyState>Sem receita no período.</EmptyState>
-          ) : (
-            <BarList
-              items={topClients.slice(0, 8).map(([name, value]) => ({
-                id: name,
-                label: name,
-                value,
-                hint: totals.netRevenue > 0 ? formatPercent(value / totals.netRevenue) : undefined,
-              }))}
-              format="currency"
-            />
-          )}
-        </CardContent>
-      </Card>
+      {canSeeCosts ? (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Concentração de receita</CardTitle>
+              <CardDescription>
+                Os 3 maiores clientes representam {formatPercent(concentration)} da receita líquida do período.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {topClients.length === 0 ? (
+                <EmptyState>Sem receita no período.</EmptyState>
+              ) : (
+                <BarList
+                  items={topClients.slice(0, 8).map(([name, value]) => ({
+                    id: name,
+                    label: name,
+                    value,
+                    hint: totals.netRevenue > 0 ? formatPercent(value / totals.netRevenue) : undefined,
+                  }))}
+                  format="currency"
+                />
+              )}
+            </CardContent>
+          </Card>
 
-      <p className="text-xs text-muted-foreground">
-        Status: 🟢 {HEALTH_LABELS.saudavel} (margem real igual ou acima da meta) · 🟡 {HEALTH_LABELS.atencao} (até{" "}
-        {report.tolerance} pontos percentuais abaixo da meta) · 🔴 {HEALTH_LABELS.critico} (mais do que isso abaixo, ou
-        prejuízo). Ajuste esse limite em Configurações → Empresa.
-      </p>
+          <p className="text-xs text-muted-foreground">
+            Status: 🟢 {HEALTH_LABELS.saudavel} (margem real igual ou acima da meta) · 🟡 {HEALTH_LABELS.atencao} (até{" "}
+            {report.tolerance} pontos percentuais abaixo da meta) · 🔴 {HEALTH_LABELS.critico} (mais do que isso abaixo, ou
+            prejuízo). Ajuste esse limite em Configurações → Empresa.
+          </p>
+        </>
+      ) : null}
     </div>
   );
 }
