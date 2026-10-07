@@ -34,7 +34,10 @@ export async function ContractPostMortemCard({
     clients: Pick<Tables<"clients">, "id" | "legal_name" | "trade_name">;
   };
 }) {
-  await requireRole(["admin", "gestor"]);
+  const { profile } = await requireRole(["admin", "gestor"]);
+  const canSeeCosts = profile.role === "admin" || profile.can_view_costs;
+  if (!canSeeCosts) return null;
+
   const supabase = await createClient();
 
   const cutoffDate = contract.terminated_at || contract.end_date || todayISO();

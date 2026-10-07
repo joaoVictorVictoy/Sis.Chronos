@@ -26,6 +26,7 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
 export default async function HomePage() {
   const { profile, tenant } = await requireContext();
   const isManager = profile.role === "admin" || profile.role === "gestor";
+  const canSeeCosts = profile.role === "admin" || profile.can_view_costs;
 
   return (
     <div className="grid gap-6">
@@ -37,7 +38,11 @@ export default async function HomePage() {
         </p>
       </header>
 
-      {isManager ? <ManagerSummary /> : <CollaboratorSummary monthlyHours={Number(tenant.monthly_hours)} />}
+      {isManager ? (
+        <ManagerSummary canSeeCosts={canSeeCosts} />
+      ) : (
+        <CollaboratorSummary monthlyHours={Number(tenant.monthly_hours)} />
+      )}
 
       {profile.role === "admin" ? (
         <Card>
@@ -61,8 +66,8 @@ export default async function HomePage() {
   );
 }
 
-/** Resumo de rentabilidade do mês (até hoje) para quem gerencia a empresa. */
-async function ManagerSummary() {
+/** Resumo do mês (até hoje) para quem gerencia a empresa. */
+async function ManagerSummary({ canSeeCosts }: { canSeeCosts: boolean }) {
   const period = resolvePeriod(todayISO());
   const report = await getProfitabilityReport(period);
   const totals = report.totals;
@@ -79,25 +84,41 @@ async function ManagerSummary() {
     <Card>
       <CardHeader className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
-          <CardTitle>Rentabilidade da empresa</CardTitle>
+          <CardTitle>{canSeeCosts ? "Rentabilidade da empresa" : "Visão geral da empresa"}</CardTitle>
           <CardDescription>{period.label}</CardDescription>
         </div>
         <Button nativeButton={false} render={<Link href="/dashboard" />} variant="outline" size="sm">
-          Ver rentabilidade completa
+          {canSeeCosts ? "Ver rentabilidade completa" : "Ver visão operacional"}
           <ArrowRightIcon />
         </Button>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Kpi label="Receita líquida" value={formatCurrency(totals.netRevenue)} />
-          <Kpi label="Custo total" value={formatCurrency(totals.totalCost)} />
-          <Kpi
-            label="Lucro"
-            value={formatCurrency(totals.profit)}
-            hint={`Margem ${totals.realMargin === null ? "—" : formatPercent(totals.realMargin)} · meta ${formatPercent(totals.desiredMargin)}`}
-          />
-          <Kpi label="Horas apontadas" value={formatHours(totals.hours)} />
-        </div>
+        {canSeeCosts ? (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Kpi label="Receita líquida" value={formatCurrency(totals.netRevenue)} />
+            <Kpi label="Custo total" value={formatCurrency(totals.totalCost)} />
+            <Kpi
+              label="Lucro"
+              value={formatCurrency(totals.profit)}
+              hint={`Margem ${totals.realMargin === null ? "—" : formatPercent(totals.realMargin)} · meta ${formatPercent(totals.desiredMargin)}`}
+            />
+            <Kpi label="Horas apontadas" value={formatHours(totals.hours)} />
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <Kpi label="Horas apontadas" value={formatHours(totals.hours)} />
+            <Kpi
+              label="Horas faturáveis"
+              value={formatHours(totals.billableHours)}
+              hint={`de ${formatHours(totals.hours)} apontadas`}
+            />
+            <Kpi
+              label="Contratos com movimento"
+              value={String(report.contracts.length)}
+              hint="no mês vigente"
+            />
+          </div>
+        )}
 
         {report.contracts.length > 0 ? (
           <div className="flex flex-wrap items-center gap-3">

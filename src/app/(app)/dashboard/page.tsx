@@ -11,6 +11,7 @@ import { ExportMenu } from "@/components/export-menu";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth/session";
+import { cn } from "@/lib/utils";
 import { formatCurrency, formatHours, formatPercent, todayISO } from "@/lib/format";
 import { monthsInRange, resolvePeriod } from "@/lib/periods";
 import { buildAlerts, type AlertLevel } from "@/lib/alerts";
@@ -72,7 +73,8 @@ function Kpi({
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   const params = await searchParams;
-  await requireRole(["admin", "gestor"]);
+  const { profile } = await requireRole(["admin", "gestor"]);
+  const canSeeCosts = profile.role === "admin" || profile.can_view_costs;
 
   const today = todayISO();
   const period = resolvePeriod(today, {
@@ -113,7 +115,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       hours: Number(e.hours),
       last_entry_date: e.last_entry_date,
     })),
-    missingCosts,
+    missingCosts: canSeeCosts ? missingCosts : [],
     pendingCount,
     today,
   });
@@ -217,141 +219,183 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         </Card>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi
-          label="Receita líquida"
-          value={formatCurrency(totals.netRevenue)}
-          hint={`Bruta ${formatCurrency(totals.revenue)} · impostos ${formatCurrency(totals.taxAmount)}`}
-        />
-        <Kpi
-          label="Custo total"
-          value={formatCurrency(totals.totalCost)}
-          hint={`Horas ${formatCurrency(totals.laborCost)} · extras ${formatCurrency(totals.expenseCost)}`}
-        />
-        <Kpi label="Lucro" value={formatCurrency(totals.profit)}>
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            {(totals.marginGapPoints ?? 0) >= 0 ? (
-              <TrendingUpIcon className="size-3 text-[--viz-good]" />
-            ) : (
-              <TrendingDownIcon className="size-3 text-[--viz-critical]" />
-            )}
-            Margem {totals.realMargin === null ? "—" : formatPercent(totals.realMargin)} · meta{" "}
-            {formatPercent(totals.desiredMargin)}
-          </p>
-        </Kpi>
-        <Kpi
-          label="Horas apontadas"
-          value={formatHours(totals.hours)}
-          hint={`${formatPercent(billableShare)} faturáveis · valor hora ${
-            totals.effectiveHourlyRate === null ? "—" : formatCurrency(totals.effectiveHourlyRate)
-          }`}
-        >
-          <div className="flex flex-wrap gap-1 pt-1">
-            {(Object.keys(byStatus) as HealthStatus[]).map((status) =>
-              byStatus[status] > 0 ? (
-                <span key={status} className="flex items-center gap-1">
-                  <StatusBadge status={status} />
-                  <span className="text-xs text-muted-foreground">
-                    {byStatus[status]} {byStatus[status] === 1 ? "contrato" : "contratos"}
+      {canSeeCosts ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Kpi
+            label="Receita líquida"
+            value={formatCurrency(totals.netRevenue)}
+            hint={`Bruta ${formatCurrency(totals.revenue)} · impostos ${formatCurrency(totals.taxAmount)}`}
+          />
+          <Kpi
+            label="Custo total"
+            value={formatCurrency(totals.totalCost)}
+            hint={`Horas ${formatCurrency(totals.laborCost)} · extras ${formatCurrency(totals.expenseCost)}`}
+          />
+          <Kpi label="Lucro" value={formatCurrency(totals.profit)}>
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              {(totals.marginGapPoints ?? 0) >= 0 ? (
+                <TrendingUpIcon className="size-3 text-[--viz-good]" />
+              ) : (
+                <TrendingDownIcon className="size-3 text-[--viz-critical]" />
+              )}
+              Margem {totals.realMargin === null ? "—" : formatPercent(totals.realMargin)} · meta{" "}
+              {formatPercent(totals.desiredMargin)}
+            </p>
+          </Kpi>
+          <Kpi
+            label="Horas apontadas"
+            value={formatHours(totals.hours)}
+            hint={`${formatPercent(billableShare)} faturáveis · valor hora ${
+              totals.effectiveHourlyRate === null ? "—" : formatCurrency(totals.effectiveHourlyRate)
+            }`}
+          >
+            <div className="flex flex-wrap gap-1 pt-1">
+              {(Object.keys(byStatus) as HealthStatus[]).map((status) =>
+                byStatus[status] > 0 ? (
+                  <span key={status} className="flex items-center gap-1">
+                    <StatusBadge status={status} />
+                    <span className="text-xs text-muted-foreground">
+                      {byStatus[status]} {byStatus[status] === 1 ? "contrato" : "contratos"}
+                    </span>
                   </span>
-                </span>
-              ) : null,
-            )}
-          </div>
-        </Kpi>
-      </div>
+                ) : null,
+              )}
+            </div>
+          </Kpi>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Kpi
+            label="Total de Horas Apontadas"
+            value={formatHours(totals.hours)}
+            hint={`${formatPercent(billableShare)} faturáveis`}
+          />
+          <Kpi
+            label="Horas Faturáveis"
+            value={formatHours(totals.billableHours)}
+            hint={`de ${formatHours(totals.hours)} apontadas`}
+          />
+          <Kpi
+            label="Utilização da Equipe"
+            value={availableHours > 0 ? formatPercent(totalHours / availableHours) : "—"}
+            hint={`${formatHours(totalHours)} de ${formatHours(availableHours)} disponíveis`}
+          />
+          <Kpi
+            label="Contratos com Movimento"
+            value={String(report.contracts.length)}
+            hint="no período selecionado"
+          >
+            <div className="flex flex-wrap gap-1 pt-1">
+              {(Object.keys(byStatus) as HealthStatus[]).map((status) =>
+                byStatus[status] > 0 ? (
+                  <span key={status} className="flex items-center gap-1">
+                    <StatusBadge status={status} />
+                    <span className="text-xs text-muted-foreground">
+                      {byStatus[status]} {byStatus[status] === 1 ? "contrato" : "contratos"}
+                    </span>
+                  </span>
+                ) : null,
+              )}
+            </div>
+          </Kpi>
+        </div>
+      )}
 
-      <TeamOperationalView report={teamOperationalReport} />
+      <TeamOperationalView report={teamOperationalReport} canSeeCosts={canSeeCosts} />
 
-      <ClientsPanel items={panelItems} />
+      <ClientsPanel items={panelItems} canSeeCosts={canSeeCosts} />
 
       <ChurnAnalysisCard report={churnReport} />
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Evolução mensal</CardTitle>
-            <CardDescription>Receita líquida, custo total e lucro nos últimos meses.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MonthlyResultChart data={evolution} />
-          </CardContent>
-        </Card>
+      {canSeeCosts ? (
+        <>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Evolução mensal</CardTitle>
+                <CardDescription>Receita líquida, custo total e lucro nos últimos meses.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <MonthlyResultChart data={evolution} />
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Margem da empresa</CardTitle>
-            <CardDescription>Margem real contra a meta ponderada pelos contratos.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MarginEvolutionChart data={evolution} />
-          </CardContent>
-        </Card>
-      </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Margem da empresa</CardTitle>
+                <CardDescription>Margem real contra a meta ponderada pelos contratos.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <MarginEvolutionChart data={evolution} />
+              </CardContent>
+            </Card>
+          </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Receita × margem</CardTitle>
-          <CardDescription>
-            Quadrante inferior direito = cliente grande com margem baixa: é onde renegociar primeiro.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {scatter.length === 0 ? (
-            <EmptyState>Sem contratos com receita no período.</EmptyState>
-          ) : (
-            <RevenueMarginScatter data={scatter} targetPct={totals.desiredMargin * 100} />
-          )}
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Receita × margem</CardTitle>
+              <CardDescription>
+                Quadrante inferior direito = cliente grande com margem baixa: é onde renegociar primeiro.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {scatter.length === 0 ? (
+                <EmptyState>Sem contratos com receita no período.</EmptyState>
+              ) : (
+                <RevenueMarginScatter data={scatter} targetPct={totals.desiredMargin * 100} />
+              )}
+            </CardContent>
+          </Card>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Rentabilidade por área</CardTitle>
-            <CardDescription>Receita rateada pelas horas apontadas em cada área.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {areas.length === 0 ? (
-              <EmptyState>Sem horas apontadas no período.</EmptyState>
-            ) : (
-              <BarList
-                items={areas.map((area) => ({
-                  id: area.id,
-                  label: area.name,
-                  value: area.profit,
-                  hint: `${formatHours(area.hours)} · margem ${area.margin === null ? "—" : formatPercent(area.margin)}`,
-                }))}
-                format="currency"
-              />
-            )}
-          </CardContent>
-        </Card>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Rentabilidade por área</CardTitle>
+                <CardDescription>Receita rateada pelas horas apontadas em cada área.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {areas.length === 0 ? (
+                  <EmptyState>Sem horas apontadas no período.</EmptyState>
+                ) : (
+                  <BarList
+                    items={areas.map((area) => ({
+                      id: area.id,
+                      label: area.name,
+                      value: area.profit,
+                      hint: `${formatHours(area.hours)} · margem ${area.margin === null ? "—" : formatPercent(area.margin)}`,
+                    }))}
+                    format="currency"
+                  />
+                )}
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Custo por atividade</CardTitle>
-            <CardDescription>Quais atividades mais consomem margem.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {activities.length === 0 ? (
-              <EmptyState>Sem horas apontadas no período.</EmptyState>
-            ) : (
-              <BarList
-                items={activities.slice(0, 8).map((a) => ({
-                  id: a.activity_id,
-                  label: a.activity_name,
-                  value: Number(a.labor_cost),
-                  hint: `${formatHours(Number(a.hours))} · ${a.billable ? "faturável" : "não faturável"} · ${a.area_name}`,
-                }))}
-                format="currency"
-              />
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Custo por atividade</CardTitle>
+                <CardDescription>Quais atividades mais consomem margem.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {activities.length === 0 ? (
+                  <EmptyState>Sem horas apontadas no período.</EmptyState>
+                ) : (
+                  <BarList
+                    items={activities.slice(0, 8).map((a) => ({
+                      id: a.activity_id,
+                      label: a.activity_name,
+                      value: Number(a.labor_cost),
+                      hint: `${formatHours(Number(a.hours))} · ${a.billable ? "faturável" : "não faturável"} · ${a.area_name}`,
+                    }))}
+                    format="currency"
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className={cn("grid gap-6", canSeeCosts ? "xl:grid-cols-2" : "xl:grid-cols-1")}>
         <Card>
           <CardHeader>
             <CardTitle>Utilização da equipe</CardTitle>
@@ -381,104 +425,108 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Maior custo alocado por cliente</CardTitle>
-            <CardDescription>Quem está consumindo a margem de cada cliente.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {employeeClients.length === 0 ? (
-              <EmptyState>Sem horas apontadas em contratos.</EmptyState>
-            ) : (
-              <BarList
-                items={employeeClients.slice(0, 8).map((e) => ({
-                  id: `${e.employee_id}-${e.client_id}`,
-                  label: `${e.employee_name} → ${e.client_name}`,
-                  value: Number(e.labor_cost),
-                  hint: formatHours(Number(e.hours)),
-                }))}
-                format="currency"
-              />
-            )}
-          </CardContent>
-        </Card>
+        {canSeeCosts ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Maior custo alocado por cliente</CardTitle>
+              <CardDescription>Quem está consumindo a margem de cada cliente.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {employeeClients.length === 0 ? (
+                <EmptyState>Sem horas apontadas em contratos.</EmptyState>
+              ) : (
+                <BarList
+                  items={employeeClients.slice(0, 8).map((e) => ({
+                    id: `${e.employee_id}-${e.client_id}`,
+                    label: `${e.employee_name} → ${e.client_name}`,
+                    value: Number(e.labor_cost),
+                    hint: formatHours(Number(e.hours)),
+                  }))}
+                  format="currency"
+                />
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Mais rentáveis</CardTitle>
-            <CardDescription>Maior lucro no período.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-2">
-            {ranking.slice(0, 5).map(({ row, profitability }) => (
-              <Link
-                key={row.contract_id}
-                href={`/contratos/${row.contract_id}`}
-                className="flex min-w-0 items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
-                title={row.client_name}
-              >
-                <span className="min-w-0 truncate font-medium">{row.client_name}</span>
-                <span className="shrink-0 tabular-nums font-medium">{formatCurrency(profitability.profit)}</span>
-              </Link>
-            ))}
-            {ranking.length === 0 ? <EmptyState>Sem dados.</EmptyState> : null}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Menores margens</CardTitle>
-            <CardDescription>Onde a meta está mais longe.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-2">
-            {worstMargin.slice(0, 5).map(({ row, profitability }) => (
-              <Link
-                key={row.contract_id}
-                href={`/contratos/${row.contract_id}`}
-                className="flex min-w-0 items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
-                title={row.client_name}
-              >
-                <span className="min-w-0 truncate font-medium">{row.client_name}</span>
-                <span className="flex shrink-0 items-center gap-2">
-                  <span className="tabular-nums font-medium">{formatPercent(profitability.realMargin ?? 0)}</span>
-                  <StatusBadge status={profitability.status} />
-                </span>
-              </Link>
-            ))}
-            {worstMargin.length === 0 ? <EmptyState>Sem dados.</EmptyState> : null}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Sugestão de reajuste</CardTitle>
-            <CardDescription>Aumento necessário para atingir a margem desejada.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-2">
-            {adjustments.map(({ row, adjustment, profitability }) => (
-              <Link
-                key={row.contract_id}
-                href={`/contratos/${row.contract_id}`}
-                className="grid min-w-0 gap-0.5 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
-                title={row.client_name}
-              >
-                <span className="flex min-w-0 items-center justify-between gap-2.5">
+      {canSeeCosts ? (
+        <div className="grid gap-6 xl:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <CardTitle>Mais rentáveis</CardTitle>
+              <CardDescription>Maior lucro no período.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-2">
+              {ranking.slice(0, 5).map(({ row, profitability }) => (
+                <Link
+                  key={row.contract_id}
+                  href={`/contratos/${row.contract_id}`}
+                  className="flex min-w-0 items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
+                  title={row.client_name}
+                >
                   <span className="min-w-0 truncate font-medium">{row.client_name}</span>
-                  <span className="shrink-0 tabular-nums font-medium">+{formatPercent(adjustment ?? 0)}</span>
-                </span>
-                <span className="truncate text-xs text-muted-foreground">
-                  De {formatCurrency(profitability.revenue)} para{" "}
-                  {formatCurrency(profitability.revenue * (1 + (adjustment ?? 0)))} no período
-                </span>
-              </Link>
-            ))}
-            {adjustments.length === 0 ? (
-              <EmptyState>Todos os contratos já cobrem a margem desejada.</EmptyState>
-            ) : null}
-          </CardContent>
-        </Card>
-      </div>
+                  <span className="shrink-0 tabular-nums font-medium">{formatCurrency(profitability.profit)}</span>
+                </Link>
+              ))}
+              {ranking.length === 0 ? <EmptyState>Sem dados.</EmptyState> : null}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Menores margens</CardTitle>
+              <CardDescription>Onde a meta está mais longe.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-2">
+              {worstMargin.slice(0, 5).map(({ row, profitability }) => (
+                <Link
+                  key={row.contract_id}
+                  href={`/contratos/${row.contract_id}`}
+                  className="flex min-w-0 items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
+                  title={row.client_name}
+                >
+                  <span className="min-w-0 truncate font-medium">{row.client_name}</span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span className="tabular-nums font-medium">{formatPercent(profitability.realMargin ?? 0)}</span>
+                    <StatusBadge status={profitability.status} />
+                  </span>
+                </Link>
+              ))}
+              {worstMargin.length === 0 ? <EmptyState>Sem dados.</EmptyState> : null}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Sugestão de reajuste</CardTitle>
+              <CardDescription>Aumento necessário para atingir a margem desejada.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-2">
+              {adjustments.map(({ row, adjustment, profitability }) => (
+                <Link
+                  key={row.contract_id}
+                  href={`/contratos/${row.contract_id}`}
+                  className="grid min-w-0 gap-0.5 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
+                  title={row.client_name}
+                >
+                  <span className="flex min-w-0 items-center justify-between gap-2.5">
+                    <span className="min-w-0 truncate font-medium">{row.client_name}</span>
+                    <span className="shrink-0 tabular-nums font-medium">+{formatPercent(adjustment ?? 0)}</span>
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    De {formatCurrency(profitability.revenue)} para{" "}
+                    {formatCurrency(profitability.revenue * (1 + (adjustment ?? 0)))} no período
+                  </span>
+                </Link>
+              ))}
+              {adjustments.length === 0 ? (
+                <EmptyState>Todos os contratos já cobrem a margem desejada.</EmptyState>
+              ) : null}
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader>
