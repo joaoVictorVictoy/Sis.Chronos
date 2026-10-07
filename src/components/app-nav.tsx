@@ -66,7 +66,7 @@ export function AppNav({ role, onNavigate }: { role: AppRole; onNavigate?: () =>
   const pathname = usePathname();
 
   return (
-    <nav className="grid gap-5 text-sm">
+    <nav className="grid gap-3.5 text-sm">
       {NAV.map((section) => {
         const items = section.items.filter((item) => item.roles.includes(role));
         if (!items.length) return null;
