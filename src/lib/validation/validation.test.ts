@@ -66,7 +66,7 @@ describe("formatação pt-BR", () => {
 describe("rescisão e multa contratual", () => {
   it("valida encerramento com multa formatada em pt-BR", () => {
     const res = terminateContractSchema.safeParse({
-      contractId: "00000000-0000-0000-0000-000000000001",
+      contractId: "00000000-0000-4000-8000-000000000001",
       terminationReason: "rescisao_cliente",
       terminatedAt: "2026-10-15",
       terminationPenalty: "5.500,50",
@@ -83,7 +83,7 @@ describe("rescisão e multa contratual", () => {
 
   it("aceita encerramento sem multa rescisória", () => {
     const res = terminateContractSchema.safeParse({
-      contractId: "00000000-0000-0000-0000-000000000001",
+      contractId: "00000000-0000-4000-8000-000000000001",
       terminationReason: "termino_prazo",
       terminatedAt: "2026-10-15",
       terminationPenalty: "",
@@ -98,7 +98,7 @@ describe("rescisão e multa contratual", () => {
 
   it("valida encerramento com motivo e sub-motivo específicos de Churn", () => {
     const res = terminateContractSchema.safeParse({
-      contractId: "00000000-0000-0000-0000-000000000001",
+      contractId: "00000000-0000-4000-8000-000000000001",
       terminationReason: "rescisao_cliente",
       terminationSubReason: "insatisfacao",
       terminatedAt: "2026-10-15",
@@ -115,7 +115,7 @@ describe("rescisão e multa contratual", () => {
 
   it("rejeita sub-motivo inválido", () => {
     const res = terminateContractSchema.safeParse({
-      contractId: "00000000-0000-0000-0000-000000000001",
+      contractId: "00000000-0000-4000-8000-000000000001",
       terminationReason: "rescisao_cliente",
       terminationSubReason: "motivo_inexistente",
       terminatedAt: "2026-10-15",
