@@ -1,24 +1,41 @@
 import { ClockIcon } from "lucide-react";
 import { AppNav } from "@/components/app-nav";
+import { NotificationBell } from "@/components/notification-bell";
 import { SignOutButton } from "@/components/sign-out-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { requireContext, ROLE_LABELS } from "@/lib/auth/session";
+import { createClient } from "@/lib/supabase/server";
+import { getPendingCounts } from "@/lib/pending-actions";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
-  const { profile, tenant } = await requireContext();
+  const { profile, tenant, employeeId } = await requireContext();
+  const supabase = await createClient();
+
+  const { missingDaysCount, pendingApprovalsCount } = await getPendingCounts({
+    supabase,
+    tenantId: tenant.id,
+    employeeId,
+    role: profile.role,
+  });
 
   return (
     <div className="flex min-h-svh flex-col lg:flex-row">
       <aside className="flex shrink-0 flex-col gap-6 border-b bg-sidebar p-4 lg:h-svh lg:w-64 lg:border-r lg:border-sidebar-border lg:border-b-0">
-        <div className="flex items-center gap-2">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <ClockIcon className="size-4" />
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{tenant.name}</p>
-            <p className="text-xs text-muted-foreground">Apontamento</p>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <ClockIcon className="size-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{tenant.name}</p>
+              <p className="text-xs text-muted-foreground">Apontamento</p>
+            </div>
           </div>
+          <NotificationBell
+            missingDaysCount={missingDaysCount}
+            pendingApprovalsCount={pendingApprovalsCount}
+          />
         </div>
 
         <div className="lg:flex-1">
@@ -44,3 +61,4 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     </div>
   );
 }
+
