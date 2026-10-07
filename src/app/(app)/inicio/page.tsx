@@ -28,9 +28,10 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
 }
 
 export default async function HomePage() {
-  const { profile, tenant, employeeId } = await requireContext();
+  const { profile, tenant, employeeId, employeeMonthlyHours } = await requireContext();
   const isManager = profile.role === "admin" || profile.role === "gestor";
   const canSeeCosts = profile.role === "admin" || profile.can_view_costs;
+  const effectiveMonthlyHours = employeeMonthlyHours ?? Number(tenant.monthly_hours);
 
   const today = todayISO();
   let rawEntries: HeatmapRawEntry[] = [];
@@ -83,14 +84,15 @@ export default async function HomePage() {
                 entries={rawEntries}
                 leaves={rawLeaves}
                 today={today}
-                monthlyHours={Number(tenant.monthly_hours)}
+                monthlyHours={effectiveMonthlyHours}
               />
             </div>
           )}
         </>
       ) : (
         <CollaboratorSummary
-          monthlyHours={Number(tenant.monthly_hours)}
+          monthlyHours={effectiveMonthlyHours}
+          isCustomHours={employeeMonthlyHours !== null}
           entries={rawEntries}
           leaves={rawLeaves}
           today={today}
@@ -196,42 +198,64 @@ async function ManagerSummary({ canSeeCosts }: { canSeeCosts: boolean }) {
 
 function CollaboratorSummary({
   monthlyHours,
+  isCustomHours,
   entries,
   leaves,
   today,
 }: {
   monthlyHours: number;
+  isCustomHours: boolean;
   entries: HeatmapRawEntry[];
   leaves: HeatmapRawLeave[];
   today: string;
 }) {
   return (
     <div className="grid gap-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>{isCustomHours ? "Sua jornada mensal" : "Jornada padrão"}</CardTitle>
+            {isCustomHours && (
+              <span className="rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 text-xs px-2.5 py-0.5 font-medium">
+                Jornada individual
+              </span>
+            )}
+          </div>
+          <CardDescription>
+            {isCustomHours
+              ? "Horas contratadas no mês (definida para o seu cadastro)"
+              : "Horas disponíveis no mês (padrão da empresa)"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <p className="text-3xl font-semibold tabular-nums">{formatHours(monthlyHours)}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button nativeButton={false} render={<Link href="/apontamentos" />}>
+              Lançar horas
+              <ArrowRightIcon />
+            </Button>
+            <Button nativeButton={false} render={<Link href="/minhas-analises" />} variant="outline">
+              Minhas análises
+              <ArrowRightIcon />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-3">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Sua atividade e apontamentos</h2>
           <p className="text-sm text-muted-foreground">
             Acompanhe seus dias apontados, horas registradas e clientes atendidos.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button nativeButton={false} render={<Link href="/apontamentos" />}>
-            Lançar horas
-            <ArrowRightIcon />
-          </Button>
-          <Button nativeButton={false} render={<Link href="/minhas-analises" />} variant="outline">
-            Minhas análises
-            <ArrowRightIcon />
-          </Button>
-        </div>
+        <ActivityHeatmap
+          entries={entries}
+          leaves={leaves}
+          today={today}
+          monthlyHours={monthlyHours}
+        />
       </div>
-
-      <ActivityHeatmap
-        entries={entries}
-        leaves={leaves}
-        today={today}
-        monthlyHours={monthlyHours}
-      />
     </div>
   );
 }

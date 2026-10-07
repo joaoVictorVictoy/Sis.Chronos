@@ -11,6 +11,8 @@ export type AppContext = {
   tenant: Tables<"tenants">;
   /** Cadastro de colaborador vinculado ao login (quem aponta horas). */
   employeeId: string | null;
+  /** Horas mensais cadastradas para o colaborador; nulo = segue padrão da empresa. */
+  employeeMonthlyHours: number | null;
 };
 
 export const getUser = cache(async (): Promise<User | null> => {
@@ -33,12 +35,22 @@ export const getAppContext = cache(async (): Promise<AppContext | null> => {
       .select("*, tenants(*)")
       .eq("id", user.id)
       .maybeSingle<Tables<"profiles"> & { tenants: Tables<"tenants"> }>(),
-    supabase.from("employees").select("id").eq("profile_id", user.id).maybeSingle(),
+    supabase
+      .from("employees")
+      .select("id, monthly_hours")
+      .eq("profile_id", user.id)
+      .maybeSingle(),
   ]);
 
   if (!data || !data.tenants) return null;
   const { tenants, ...profile } = data;
-  return { user, profile, tenant: tenants, employeeId: employee?.id ?? null };
+  return {
+    user,
+    profile,
+    tenant: tenants,
+    employeeId: employee?.id ?? null,
+    employeeMonthlyHours: employee?.monthly_hours !== null && employee?.monthly_hours !== undefined ? Number(employee.monthly_hours) : null,
+  };
 });
 
 /** Exige usuário autenticado e vinculado a uma empresa ativa. */

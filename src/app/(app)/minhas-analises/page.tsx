@@ -54,7 +54,7 @@ function Kpi({
 
 export default async function MyAnalyticsPage({ searchParams }: PageProps<"/minhas-analises">) {
   const params = await searchParams;
-  const { tenant, employeeId, profile } = await requireContext();
+  const { tenant, employeeId, employeeMonthlyHours, profile } = await requireContext();
   const today = todayISO();
   const period = resolvePeriod(today, {
     periodo: typeof params.periodo === "string" ? params.periodo : undefined,
@@ -92,8 +92,9 @@ export default async function MyAnalyticsPage({ searchParams }: PageProps<"/minh
   const rows = (breakdownData ?? []) as MyHoursRow[];
   const leaves = (leavesData ?? []) as LeaveRecord[];
 
-  // Jornada diária = jornada mensal da empresa ÷ 21 dias úteis
-  const dailyTarget = Number(tenant.monthly_hours) / 21;
+  // Jornada diária = jornada mensal do colaborador (ou padrão da empresa) ÷ 21 dias úteis
+  const effectiveMonthlyHours = employeeMonthlyHours ?? Number(tenant.monthly_hours);
+  const dailyTarget = effectiveMonthlyHours / 21;
   const a = analyzeMyHours(rows, { from: period.from, to: period.to, today }, dailyTarget, leaves);
 
   return (

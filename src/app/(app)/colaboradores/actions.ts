@@ -62,6 +62,9 @@ export async function updateEmployeeAction(_prev: ActionState, formData: FormDat
 
   revalidatePath(`/colaboradores/${parsed.data.id}`);
   revalidatePath("/colaboradores");
+  revalidatePath("/inicio");
+  revalidatePath("/minhas-analises");
+  revalidatePath("/apontamentos");
   return { success: "Dados salvos." };
 }
 
@@ -112,6 +115,9 @@ export async function setEmployeeCostAction(_prev: ActionState, formData: FormDa
 
   revalidatePath(`/colaboradores/${parsed.data.employeeId}`);
   revalidatePath("/colaboradores");
+  revalidatePath("/inicio");
+  revalidatePath("/minhas-analises");
+  revalidatePath("/apontamentos");
   return { success: "Custo registrado com a nova vigência." };
 }
 
@@ -160,6 +166,9 @@ export async function deleteEmployeeCostAction(_prev: ActionState, formData: For
   revalidatePath(`/colaboradores/${parsed.data.employeeId}`);
   revalidatePath("/colaboradores");
   revalidatePath("/dashboard");
+  revalidatePath("/inicio");
+  revalidatePath("/minhas-analises");
+  revalidatePath("/apontamentos");
   return { success: "Vigência de custo excluída." };
 }
 

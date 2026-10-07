@@ -52,7 +52,7 @@ export type TimeEntryWithEmployee = Tables<"time_entries"> & {
 
 export default async function TimeEntriesPage({ searchParams }: PageProps<"/apontamentos">) {
   const { semana, colaborador } = await searchParams;
-  const { tenant, profile, employeeId } = await requireContext();
+  const { tenant, profile, employeeId, employeeMonthlyHours } = await requireContext();
   const isManagerUser = profile.role === "admin" || profile.role === "gestor";
   const today = todayISO();
   const weekStart = startOfWeek(typeof semana === "string" && /^\d{4}-\d{2}-\d{2}$/.test(semana) ? semana : today);
@@ -92,7 +92,7 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
     supabase.from("client_areas").select("client_id, area_id"),
     supabase.from("period_locks").select("locked_through").maybeSingle(),
     isManagerUser
-      ? supabase.from("employees").select("id, full_name, active").order("full_name")
+      ? supabase.from("employees").select("id, full_name, active, monthly_hours").order("full_name")
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -164,6 +164,18 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
 
   const lockedThrough = lock?.locked_through ?? null;
 
+  let targetMonthlyHours: number = employeeMonthlyHours ?? Number(tenant.monthly_hours);
+  if (isManagerUser) {
+    if (selectedEmployeeId !== "todos") {
+      const selectedEmp = (employeesData as { id: string; monthly_hours?: number | null }[] | null)?.find(
+        (e) => e.id === selectedEmployeeId,
+      );
+      targetMonthlyHours = Number(selectedEmp?.monthly_hours ?? tenant.monthly_hours);
+    } else {
+      targetMonthlyHours = Number(tenant.monthly_hours);
+    }
+  }
+
   return (
     <div className="grid gap-6">
       <PageHeader
@@ -201,7 +213,7 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
         activities={activityOptions}
         contracts={contractOptions}
         clientAreas={clientAreaOptions}
-        monthlyHours={Number(tenant.monthly_hours)}
+        monthlyHours={targetMonthlyHours}
         lockedThrough={lockedThrough}
         today={today}
         role={profile.role}
