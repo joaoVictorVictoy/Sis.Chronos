@@ -16,13 +16,21 @@ export type MyHoursRow = {
 
 export type Distribution = { id: string; label: string; hours: number; share: number };
 
+export type PersonalLeave = {
+  id?: string;
+  start_date: string;
+  end_date: string;
+  type?: string;
+  notes?: string | null;
+};
+
 export type PersonalAnalytics = {
   totalHours: number;
   billableHours: number;
   billableShare: number;
   hoursToday: number;
   hoursThisWeek: number;
-  /** Jornada esperada no período (dias úteis × jornada diária). */
+  /** Jornada esperada no período (dias úteis de trabalho × jornada diária). */
   expectedHours: number;
   expectedToday: number;
   expectedThisWeek: number;
@@ -31,8 +39,10 @@ export type PersonalAnalytics = {
   byClient: Distribution[];
   byActivity: Distribution[];
   byArea: Distribution[];
-  /** Dias úteis do período, até hoje, sem nenhum apontamento. */
+  /** Dias úteis do período, até hoje, sem nenhum apontamento e fora de férias/recesso. */
   missingDays: string[];
+  /** Dias úteis dentro de períodos de férias/recesso no período avaliado. */
+  leaveDays: string[];
   lastEntryDate: string | null;
 };
 
@@ -50,11 +60,13 @@ function distribution(rows: MyHoursRow[], key: (row: MyHoursRow) => string, tota
 /**
  * Consolida as horas do colaborador no período.
  * `dailyTarget` é a jornada diária esperada (jornada mensal ÷ 21 dias úteis).
+ * `leaves` lista os períodos de férias ou recessos do colaborador.
  */
 export function analyzeMyHours(
   rows: MyHoursRow[],
   period: { from: string; to: string; today: string },
   dailyTarget: number,
+  leaves?: PersonalLeave[] | Set<string> | string[],
 ): PersonalAnalytics {
   const total = rows.reduce((sum, row) => sum + Number(row.hours), 0);
   const billable = rows.filter((row) => row.billable).reduce((sum, row) => sum + Number(row.hours), 0);
@@ -64,22 +76,60 @@ export function analyzeMyHours(
     byDayMap.set(row.entry_date, (byDayMap.get(row.entry_date) ?? 0) + Number(row.hours));
   }
 
+  // Prepara conjunto de datas em férias/recesso
+  const leaveDatesSet = new Set<string>();
+  if (leaves) {
+    if (leaves instanceof Set) {
+      for (const d of leaves) leaveDatesSet.add(d);
+    } else if (Array.isArray(leaves)) {
+      for (const item of leaves) {
+        if (typeof item === "string") {
+          leaveDatesSet.add(item);
+        } else if (item && typeof item === "object" && item.start_date && item.end_date) {
+          const start = item.start_date <= item.end_date ? item.start_date : item.end_date;
+          const end = item.start_date <= item.end_date ? item.end_date : item.start_date;
+          for (let d = start; d <= end; d = addDays(d, 1)) {
+            leaveDatesSet.add(d);
+          }
+        }
+      }
+    }
+  }
+
   const weekStart = startOfWeek(period.today);
   const weekEnd = addDays(weekStart, 6);
   const hoursThisWeek = [...byDayMap.entries()]
     .filter(([date]) => date >= weekStart && date <= weekEnd)
     .reduce((sum, [, hours]) => sum + hours, 0);
 
-  // Só cobra jornada de dias úteis já passados
+  // Só cobra jornada de dias úteis já passados que não foram férias/recesso
   const limit = period.today < period.to ? period.today : period.to;
-  const businessDays = limit >= period.from ? businessDaysBetween(period.from, limit) : 0;
-  const weekBusinessDays = businessDaysBetween(weekStart, limit < weekStart ? weekStart : limit);
   const isBusinessDay = (iso: string) => businessDaysBetween(iso, iso) === 1;
 
   const missingDays: string[] = [];
+  const leaveDays: string[] = [];
+  let workingBusinessDays = 0;
+  let weekWorkingBusinessDays = 0;
+
   for (let day = period.from; day <= limit; day = addDays(day, 1)) {
-    if (isBusinessDay(day) && !byDayMap.has(day)) missingDays.push(day);
+    if (isBusinessDay(day)) {
+      if (leaveDatesSet.has(day)) {
+        leaveDays.push(day);
+      } else {
+        workingBusinessDays++;
+        if (day >= weekStart && day <= weekEnd) {
+          weekWorkingBusinessDays++;
+        }
+        if (!byDayMap.has(day)) {
+          missingDays.push(day);
+        }
+      }
+    }
   }
+
+  const isTodayBusinessDay = isBusinessDay(period.today);
+  const isTodayLeave = leaveDatesSet.has(period.today);
+  const expectedToday = isTodayBusinessDay && !isTodayLeave ? dailyTarget : 0;
 
   const days = [...byDayMap.keys()].sort();
 
@@ -89,15 +139,16 @@ export function analyzeMyHours(
     billableShare: total > 0 ? billable / total : 0,
     hoursToday: byDayMap.get(period.today) ?? 0,
     hoursThisWeek,
-    expectedHours: businessDays * dailyTarget,
-    expectedToday: isBusinessDay(period.today) ? dailyTarget : 0,
-    expectedThisWeek: weekBusinessDays * dailyTarget,
-    balance: total - businessDays * dailyTarget,
+    expectedHours: workingBusinessDays * dailyTarget,
+    expectedToday,
+    expectedThisWeek: weekWorkingBusinessDays * dailyTarget,
+    balance: total - workingBusinessDays * dailyTarget,
     byDay: days.map((date) => ({ date, hours: byDayMap.get(date) ?? 0 })),
     byClient: distribution(rows, (row) => row.client_name ?? "Interno", total),
     byActivity: distribution(rows, (row) => row.activity_name, total),
     byArea: distribution(rows, (row) => row.area_name ?? "Sem área", total),
     missingDays,
+    leaveDays,
     lastEntryDate: days.at(-1) ?? null,
   };
 }

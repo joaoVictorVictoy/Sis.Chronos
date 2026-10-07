@@ -231,6 +231,46 @@ export type Database = {
           },
         ];
       };
+      employee_leaves: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          employee_id: string;
+          start_date: string;
+          end_date: string;
+          type: "ferias" | "recesso" | "folga" | "outro";
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          tenant_id?: string;
+          employee_id: string;
+          start_date: string;
+          end_date: string;
+          type?: "ferias" | "recesso" | "folga" | "outro";
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          start_date?: string;
+          end_date?: string;
+          type?: "ferias" | "recesso" | "folga" | "outro";
+          notes?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "employee_leaves_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       clients: {
         Row: {
           id: string;

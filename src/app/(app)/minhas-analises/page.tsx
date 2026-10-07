@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { CalendarX2Icon } from "lucide-react";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { ExportMenu } from "@/components/export-menu";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +10,8 @@ import { analyzeMyHours, type MyHoursRow } from "@/lib/personal-analytics";
 import { BarList } from "../dashboard/charts";
 import { PeriodFilter } from "../dashboard/period-filter";
 import { DailyHoursChart } from "./daily-hours-chart";
+import { MissingDaysCard } from "./missing-days-card";
+import type { LeaveRecord } from "./leaves-dialog";
 
 export const metadata = { title: "Minhas análises | Apontamento" };
 
@@ -78,12 +79,22 @@ export default async function MyAnalyticsPage({ searchParams }: PageProps<"/minh
   }
 
   const supabase = await createClient();
-  const { data } = await supabase.rpc("my_hours_breakdown", { p_from: period.from, p_to: period.to });
-  const rows = (data ?? []) as MyHoursRow[];
+  const [{ data: breakdownData }, { data: leavesData }] = await Promise.all([
+    supabase.rpc("my_hours_breakdown", { p_from: period.from, p_to: period.to }),
+    supabase
+      .from("employee_leaves")
+      .select("id, start_date, end_date, type, notes")
+      .eq("employee_id", employeeId)
+      .lte("start_date", period.to)
+      .gte("end_date", period.from)
+      .order("start_date", { ascending: true }),
+  ]);
+  const rows = (breakdownData ?? []) as MyHoursRow[];
+  const leaves = (leavesData ?? []) as LeaveRecord[];
 
   // Jornada diária = jornada mensal da empresa ÷ 21 dias úteis
   const dailyTarget = Number(tenant.monthly_hours) / 21;
-  const a = analyzeMyHours(rows, { from: period.from, to: period.to, today }, dailyTarget);
+  const a = analyzeMyHours(rows, { from: period.from, to: period.to, today }, dailyTarget, leaves);
 
   return (
     <div className="grid gap-6">
@@ -206,34 +217,12 @@ export default async function MyAnalyticsPage({ searchParams }: PageProps<"/minh
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Dias úteis sem apontamento</CardTitle>
-          <CardDescription>
-            {a.lastEntryDate
-              ? `Último apontamento em ${formatDate(a.lastEntryDate)}.`
-              : "Nenhum apontamento registrado no período."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {a.missingDays.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum dia útil em aberto no período. 🎉</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {a.missingDays.map((day) => (
-                <Link
-                  key={day}
-                  href={`/apontamentos?semana=${day}`}
-                  className="flex items-center gap-1 rounded-lg border px-2 py-1 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-                >
-                  <CalendarX2Icon className="size-3" />
-                  {formatDate(day)}
-                </Link>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <MissingDaysCard
+        missingDays={a.missingDays}
+        lastEntryDate={a.lastEntryDate}
+        leaves={leaves}
+        leaveDays={a.leaveDays}
+      />
     </div>
   );
 }

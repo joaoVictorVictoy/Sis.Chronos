@@ -111,4 +111,33 @@ describe("análises do colaborador", () => {
     expect(a.expectedHours).toBe(0);
     expect(a.missingDays).toHaveLength(0);
   });
+
+  it("desconsidera dias de férias e recesso dos dias faltantes e da jornada esperada", () => {
+    // 01 a 04/09 (4 dias úteis) em férias
+    const leaves = [
+      { start_date: "2026-09-01", end_date: "2026-09-04", type: "ferias" },
+      { start_date: "2026-09-16", end_date: "2026-09-16", type: "recesso" },
+    ];
+    const a = analyzeMyHours(rows, period, dailyTarget, leaves);
+
+    // 01-04 e 16 NÃO devem aparecer em missingDays
+    expect(a.missingDays).toEqual([
+      "2026-09-07",
+      "2026-09-08",
+      "2026-09-09",
+      "2026-09-10",
+      "2026-09-11",
+    ]);
+
+    // Total de dias úteis esperados reduz de 13 para 8 (13 - 4 ferias - 1 recesso)
+    expect(a.expectedHours).toBe(8 * 8); // 64h
+    expect(a.balance).toBe(20 - 64);
+    expect(a.leaveDays).toEqual([
+      "2026-09-01",
+      "2026-09-02",
+      "2026-09-03",
+      "2026-09-04",
+      "2026-09-16",
+    ]);
+  });
 });
