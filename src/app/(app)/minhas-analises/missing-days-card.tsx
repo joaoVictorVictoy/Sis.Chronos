@@ -94,11 +94,11 @@ export function MissingDaysCard({
           </CardDescription>
         </div>
 
-        {/* Botão de férias/recesso no cabeçalho */}
+        {/* Botão de férias/recesso/falta no cabeçalho */}
         <div className="flex items-center gap-2 shrink-0">
           <LeavesDialog
             currentLeaves={leaves}
-            triggerText="Informar férias / recesso"
+            triggerText="Informar férias / falta / recesso"
             triggerVariant="outline"
             triggerClassName="h-8 text-xs font-medium border-border/70 hover:bg-muted"
           />
@@ -109,12 +109,12 @@ export function MissingDaysCard({
         {!hasMissing ? (
           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
             <span>🎉</span>
-            Nenhum dia útil pendente no período. Todas as horas estão regularizadas!
+            Nenhum dia útil pendente no período. Todas as horas e ausências estão regularizadas!
           </p>
         ) : (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              Selecione uma data para apontar horas:
+              Selecione uma data para apontar horas (ou informe falta/férias no botão acima):
             </p>
             <div className="flex flex-wrap gap-2">
               {missingDays.map((day) => (

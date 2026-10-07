@@ -238,7 +238,7 @@ export type Database = {
           employee_id: string;
           start_date: string;
           end_date: string;
-          type: "ferias" | "recesso" | "folga" | "outro";
+          type: "ferias" | "recesso" | "folga" | "falta" | "atestado" | "outro";
           notes: string | null;
           created_at: string;
           updated_at: string;
@@ -249,7 +249,7 @@ export type Database = {
           employee_id: string;
           start_date: string;
           end_date: string;
-          type?: "ferias" | "recesso" | "folga" | "outro";
+          type?: "ferias" | "recesso" | "folga" | "falta" | "atestado" | "outro";
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -257,7 +257,7 @@ export type Database = {
         Update: {
           start_date?: string;
           end_date?: string;
-          type?: "ferias" | "recesso" | "folga" | "outro";
+          type?: "ferias" | "recesso" | "folga" | "falta" | "atestado" | "outro";
           notes?: string | null;
           updated_at?: string;
         };

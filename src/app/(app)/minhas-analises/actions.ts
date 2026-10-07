@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 
-export type LeaveType = "ferias" | "recesso" | "folga" | "outro";
+export type LeaveType = "ferias" | "recesso" | "folga" | "falta" | "atestado" | "outro";
 
 export async function createEmployeeLeaveAction(data: {
   startDate: string;

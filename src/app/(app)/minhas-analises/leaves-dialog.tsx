@@ -60,6 +60,8 @@ interface LeavesDialogProps {
 const TYPE_OPTIONS: { value: LeaveType; label: string; icon: string }[] = [
   { value: "ferias", label: "Férias", icon: "🏖️" },
   { value: "recesso", label: "Recesso", icon: "🎉" },
+  { value: "falta", label: "Falta / Ausência", icon: "❌" },
+  { value: "atestado", label: "Atestado médico", icon: "🏥" },
   { value: "folga", label: "Folga", icon: "☕" },
   { value: "outro", label: "Outro", icon: "📋" },
 ];
@@ -67,6 +69,8 @@ const TYPE_OPTIONS: { value: LeaveType; label: string; icon: string }[] = [
 const TYPE_LABELS: Record<string, string> = {
   ferias: "Férias",
   recesso: "Recesso",
+  falta: "Falta",
+  atestado: "Atestado médico",
   folga: "Folga",
   outro: "Outro",
 };
