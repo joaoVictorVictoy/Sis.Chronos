@@ -40,7 +40,7 @@ export function TerminateContractDialog({
   contract: Tables<"contracts">;
   otherActiveContractsCount: number;
   today: string;
-  trigger?: React.ReactNode;
+  trigger?: React.ReactElement;
 }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<TerminationReason>(

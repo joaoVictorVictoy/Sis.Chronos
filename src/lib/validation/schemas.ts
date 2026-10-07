@@ -343,12 +343,9 @@ export const terminationSubReasonSchema = z.enum([
 export const terminateContractSchema = z.object({
   contractId: z.uuid(),
   terminationReason: terminationReasonSchema,
-  terminationSubReason: fromForm(
-    z
-      .string()
-      .trim()
-      .transform((v) => (v === "" ? null : v))
-      .pipe(terminationSubReasonSchema.nullable().optional()),
+  terminationSubReason: z.preprocess(
+    (v) => (v === "" || v === undefined || v === null ? null : v),
+    terminationSubReasonSchema.nullable().optional(),
   ),
   terminatedAt: dateSchema,
   terminationPenalty: optionalDecimalSchema.refine(
