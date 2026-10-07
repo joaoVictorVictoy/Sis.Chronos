@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { ChevronLeftIcon, ChevronRightIcon, LockIcon, PencilIcon, Trash2Icon, XIcon, AlertTriangleIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,17 @@ const STATUS_LABEL: Record<TimeEntryStatus, string> = {
   aprovado: "Aprovado",
   rejeitado: "Rejeitado",
 };
+
+function isEntryWithin24Hours(entryDate: string, endTime: string | null): boolean {
+  try {
+    const timeStr = endTime ? (endTime.length === 5 ? `${endTime}:00` : endTime) : "23:59:59";
+    const endDateTime = new Date(`${entryDate}T${timeStr}`);
+    const timeMs = isNaN(endDateTime.getTime()) ? new Date(entryDate).getTime() : endDateTime.getTime();
+    return Date.now() <= timeMs + 24 * 60 * 60 * 1000;
+  } catch {
+    return false;
+  }
+}
 
 function EntryRow({
   entry,
@@ -70,16 +81,33 @@ function EntryRow({
   const canEdit = !locked;
   const isDeletionRequested = Boolean(entry.deletion_requested_at);
 
+  const isWithin24h = isEntryWithin24Hours(entry.entry_date, entry.end_time);
+  const canDeleteDirectly =
+    isManagerUser ||
+    (entry.reviewed_by === null && (entry.status === "pendente" || (entry.status === "aprovado" && isWithin24h)));
+
+  useEffect(() => {
+    if (state.success) {
+      setEditing(false);
+    }
+  }, [state.success]);
+
+  useEffect(() => {
+    if (reqDelState.success) {
+      setRequestingDeletion(false);
+    }
+  }, [reqDelState.success]);
+
   if (editing) {
     return (
-      <div className="grid gap-3 rounded-lg border bg-muted/20 p-3">
+      <div className="grid gap-3 rounded-lg border bg-muted/20 p-3.5">
         <form action={formAction} className="grid gap-3">
           <input type="hidden" name="id" value={entry.id} />
           <FormAlert state={state} />
 
-          {!isManagerUser && (entry.status === "aprovado" || entry.status === "rejeitado") && (
+          {!isManagerUser && (entry.status === "aprovado" || entry.status === "rejeitado" || !isWithin24h) && (
             <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300">
-              <strong>Atenção:</strong> Como este apontamento já foi revisado, ao salvar a correção ele voltará para o status <strong>Pendente</strong> para nova aprovação do gestor.
+              <strong>Atenção:</strong> Como este apontamento já passou do prazo de 24 horas ou já foi aprovado, ao salvar a alteração ele voltará para o status <strong>Pendente</strong> para nova aprovação do gestor.
             </div>
           )}
 
@@ -105,7 +133,7 @@ function EntryRow({
             <Input id={`desc-${entry.id}`} name="description" defaultValue={entry.description ?? ""} />
           </Field>
           <div className="flex items-center gap-2">
-            <SubmitButton size="sm">Salvar correção</SubmitButton>
+            <SubmitButton size="sm">Salvar alteração</SubmitButton>
             <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>
               <XIcon />
               Cancelar
@@ -118,15 +146,15 @@ function EntryRow({
 
   if (requestingDeletion) {
     return (
-      <div className="grid gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+      <div className="grid gap-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3.5">
         <form action={reqDelAction} className="grid gap-3">
           <input type="hidden" name="id" value={entry.id} />
           <FormAlert state={reqDelState} />
           <div>
-            <p className="text-sm font-semibold text-destructive">Solicitar exclusão do apontamento</p>
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Solicitar exclusão ao gestor / administrador</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Este apontamento está aprovado ({formatHours(entry.minutes / 60)} em {formatDate(entry.entry_date)}).
-              Informe a justificativa para que o gestor ou administrador possa avaliar e aprovar a exclusão.
+              Este apontamento possui mais de 24 horas ({formatHours(entry.minutes / 60)} em {formatDate(entry.entry_date)}).
+              Informe o motivo para que o gestor ou administrador possa avaliar e aprovar a exclusão.
             </p>
           </div>
           <Field label="Motivo da exclusão" htmlFor={`del-reason-${entry.id}`} errors={reqDelState.fieldErrors?.reason}>
@@ -140,7 +168,7 @@ function EntryRow({
           </Field>
           <div className="flex items-center gap-2">
             <SubmitButton size="sm" variant="destructive">
-              Enviar solicitação de exclusão
+              Enviar solicitação ao gestor
             </SubmitButton>
             <Button type="button" variant="ghost" size="sm" onClick={() => setRequestingDeletion(false)}>
               <XIcon />
@@ -230,42 +258,53 @@ function EntryRow({
             <>
               {canEdit ? (
                 <Button
-                  variant="ghost"
-                  size="icon-sm"
+                  variant="outline"
+                  size="sm"
                   onClick={() => setEditing(true)}
-                  aria-label="Editar"
-                  title="Editar / Corrigir apontamento"
+                  aria-label="Alterar apontamento"
+                  title="Alterar dados deste apontamento"
+                  className="h-7 gap-1 px-2.5 text-xs font-medium"
                 >
-                  <PencilIcon />
+                  <PencilIcon className="size-3" />
+                  <span>Alterar</span>
                 </Button>
               ) : null}
 
               {!locked ? (
-                isManagerUser || entry.status === "pendente" ? (
-                  <form action={deleteAction}>
+                canDeleteDirectly ? (
+                  <form
+                    action={deleteAction}
+                    onSubmit={(e) => {
+                      if (!confirm("Deseja realmente apagar este apontamento?")) {
+                        e.preventDefault();
+                      }
+                    }}
+                  >
                     <input type="hidden" name="id" value={entry.id} />
                     <Button
-                      variant="ghost"
-                      size="icon-sm"
+                      variant="outline"
+                      size="sm"
                       type="submit"
-                      aria-label="Excluir"
-                      title="Excluir apontamento"
-                      className="text-destructive hover:bg-destructive/10"
+                      aria-label="Apagar apontamento"
+                      title="Apagar apontamento diretamente (dentro do prazo de 24h)"
+                      className="h-7 gap-1 px-2.5 text-xs font-medium text-destructive hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
                     >
-                      <Trash2Icon />
+                      <Trash2Icon className="size-3" />
+                      <span>Apagar</span>
                     </Button>
                   </form>
                 ) : (
                   <Button
-                    variant="ghost"
-                    size="icon-sm"
+                    variant="outline"
+                    size="sm"
                     type="button"
                     onClick={() => setRequestingDeletion(true)}
-                    aria-label="Solicitar exclusão"
-                    title="Solicitar exclusão ao gestor"
-                    className="text-destructive hover:bg-destructive/10"
+                    aria-label="Apagar apontamento"
+                    title="Passou de 24 horas: solicitar aprovação do gestor/administrador para apagar"
+                    className="h-7 gap-1 px-2.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/10"
                   >
-                    <Trash2Icon />
+                    <Trash2Icon className="size-3" />
+                    <span>Apagar</span>
                   </Button>
                 )
               ) : null}

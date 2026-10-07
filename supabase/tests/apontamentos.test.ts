@@ -267,7 +267,7 @@ describe("apontamento de horas, aprovação e fechamento", () => {
     expect(msg).toContain("pendentes");
   });
 
-  it("aprova automaticamente apontamento lançado em até 36 horas e permite ajuste pelo colaborador", async () => {
+  it("aprova automaticamente apontamento lançado em até 24 horas e permite ajuste pelo colaborador", async () => {
     const hoje = new Date().toISOString().slice(0, 10);
     const res = await asUser(db, colaborador, () =>
       db.query<{ id: string; status: string; review_comment: string }>(
@@ -278,7 +278,7 @@ describe("apontamento de horas, aprovação e fechamento", () => {
       ),
     );
     expect(res.rows[0].status).toBe("aprovado");
-    expect(res.rows[0].review_comment).toContain("36h");
+    expect(res.rows[0].review_comment).toContain("24h");
 
     // Colaborador pode alterar seu próprio apontamento auto-aprovado recente
     await asUser(db, colaborador, () =>

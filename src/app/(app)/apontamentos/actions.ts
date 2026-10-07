@@ -113,11 +113,11 @@ export async function createTimeEntryAction(_prev: ActionState, formData: FormDa
   revalidatePath("/dashboard");
 
   const entryEndMs = new Date(`${parsed.data.entryDate}T${parsed.data.endTime || "23:59:59"}`).getTime();
-  const isWithin36h = Date.now() <= entryEndMs + 36 * 60 * 60 * 1000;
+  const isWithin24h = Date.now() <= entryEndMs + 24 * 60 * 60 * 1000;
 
   return {
-    success: isWithin36h
-      ? "Apontamento registrado e aprovado automaticamente (dentro do prazo de 36h)."
+    success: isWithin24h
+      ? "Apontamento registrado e aprovado automaticamente (dentro do prazo de 24h)."
       : "Apontamento registrado (aguardando aprovação do gestor).",
   };
 }
