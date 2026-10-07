@@ -21,11 +21,15 @@ import {
 interface NotificationBellProps {
   missingDaysCount?: number;
   pendingApprovalsCount?: number;
+  side?: "top" | "bottom" | "left" | "right";
+  align?: "start" | "center" | "end";
 }
 
 export function NotificationBell({
   missingDaysCount = 0,
   pendingApprovalsCount = 0,
+  side = "bottom",
+  align = "end",
 }: NotificationBellProps) {
   const totalPending = missingDaysCount + pendingApprovalsCount;
   const hasPending = totalPending > 0;
@@ -54,7 +58,7 @@ export function NotificationBell({
           </Button>
         }
       />
-      <PopoverContent align="end" className="w-80 p-3 space-y-3 shadow-lg">
+      <PopoverContent side={side} align={align} className="w-80 p-3 space-y-3 shadow-lg">
         <PopoverHeader className="border-b pb-2">
           <div className="flex items-center justify-between">
             <PopoverTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
