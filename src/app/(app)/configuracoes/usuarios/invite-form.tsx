@@ -23,12 +23,12 @@ export function InviteForm() {
     <form action={formAction} className="grid gap-4">
       <FormAlert state={state} />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-        <Field label="Nome" htmlFor="fullName" errors={state.fieldErrors?.fullName} className="flex-1 min-w-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
+        <Field label="Nome" htmlFor="fullName" errors={state.fieldErrors?.fullName} className="w-full sm:w-56">
           <Input id="fullName" name="fullName" required placeholder="Nome completo" />
         </Field>
 
-        <Field label="E-mail" htmlFor="email" errors={state.fieldErrors?.email} className="flex-1 min-w-0">
+        <Field label="E-mail" htmlFor="email" errors={state.fieldErrors?.email} className="w-full sm:w-64">
           <Input id="email" name="email" type="email" required placeholder="email@empresa.com.br" />
         </Field>
 
