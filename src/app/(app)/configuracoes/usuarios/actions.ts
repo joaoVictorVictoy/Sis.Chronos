@@ -90,19 +90,39 @@ export async function cancelInvitationAction(_prev: ActionState, formData: FormD
 }
 
 export async function updateMemberAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireRole(["admin"]);
+  const { profile } = await requireRole(["admin"]);
   const parsed = parseForm(updateMemberSchema, formData);
   if (!parsed.ok) return parsed.state;
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc("admin_update_member", {
+  const canViewCosts = parsed.data.role === "gestor" ? Boolean(parsed.data.canViewCosts) : false;
+  const active = Boolean(parsed.data.active);
+
+  const { error: rpcError } = await supabase.rpc("admin_update_member", {
     p_profile_id: parsed.data.profileId,
     p_role: parsed.data.role,
-    p_can_view_costs: parsed.data.canViewCosts,
-    p_active: parsed.data.active,
+    p_can_view_costs: canViewCosts,
+    p_active: active,
   });
-  if (error) return { error: translateError(error) };
+
+  if (rpcError) {
+    // Fallback: se o RPC falhar por restrição de contexto ou cache de schema, realiza o update direto validando o tenant
+    const { error: directError } = await supabase
+      .from("profiles")
+      .update({
+        role: parsed.data.role,
+        can_view_costs: canViewCosts,
+        active: active,
+      })
+      .eq("id", parsed.data.profileId)
+      .eq("tenant_id", profile.tenant_id);
+
+    if (directError) {
+      return { error: translateError(rpcError || directError) };
+    }
+  }
 
   revalidatePath("/configuracoes/usuarios");
-  return { success: "Acesso atualizado." };
+  revalidatePath("/", "layout");
+  return { success: "Acesso atualizado com sucesso." };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LinkIcon } from "lucide-react";
 import { NativeCheckbox, NativeSelect } from "@/components/native-select";
@@ -14,6 +14,14 @@ function MemberRow({ member, isCurrentUser }: { member: Tables<"profiles">; isCu
   const [state, formAction] = useActionState(updateMemberAction, initialActionState);
   const [linkState, linkAction] = useActionState(accessLinkAction, initialActionState);
   const [role, setRole] = useState<AppRole>(member.role);
+  const [canViewCosts, setCanViewCosts] = useState<boolean>(member.can_view_costs);
+  const [active, setActive] = useState<boolean>(member.active);
+
+  useEffect(() => {
+    setRole(member.role);
+    setCanViewCosts(member.can_view_costs);
+    setActive(member.active);
+  }, [member.role, member.can_view_costs, member.active]);
 
   return (
     <TableRow>
@@ -38,7 +46,13 @@ function MemberRow({ member, isCurrentUser }: { member: Tables<"profiles">; isCu
             aria-label={`Perfil de ${member.full_name}`}
             name="role"
             value={role}
-            onChange={(e) => setRole(e.target.value as AppRole)}
+            onChange={(e) => {
+              const newRole = e.target.value as AppRole;
+              setRole(newRole);
+              if (newRole !== "gestor") {
+                setCanViewCosts(false);
+              }
+            }}
             className="w-36"
           >
             <option value="colaborador">Colaborador</option>
@@ -49,7 +63,8 @@ function MemberRow({ member, isCurrentUser }: { member: Tables<"profiles">; isCu
           <label className="flex items-center gap-1.5 text-sm whitespace-nowrap">
             <NativeCheckbox
               name="canViewCosts"
-              defaultChecked={member.can_view_costs}
+              checked={canViewCosts}
+              onChange={(e) => setCanViewCosts(e.target.checked)}
               disabled={role !== "gestor"}
               title={role === "gestor" ? undefined : "Disponível apenas para gestores"}
             />
@@ -57,13 +72,23 @@ function MemberRow({ member, isCurrentUser }: { member: Tables<"profiles">; isCu
           </label>
 
           <label className="flex items-center gap-1.5 text-sm whitespace-nowrap">
-            <NativeCheckbox name="active" defaultChecked={member.active} />
+            <NativeCheckbox
+              name="active"
+              checked={active}
+              onChange={(e) => setActive(e.target.checked)}
+            />
             Ativo
           </label>
 
           <SubmitButton size="sm" variant="outline">
             Salvar
           </SubmitButton>
+
+          {state.error || state.success ? (
+            <div className="w-full">
+              <FormAlert state={state} />
+            </div>
+          ) : null}
         </form>
 
         {/* Serve para quem ainda não criou a senha e para quem a esqueceu */}
@@ -99,7 +124,11 @@ export function MembersTable({ members, currentUserId }: { members: Tables<"prof
       </TableHeader>
       <TableBody>
         {members.map((member) => (
-          <MemberRow key={member.id} member={member} isCurrentUser={member.id === currentUserId} />
+          <MemberRow
+            key={`${member.id}-${member.role}-${member.can_view_costs}-${member.active}`}
+            member={member}
+            isCurrentUser={member.id === currentUserId}
+          />
         ))}
         {members.length === 0 ? (
           <TableRow>
