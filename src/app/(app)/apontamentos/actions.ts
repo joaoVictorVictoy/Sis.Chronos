@@ -24,20 +24,16 @@ function entryPayload(data: z.output<typeof timeEntrySchema>): { minutes: number
 }
 
 export async function createTimeEntryAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const { tenant, employeeId: loggedEmployeeId, profile } = await requireContext();
-  const isManagerUser = profile.role === "admin" || profile.role === "gestor";
+  const { tenant, employeeId: loggedEmployeeId } = await requireContext();
 
   const parsed = parseForm(timeEntrySchema, formData);
   if (!parsed.ok) return parsed.state;
 
-  let targetEmployeeId = loggedEmployeeId;
-  if (isManagerUser && parsed.data.employeeId) {
-    targetEmployeeId = parsed.data.employeeId;
+  if (!loggedEmployeeId) {
+    return { error: "Seu usuário não está vinculado a um colaborador para realizar apontamentos." };
   }
 
-  if (!targetEmployeeId) {
-    return { error: "Seu usuário não está vinculado a um colaborador e nenhum colaborador foi selecionado." };
-  }
+  const targetEmployeeId = loggedEmployeeId;
 
   const computed = entryPayload(parsed.data);
   if ("error" in computed) return { error: computed.error };
@@ -47,7 +43,7 @@ export async function createTimeEntryAction(_prev: ActionState, formData: FormDa
   // Bloqueia colaborador desativado
   const { data: employee } = await supabase.from("employees").select("active").eq("id", targetEmployeeId).single();
   if (employee && !employee.active) {
-    return { error: "O cadastro do colaborador selecionado está inativo. Novos apontamentos estão bloqueados." };
+    return { error: "Seu cadastro de colaborador está inativo. Novos apontamentos estão bloqueados." };
   }
 
   // Vincula automaticamente o contrato ativo do cliente se não tiver sido passado

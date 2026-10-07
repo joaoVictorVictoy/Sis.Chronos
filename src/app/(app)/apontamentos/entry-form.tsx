@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/native-select";
 import { Field, FormAlert, SubmitButton } from "@/components/form";
 import { initialActionState } from "@/lib/actions";
-import type { ActivityOption, AreaOption, ClientAreaOption, ClientOption, ContractOption, EmployeeOption } from "./page";
+import type { ActivityOption, AreaOption, ClientAreaOption, ClientOption, ContractOption } from "./page";
 import { createTimeEntryAction } from "./actions";
 import { QuickActivityDialog } from "./quick-activity-dialog";
 
@@ -247,10 +247,6 @@ export function EntryForm({
   contracts,
   clientAreas,
   today,
-  employees,
-  selectedEmployeeId,
-  currentEmployeeId,
-  isManagerUser,
 }: {
   clients: ClientOption[];
   areas: AreaOption[];
@@ -258,24 +254,15 @@ export function EntryForm({
   contracts: ContractOption[];
   clientAreas: ClientAreaOption[];
   today: string;
-  employees?: EmployeeOption[];
-  selectedEmployeeId?: string;
-  currentEmployeeId?: string | null;
-  isManagerUser?: boolean;
 }) {
   const [state, formAction] = useActionState(createTimeEntryAction, initialActionState);
   const [useInterval, setUseInterval] = useState(false);
-  const initialEmpId =
-    selectedEmployeeId && selectedEmployeeId !== "todos"
-      ? selectedEmployeeId
-      : (currentEmployeeId ?? (employees?.[0]?.id ?? ""));
-  const [formEmployeeId, setFormEmployeeId] = useState(initialEmpId);
 
   return (
     <form action={formAction} className="grid gap-4">
       <FormAlert state={state} />
 
-      <div className={`grid gap-4 sm:grid-cols-2 ${isManagerUser && employees && employees.length > 0 ? "lg:grid-cols-6" : "lg:grid-cols-5"}`}>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="grid gap-1.5">
           <div className="flex h-5 items-center">
             <Label htmlFor="entryDate">Data</Label>
@@ -285,31 +272,6 @@ export function EntryForm({
             <p className="text-xs text-destructive">{state.fieldErrors.entryDate[0]}</p>
           ) : null}
         </div>
-
-        {isManagerUser && employees && employees.length > 0 ? (
-          <div className="grid gap-1.5">
-            <div className="flex h-5 items-center">
-              <Label htmlFor="employeeId">Colaborador</Label>
-            </div>
-            <NativeSelect
-              id="employeeId"
-              name="employeeId"
-              value={formEmployeeId}
-              onChange={(e) => setFormEmployeeId(e.target.value)}
-              className="h-9"
-              required
-            >
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.name} {emp.id === currentEmployeeId ? " (você)" : ""}
-                </option>
-              ))}
-            </NativeSelect>
-            {state.fieldErrors?.employeeId ? (
-              <p className="text-xs text-destructive">{state.fieldErrors.employeeId[0]}</p>
-            ) : null}
-          </div>
-        ) : null}
 
         <CascadeSelectors
           clients={clients}

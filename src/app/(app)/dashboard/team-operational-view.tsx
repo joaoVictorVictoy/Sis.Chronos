@@ -97,10 +97,15 @@ export function TeamOperationalView({
             ) : (
               report.topConsumingActivities.slice(0, 2).map((act, i) => (
                 <div key={i} className="flex items-center justify-between text-xs">
-                  <span className="truncate max-w-[130px] font-medium" title={act.name}>
-                    {act.name}
-                  </span>
-                  <span className="font-semibold tabular-nums text-foreground">
+                  <div className="min-w-0 pr-2">
+                    <span className="truncate block font-medium" title={`${act.name} (${act.clientName})`}>
+                      {act.name}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground truncate block">
+                      {act.clientName}
+                    </span>
+                  </div>
+                  <span className="font-semibold tabular-nums text-foreground shrink-0">
                     {formatHours(act.avgHours)}
                     <span className="text-[10px] text-muted-foreground font-normal">/apont</span>
                   </span>
@@ -300,6 +305,7 @@ export function TeamOperationalView({
                 <TableHeader>
                   <TableRow className="text-xs">
                     <TableHead>Atividade</TableHead>
+                    <TableHead>Empresa</TableHead>
                     <TableHead>Área</TableHead>
                     <TableHead className="text-right">Hora Média / Apontamento</TableHead>
                     <TableHead className="text-right">Total Horas</TableHead>
@@ -310,6 +316,13 @@ export function TeamOperationalView({
                   {report.topConsumingActivities.map((act, idx) => (
                     <TableRow key={idx}>
                       <TableCell className="font-medium text-foreground">{act.name}</TableCell>
+                      <TableCell className="font-medium text-foreground">
+                        {act.clientName === "Interno" ? (
+                          <span className="text-muted-foreground text-xs italic">Interno</span>
+                        ) : (
+                          act.clientName
+                        )}
+                      </TableCell>
                       <TableCell className="text-muted-foreground">{act.areaName}</TableCell>
                       <TableCell className="text-right font-semibold tabular-nums text-foreground">
                         {formatHours(act.avgHours)}

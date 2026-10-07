@@ -226,8 +226,8 @@ function EntryRow({
               ? ` · ${entry.start_time.slice(0, 5)}–${entry.end_time.slice(0, 5)}`
               : ""}
           </p>
-          {entry.review_comment ? (
-            <p className="text-xs text-muted-foreground">Comentário da gestão: {entry.review_comment}</p>
+          {entry.status === "rejeitado" && entry.review_comment ? (
+            <p className="text-xs text-destructive font-medium">Motivo da rejeição: {entry.review_comment}</p>
           ) : null}
           {deleteState.error ? <p className="text-xs text-destructive">{deleteState.error}</p> : null}
           {cancelDelState.error ? <p className="text-xs text-destructive">{cancelDelState.error}</p> : null}

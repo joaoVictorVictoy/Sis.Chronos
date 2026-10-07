@@ -171,19 +171,26 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
         description="Lance suas horas selecionando Cliente, Área e Atividade. O contrato vigente é vinculado automaticamente."
       />
 
-      <EntryModes
-        clients={clientOptions}
-        areas={areaOptions}
-        activities={activityOptions}
-        contracts={contractOptions}
-        clientAreas={clientAreaOptions}
-        today={today}
-        lockedThrough={lockedThrough}
-        employees={employees}
-        selectedEmployeeId={selectedEmployeeId}
-        currentEmployeeId={employeeId ?? null}
-        isManagerUser={isManagerUser}
-      />
+      {employeeId ? (
+        <EntryModes
+          clients={clientOptions}
+          areas={areaOptions}
+          activities={activityOptions}
+          contracts={contractOptions}
+          clientAreas={clientAreaOptions}
+          today={today}
+          lockedThrough={lockedThrough}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Sem cadastro de colaborador vinculado</CardTitle>
+            <CardDescription>
+              Seu login não está vinculado a um colaborador, portanto você não pode lançar horas. A visualização das horas da equipe está disponível abaixo.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       <WeekEntries
         weekStart={weekStart}
