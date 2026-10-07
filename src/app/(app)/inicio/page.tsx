@@ -4,10 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { requireContext, ROLE_LABELS } from "@/lib/auth/session";
+import { createClient } from "@/lib/supabase/server";
 import { formatCurrency, formatHours, formatPercent, todayISO } from "@/lib/format";
+import { addDays } from "@/lib/time";
 import { resolvePeriod } from "@/lib/periods";
 import { getProfitabilityReport } from "@/lib/server/metrics";
 import type { HealthStatus } from "@/lib/profitability";
+import type { HeatmapRawEntry, HeatmapRawLeave } from "@/lib/heatmap";
+import { ActivityHeatmap } from "./activity-heatmap";
 
 export const metadata = { title: "Início | Apontamento" };
 
@@ -24,9 +28,29 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
 }
 
 export default async function HomePage() {
-  const { profile, tenant } = await requireContext();
+  const { profile, tenant, employeeId } = await requireContext();
   const isManager = profile.role === "admin" || profile.role === "gestor";
   const canSeeCosts = profile.role === "admin" || profile.can_view_costs;
+
+  const today = todayISO();
+  let rawEntries: HeatmapRawEntry[] = [];
+  let rawLeaves: HeatmapRawLeave[] = [];
+
+  if (employeeId) {
+    const fromDate = addDays(today, -150);
+    const supabase = await createClient();
+    const [{ data: breakdownData }, { data: leavesData }] = await Promise.all([
+      supabase.rpc("my_hours_breakdown", { p_from: fromDate, p_to: today }),
+      supabase
+        .from("employee_leaves")
+        .select("start_date, end_date, type, notes")
+        .eq("employee_id", employeeId)
+        .lte("start_date", today)
+        .gte("end_date", fromDate),
+    ]);
+    rawEntries = (breakdownData ?? []) as HeatmapRawEntry[];
+    rawLeaves = (leavesData ?? []) as HeatmapRawLeave[];
+  }
 
   return (
     <div className="grid gap-6">
@@ -39,9 +63,38 @@ export default async function HomePage() {
       </header>
 
       {isManager ? (
-        <ManagerSummary canSeeCosts={canSeeCosts} />
+        <>
+          <ManagerSummary canSeeCosts={canSeeCosts} />
+          {employeeId && (
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight">Seus apontamentos pessoais</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Seus dias apontados e horas registradas por cliente.
+                  </p>
+                </div>
+                <Button nativeButton={false} render={<Link href="/apontamentos" />} variant="outline" size="sm">
+                  Lançar horas
+                  <ArrowRightIcon />
+                </Button>
+              </div>
+              <ActivityHeatmap
+                entries={rawEntries}
+                leaves={rawLeaves}
+                today={today}
+                monthlyHours={Number(tenant.monthly_hours)}
+              />
+            </div>
+          )}
+        </>
       ) : (
-        <CollaboratorSummary monthlyHours={Number(tenant.monthly_hours)} />
+        <CollaboratorSummary
+          monthlyHours={Number(tenant.monthly_hours)}
+          entries={rawEntries}
+          leaves={rawLeaves}
+          today={today}
+        />
       )}
 
       {profile.role === "admin" ? (
@@ -141,16 +194,27 @@ async function ManagerSummary({ canSeeCosts }: { canSeeCosts: boolean }) {
   );
 }
 
-function CollaboratorSummary({ monthlyHours }: { monthlyHours: number }) {
+function CollaboratorSummary({
+  monthlyHours,
+  entries,
+  leaves,
+  today,
+}: {
+  monthlyHours: number;
+  entries: HeatmapRawEntry[];
+  leaves: HeatmapRawLeave[];
+  today: string;
+}) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Jornada padrão</CardTitle>
-        <CardDescription>Horas disponíveis no mês</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <p className="text-3xl font-semibold">{formatHours(monthlyHours)}</p>
-        <div className="flex flex-wrap gap-2">
+    <div className="grid gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">Sua atividade e apontamentos</h2>
+          <p className="text-sm text-muted-foreground">
+            Acompanhe seus dias apontados, horas registradas e clientes atendidos.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <Button nativeButton={false} render={<Link href="/apontamentos" />}>
             Lançar horas
             <ArrowRightIcon />
@@ -160,7 +224,14 @@ function CollaboratorSummary({ monthlyHours }: { monthlyHours: number }) {
             <ArrowRightIcon />
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      <ActivityHeatmap
+        entries={entries}
+        leaves={leaves}
+        today={today}
+        monthlyHours={monthlyHours}
+      />
+    </div>
   );
 }
