@@ -177,17 +177,69 @@ describe("apontamento de horas, aprovação e fechamento", () => {
     expect(entry.rows[0].reviewed_at).not.toBeNull();
   });
 
-  it("apontamento aprovado não pode mais ser editado nem excluído pelo colaborador", async () => {
+  it("colaborador pode corrigir apontamento aprovado, voltando para status pendente para re-aprovação", async () => {
     const id = await entryId("Apuração fevereiro");
-    const edit = await asUser(db, colaborador, () =>
-      expectError(db.query("update public.time_entries set minutes = 300 where id = $1", [id])),
+    await asUser(db, colaborador, () =>
+      db.query("update public.time_entries set minutes = 300 where id = $1", [id]),
     );
-    expect(edit).toContain("já revisado");
+
+    const r = await db.query<{ minutes: number; status: string; reviewed_by: string | null }>(
+      "select minutes, status, reviewed_by from public.time_entries where id = $1",
+      [id],
+    );
+    expect(r.rows[0].minutes).toBe(300);
+    expect(r.rows[0].status).toBe("pendente");
+    expect(r.rows[0].reviewed_by).toBeNull();
+  });
+
+  it("apontamento aprovado não pode ser excluído diretamente pelo colaborador; deve solicitar exclusão", async () => {
+    const id = await entryId("Apuração fevereiro");
+    // Reaprova para testar a restrição de exclusão de aprovados
+    await asUser(db, gestor, () =>
+      db.query("select public.review_time_entries(array[$1]::uuid[], 'aprovado')", [id]),
+    );
 
     const del = await asUser(db, colaborador, () =>
       expectError(db.query("delete from public.time_entries where id = $1", [id])),
     );
-    expect(del).toContain("já revisado");
+    expect(del).toContain("Solicite a exclusão");
+
+    // Colaborador solicita exclusão
+    await asUser(db, colaborador, () =>
+      db.query("select public.request_time_entry_deletion($1, 'Duplicado')", [id]),
+    );
+
+    const req = await db.query<{ deletion_requested_at: Date; deletion_reason: string }>(
+      "select deletion_requested_at, deletion_reason from public.time_entries where id = $1",
+      [id],
+    );
+    expect(req.rows[0].deletion_requested_at).not.toBeNull();
+    expect(req.rows[0].deletion_reason).toBe("Duplicado");
+
+    // Gestor rejeita a exclusão
+    await asUser(db, gestor, () =>
+      db.query("select public.review_time_entry_deletion(array[$1]::uuid[], 'rejeitar')", [id]),
+    );
+
+    const afterRejection = await db.query<{ deletion_requested_at: Date | null }>(
+      "select deletion_requested_at from public.time_entries where id = $1",
+      [id],
+    );
+    expect(afterRejection.rows[0].deletion_requested_at).toBeNull();
+
+    // Colaborador solicita novamente e gestor aprova
+    await asUser(db, colaborador, () =>
+      db.query("select public.request_time_entry_deletion($1, 'Confirmado duplicado')", [id]),
+    );
+    await asUser(db, gestor, () =>
+      db.query("select public.review_time_entry_deletion(array[$1]::uuid[], 'aprovar')", [id]),
+    );
+
+    const afterApproval = await db.query<{ count: string }>(
+      "select count(*) from public.time_entries where id = $1",
+      [id],
+    );
+    expect(afterApproval.rows[0].count).toBe("0");
   });
 
   it("colaborador edita e exclui apontamento pendente", async () => {

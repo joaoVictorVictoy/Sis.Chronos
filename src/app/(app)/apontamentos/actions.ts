@@ -185,7 +185,7 @@ export async function updateTimeEntryAction(_prev: ActionState, formData: FormDa
     }
   }
 
-  const { error } = await supabase
+  const { data: updatedEntry, error } = await supabase
     .from("time_entries")
     .update({
       client_id: clientId,
@@ -197,11 +197,21 @@ export async function updateTimeEntryAction(_prev: ActionState, formData: FormDa
       minutes: computed.minutes,
       description: parsed.data.description,
     })
-    .eq("id", parsed.data.id);
+    .eq("id", parsed.data.id)
+    .select("status")
+    .maybeSingle();
+
   if (error) return { error: translateError(error) };
 
   revalidatePath("/apontamentos");
-  return { success: "Apontamento atualizado." };
+  revalidatePath("/aprovacoes");
+  revalidatePath("/dashboard");
+
+  if (updatedEntry?.status === "pendente") {
+    return { success: "Apontamento corrigido e reenviado para aprovação da gestão." };
+  }
+
+  return { success: "Apontamento atualizado com sucesso." };
 }
 
 export async function deleteTimeEntryAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -214,7 +224,94 @@ export async function deleteTimeEntryAction(_prev: ActionState, formData: FormDa
   if (error) return { error: translateError(error) };
 
   revalidatePath("/apontamentos");
+  revalidatePath("/aprovacoes");
+  revalidatePath("/dashboard");
   return { success: "Apontamento excluído." };
+}
+
+export async function requestTimeEntryDeletionAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireContext();
+  const parsed = parseForm(
+    z.object({
+      id: z.uuid(),
+      reason: z
+        .string()
+        .trim()
+        .min(3, "Informe uma justificativa para a exclusão (mínimo 3 caracteres).")
+        .max(500, "A justificativa deve ter no máximo 500 caracteres."),
+    }),
+    formData,
+  );
+  if (!parsed.ok) return parsed.state;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("request_time_entry_deletion", {
+    p_id: parsed.data.id,
+    p_reason: parsed.data.reason,
+  });
+
+  if (error) return { error: translateError(error) };
+
+  revalidatePath("/apontamentos");
+  revalidatePath("/aprovacoes");
+  return { success: "Solicitação de exclusão enviada com sucesso para aprovação do gestor." };
+}
+
+export async function cancelTimeEntryDeletionAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireContext();
+  const parsed = parseForm(z.object({ id: z.uuid() }), formData);
+  if (!parsed.ok) return parsed.state;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("cancel_time_entry_deletion", {
+    p_id: parsed.data.id,
+  });
+
+  if (error) return { error: translateError(error) };
+
+  revalidatePath("/apontamentos");
+  revalidatePath("/aprovacoes");
+  return { success: "Solicitação de exclusão cancelada." };
+}
+
+export async function reviewDeletionAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireRole(["admin", "gestor"]);
+  const ids = formData.getAll("ids").filter((v): v is string => typeof v === "string");
+  const action = formData.get("action");
+  const comment = formData.get("comment");
+
+  const parsed = z
+    .object({
+      ids: z.array(z.uuid()).min(1, "Selecione ao menos um apontamento."),
+      action: z.enum(["aprovar", "rejeitar"]),
+      comment: z
+        .string()
+        .trim()
+        .max(500)
+        .transform((v) => (v === "" ? null : v))
+        .optional(),
+    })
+    .safeParse({ ids, action, comment: typeof comment === "string" ? comment : null });
+
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("review_time_entry_deletion", {
+    p_ids: parsed.data.ids,
+    p_action: parsed.data.action,
+    p_comment: parsed.data.comment ?? null,
+  });
+
+  if (error) return { error: translateError(error) };
+
+  revalidatePath("/aprovacoes");
+  revalidatePath("/apontamentos");
+  revalidatePath("/dashboard");
+
+  if (parsed.data.action === "aprovar") {
+    return { success: `${data ?? 0} apontamento(s) excluído(s) com sucesso.` };
+  }
+  return { success: `${data ?? 0} solicitação(ões) de exclusão rejeitada(s).` };
 }
 
 export async function reviewTimeEntriesAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

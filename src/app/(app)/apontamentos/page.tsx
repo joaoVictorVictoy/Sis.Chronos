@@ -42,7 +42,7 @@ export type ClientAreaOption = {
 
 export default async function TimeEntriesPage({ searchParams }: PageProps<"/apontamentos">) {
   const { semana } = await searchParams;
-  const { tenant, employeeId } = await requireContext();
+  const { tenant, profile, employeeId } = await requireContext();
   const today = todayISO();
   const weekStart = startOfWeek(typeof semana === "string" && /^\d{4}-\d{2}-\d{2}$/.test(semana) ? semana : today);
   const days = weekDays(weekStart);
@@ -154,6 +154,7 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
         monthlyHours={Number(tenant.monthly_hours)}
         lockedThrough={lockedThrough}
         today={today}
+        role={profile.role}
       />
     </div>
   );

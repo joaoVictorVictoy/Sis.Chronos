@@ -466,6 +466,9 @@ export type Database = {
           reviewed_by: string | null;
           reviewed_at: string | null;
           review_comment: string | null;
+          deletion_requested_at: string | null;
+          deletion_reason: string | null;
+          deletion_requested_by: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -480,6 +483,9 @@ export type Database = {
           end_time?: string | null;
           minutes: number;
           description?: string | null;
+          deletion_requested_at?: string | null;
+          deletion_reason?: string | null;
+          deletion_requested_by?: string | null;
         };
         Update: {
           contract_id?: string | null;
@@ -490,6 +496,9 @@ export type Database = {
           end_time?: string | null;
           minutes?: number;
           description?: string | null;
+          deletion_requested_at?: string | null;
+          deletion_reason?: string | null;
+          deletion_requested_by?: string | null;
         };
         Relationships: [
           {
@@ -652,6 +661,18 @@ export type Database = {
       };
       review_time_entries: {
         Args: { p_ids: string[]; p_status: TimeEntryStatus; p_comment?: string | null };
+        Returns: number;
+      };
+      request_time_entry_deletion: {
+        Args: { p_id: string; p_reason: string };
+        Returns: undefined;
+      };
+      cancel_time_entry_deletion: {
+        Args: { p_id: string };
+        Returns: undefined;
+      };
+      review_time_entry_deletion: {
+        Args: { p_ids: string[]; p_action: "aprovar" | "rejeitar"; p_comment?: string | null };
         Returns: number;
       };
       set_tenant_domain: {
