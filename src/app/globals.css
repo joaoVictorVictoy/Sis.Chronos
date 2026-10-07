@@ -49,72 +49,72 @@
 }
 
 :root {
-  --background: oklch(0.972 0.003 260);
-  --foreground: oklch(0.18 0.005 260);
+  --background: oklch(0.985 0.005 245);
+  --foreground: oklch(0.22 0.035 245);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.005 260);
+  --card-foreground: oklch(0.22 0.035 245);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.005 260);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.935 0.004 260);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.935 0.004 260);
-  --muted-foreground: oklch(0.48 0.005 260);
-  --accent: oklch(0.935 0.004 260);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.885 0.004 260);
-  --input: oklch(0.885 0.004 260);
-  --ring: oklch(0.65 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --popover-foreground: oklch(0.22 0.035 245);
+  --primary: oklch(0.42 0.135 245); /* #044f8d - Azul Oficial Binari Consultoria */
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.945 0.02 245);
+  --secondary-foreground: oklch(0.42 0.135 245);
+  --muted: oklch(0.955 0.012 245);
+  --muted-foreground: oklch(0.50 0.03 245);
+  --accent: oklch(0.935 0.025 245);
+  --accent-foreground: oklch(0.42 0.135 245);
+  --destructive: oklch(0.58 0.22 25);
+  --border: oklch(0.89 0.015 245);
+  --input: oklch(0.89 0.015 245);
+  --ring: oklch(0.42 0.135 245);
+  --chart-1: oklch(0.42 0.135 245);
+  --chart-2: oklch(0.48 0.07 245);
+  --chart-3: oklch(0.62 0.15 245);
+  --chart-4: oklch(0.72 0.12 245);
+  --chart-5: oklch(0.35 0.10 245);
   --radius: 0.625rem;
-  --sidebar: oklch(0.988 0.002 260);
-  --sidebar-foreground: oklch(0.18 0.005 260);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.935 0.004 260);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.885 0.004 260);
-  --sidebar-ring: oklch(0.65 0 0);
+  --sidebar: oklch(0.982 0.008 245);
+  --sidebar-foreground: oklch(0.22 0.035 245);
+  --sidebar-primary: oklch(0.42 0.135 245);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.935 0.025 245);
+  --sidebar-accent-foreground: oklch(0.42 0.135 245);
+  --sidebar-border: oklch(0.90 0.015 245);
+  --sidebar-ring: oklch(0.42 0.135 245);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: oklch(0.135 0.025 245); /* Deep Navy Binari */
+  --foreground: oklch(0.965 0.01 245);
+  --card: oklch(0.175 0.03 245);
+  --card-foreground: oklch(0.965 0.01 245);
+  --popover: oklch(0.175 0.03 245);
+  --popover-foreground: oklch(0.965 0.01 245);
+  --primary: oklch(0.60 0.185 245); /* Azul Binari iluminado para dark mode */
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.23 0.035 245);
+  --secondary-foreground: oklch(0.95 0.01 245);
+  --muted: oklch(0.21 0.025 245);
+  --muted-foreground: oklch(0.68 0.03 245);
+  --accent: oklch(0.24 0.04 245);
+  --accent-foreground: oklch(0.95 0.01 245);
+  --destructive: oklch(0.65 0.20 25);
+  --border: oklch(0.28 0.03 245 / 45%);
+  --input: oklch(0.28 0.03 245 / 60%);
+  --ring: oklch(0.60 0.185 245);
+  --chart-1: oklch(0.60 0.185 245);
+  --chart-2: oklch(0.52 0.10 245);
+  --chart-3: oklch(0.70 0.15 245);
+  --chart-4: oklch(0.80 0.12 245);
+  --chart-5: oklch(0.45 0.14 245);
+  --sidebar: oklch(0.12 0.025 245);
+  --sidebar-foreground: oklch(0.965 0.01 245);
+  --sidebar-primary: oklch(0.60 0.185 245);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.19 0.035 245);
+  --sidebar-accent-foreground: oklch(0.965 0.01 245);
+  --sidebar-border: oklch(0.25 0.03 245 / 40%);
+  --sidebar-ring: oklch(0.60 0.185 245);
 }
 
 @layer base {
@@ -128,23 +128,26 @@
     @apply font-sans;
   }
 }
-/* Paleta dos gráficos (validada para daltonismo em ambos os modos).
-   Definida por papel para trocar claro/escuro em um lugar só. */
+
+/* Paleta dos gráficos baseada na identidade visual Binari Consultoria */
 :root {
-  --viz-1: #2a78d6; /* azul */
-  --viz-2: #eb6834; /* laranja */
-  --viz-3: #1baf7a; /* verde-água */
-  --viz-good: #0ca30c;
-  --viz-warning: #fab219;
-  --viz-critical: #d03b3b;
-  --viz-grid: #e1e0d9;
-  --viz-axis: #898781;
+  --viz-1: #044f8d; /* Azul Oficial Binari */
+  --viz-2: #446084; /* Azul Ardósia Binari */
+  --viz-3: #0284c7; /* Azul Celeste */
+  --viz-good: #059669;
+  --viz-warning: #d97706;
+  --viz-critical: #dc2626;
+  --viz-grid: #e2e8f0;
+  --viz-axis: #64748b;
 }
 
 .dark {
-  --viz-1: #3987e5;
-  --viz-2: #d95926;
-  --viz-3: #199e70;
-  --viz-grid: #2c2c2a;
-  --viz-axis: #898781;
+  --viz-1: #2b82db; /* Azul Binari vibrante para gráficos no escuro */
+  --viz-2: #5c7fa8; /* Azul Ardósia */
+  --viz-3: #38bdf8; /* Azul Celeste */
+  --viz-good: #10b981;
+  --viz-warning: #f59e0b;
+  --viz-critical: #f87171;
+  --viz-grid: #1e293b;
+  --viz-axis: #94a3b8;
 }
