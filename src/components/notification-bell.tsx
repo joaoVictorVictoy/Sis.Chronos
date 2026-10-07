@@ -90,10 +90,10 @@ export function NotificationBell({
                     Você possui <strong>{missingDaysCount} {missingDaysCount === 1 ? "dia útil" : "dias úteis"}</strong> sem apontamento no período.
                   </p>
                   <Link
-                    href="/minhas-analises"
+                    href="/apontamentos"
                     className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400 hover:underline pt-0.5"
                   >
-                    Regularizar em Minhas Análises
+                    Lançar horas em Apontamentos
                     <ArrowRightIcon className="size-3" />
                   </Link>
                 </div>

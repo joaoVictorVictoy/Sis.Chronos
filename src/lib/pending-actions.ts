@@ -10,15 +10,15 @@ export interface PendingCounts {
 }
 
 /**
- * Calcula quantos dias úteis entre `from` e `to` não possuem apontamentos
- * nem estão cobertos por férias ou recessos.
+ * Retorna a lista de datas (ISO string) de dias úteis entre `from` e `to`
+ * que não possuem apontamentos nem estão cobertos por férias ou recessos.
  */
-export function calculateMissingBusinessDays(
+export function getMissingBusinessDaysList(
   entryDates: string[],
   leaves: Array<{ start_date: string; end_date: string }>,
   from: string,
   to: string,
-): number {
+): string[] {
   const datesWithEntries = new Set(entryDates);
   const leaveDates = new Set<string>();
 
@@ -32,16 +32,59 @@ export function calculateMissingBusinessDays(
 
   const isBusinessDay = (iso: string) => businessDaysBetween(iso, iso) === 1;
 
-  let missing = 0;
+  const missing: string[] = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {
     if (isBusinessDay(d)) {
       if (!leaveDates.has(d) && !datesWithEntries.has(d)) {
-        missing++;
+        missing.push(d);
       }
     }
   }
 
   return missing;
+}
+
+/**
+ * Calcula quantos dias úteis entre `from` e `to` não possuem apontamentos
+ * nem estão cobertos por férias ou recessos.
+ */
+export function calculateMissingBusinessDays(
+  entryDates: string[],
+  leaves: Array<{ start_date: string; end_date: string }>,
+  from: string,
+  to: string,
+): number {
+  return getMissingBusinessDaysList(entryDates, leaves, from, to).length;
+}
+
+/**
+ * Obtém os dias úteis pendentes de apontamento do colaborador no mês atual.
+ */
+export async function getEmployeeMissingDays(
+  supabase: SupabaseClient,
+  employeeId: string,
+): Promise<string[]> {
+  const today = todayISO();
+  const monthStart = startOfMonth(today);
+
+  const [entriesRes, leavesRes] = await Promise.all([
+    supabase
+      .from("time_entries")
+      .select("entry_date")
+      .eq("employee_id", employeeId)
+      .gte("entry_date", monthStart)
+      .lte("entry_date", today),
+    supabase
+      .from("employee_leaves")
+      .select("start_date, end_date")
+      .eq("employee_id", employeeId)
+      .lte("start_date", today)
+      .gte("end_date", monthStart),
+  ]);
+
+  const entryDates = (entriesRes.data ?? []).map((e: { entry_date: string }) => e.entry_date);
+  const leaves = (leavesRes.data ?? []) as Array<{ start_date: string; end_date: string }>;
+  return getMissingBusinessDaysList(entryDates, leaves, monthStart, today);
 }
 
 /**
