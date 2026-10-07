@@ -415,10 +415,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               <Link
                 key={row.contract_id}
                 href={`/contratos/${row.contract_id}`}
-                className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-muted/40"
+                className="flex min-w-0 items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
+                title={row.client_name}
               >
-                <span className="truncate">{row.client_name}</span>
-                <span className="tabular-nums font-medium">{formatCurrency(profitability.profit)}</span>
+                <span className="min-w-0 truncate font-medium">{row.client_name}</span>
+                <span className="shrink-0 tabular-nums font-medium">{formatCurrency(profitability.profit)}</span>
               </Link>
             ))}
             {ranking.length === 0 ? <EmptyState>Sem dados.</EmptyState> : null}
@@ -435,11 +436,12 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               <Link
                 key={row.contract_id}
                 href={`/contratos/${row.contract_id}`}
-                className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-muted/40"
+                className="flex min-w-0 items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
+                title={row.client_name}
               >
-                <span className="truncate">{row.client_name}</span>
-                <span className="flex items-center gap-2">
-                  <span className="tabular-nums">{formatPercent(profitability.realMargin ?? 0)}</span>
+                <span className="min-w-0 truncate font-medium">{row.client_name}</span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="tabular-nums font-medium">{formatPercent(profitability.realMargin ?? 0)}</span>
                   <StatusBadge status={profitability.status} />
                 </span>
               </Link>
@@ -458,13 +460,14 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               <Link
                 key={row.contract_id}
                 href={`/contratos/${row.contract_id}`}
-                className="grid gap-0.5 rounded-lg border px-3 py-2 text-sm hover:bg-muted/40"
+                className="grid min-w-0 gap-0.5 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
+                title={row.client_name}
               >
-                <span className="flex items-center justify-between gap-2">
-                  <span className="truncate">{row.client_name}</span>
-                  <span className="tabular-nums font-medium">+{formatPercent(adjustment ?? 0)}</span>
+                <span className="flex min-w-0 items-center justify-between gap-2.5">
+                  <span className="min-w-0 truncate font-medium">{row.client_name}</span>
+                  <span className="shrink-0 tabular-nums font-medium">+{formatPercent(adjustment ?? 0)}</span>
                 </span>
-                <span className="text-xs text-muted-foreground">
+                <span className="truncate text-xs text-muted-foreground">
                   De {formatCurrency(profitability.revenue)} para{" "}
                   {formatCurrency(profitability.revenue * (1 + (adjustment ?? 0)))} no período
                 </span>

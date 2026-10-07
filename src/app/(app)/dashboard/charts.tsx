@@ -249,8 +249,8 @@ export function BarList({
       {items.map((item) => (
         <div key={item.id} className="grid gap-1">
           <div className="flex items-baseline justify-between gap-3 text-sm">
-            <span className="truncate">{item.label}</span>
-            <span className="tabular-nums font-medium">{formatValue(item.value)}</span>
+            <span className="min-w-0 truncate" title={item.label}>{item.label}</span>
+            <span className="shrink-0 tabular-nums font-medium">{formatValue(item.value)}</span>
           </div>
           <div className="h-1.5 rounded-full bg-muted">
             <div
