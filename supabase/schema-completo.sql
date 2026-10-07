@@ -2421,7 +2421,6 @@ drop index if exists public.activities_tenant_name_key;
 create unique index if not exists activities_tenant_client_area_name_key
   on public.activities (tenant_id, area_id, coalesce(client_id, '00000000-0000-0000-0000-000000000000'::uuid), lower(name));
 
-
 -- ======== 20260917000012_aprovacao_automatica_36h.sql ========
 -- =====================================================================
 -- Etapa 12: Aprovação automática de apontamentos em até 36 horas (Opção C)
@@ -2556,7 +2555,6 @@ begin
 end;
 $$;
 
-
 -- ======== 20260917000013_set_employee_cost_upsert.sql ========
 -- =====================================================================
 -- Etapa 13: Permitir atualização de custo na mesma data inicial
@@ -2639,12 +2637,626 @@ revoke execute on function public.set_employee_cost(uuid, numeric, numeric, nume
 grant execute on function public.set_employee_cost(uuid, numeric, numeric, numeric, numeric, numeric, date)
   to authenticated;
 
+-- ======== 20260917000014_colaborador_criar_atividades.sql ========
 -- =====================================================================
 -- Etapa 14: Permitir que colaboradores criem atividades
+-- Permite que colaboradores cadastrem novas atividades para seu tenant,
+-- mantendo a edição e exclusão restritas a gestores e administradores.
 -- =====================================================================
+
+-- 1. Atualiza política de INSERT na tabela activities
 drop policy if exists activities_insert on public.activities;
 
 create policy activities_insert on public.activities
   for insert to authenticated
   with check (tenant_id = (select private.current_tenant_id()));
 
+-- ======== 20260917000015_contrato_encerramento.sql ========
+-- =====================================================================
+-- Etapa 14: Encerramento e rescisão guiada de contratos
+-- Adiciona campos para motivo do término, notas de rescisão e data de corte.
+-- =====================================================================
+
+alter table public.contracts
+  add column if not exists termination_reason text check (
+    termination_reason is null or termination_reason in ('termino_prazo', 'rescisao_cliente', 'rescisao_consultoria', 'outro')
+  ),
+  add column if not exists termination_notes text,
+  add column if not exists terminated_at date;
+
+-- ======== 20260917000016_multa_rescisoria.sql ========
+-- =====================================================================
+-- Etapa 16: Multa rescisória e fechamento financeiro de contratos
+-- Adiciona termination_penalty a contracts e integra à receita calculada.
+-- =====================================================================
+
+alter table public.contracts
+  add column if not exists termination_penalty numeric(14, 2) check (
+    termination_penalty is null or termination_penalty >= 0
+  );
+
+-- Atualiza private.contract_revenue para incluir a multa rescisória extraordinária
+-- quando o encerramento tiver data de corte contida no período consultado.
+create or replace function private.contract_revenue(
+  p_contract_id uuid,
+  p_from date,
+  p_to date
+)
+returns numeric
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  c public.contracts;
+  v_start date;
+  v_end date;
+  v_months numeric;
+  v_days numeric;
+  v_total_days numeric;
+  v_revenue numeric := 0;
+  v_cutoff date;
+begin
+  select * into c from public.contracts where id = p_contract_id;
+  if not found then
+    return 0;
+  end if;
+
+  -- Intersecção entre a vigência do contrato e o período consultado
+  v_start := greatest(c.start_date, p_from);
+  v_end := least(coalesce(c.end_date, p_to), p_to);
+  if v_start <= v_end then
+    if c.periodicity = 'projeto' then
+      v_total_days := (c.end_date - c.start_date) + 1;
+      v_days := (v_end - v_start) + 1;
+      v_revenue := round(c.amount * (v_days / v_total_days), 2);
+    else
+      -- Fração de meses coberta pelo intervalo (dias ÷ dias do mês)
+      v_months := private.months_between(v_start, v_end);
+      v_revenue := round(c.amount / private.periodicity_months(c.periodicity) * v_months, 2);
+    end if;
+  end if;
+
+  -- Se o contrato foi encerrado com multa rescisória e a data de corte cai no período, soma à receita
+  v_cutoff := coalesce(c.terminated_at, c.end_date);
+  if c.termination_penalty is not null and c.termination_penalty > 0
+     and v_cutoff is not null and v_cutoff between p_from and p_to then
+    v_revenue := v_revenue + c.termination_penalty;
+  end if;
+
+  return v_revenue;
+end;
+$$;
+
+-- ======== 20260917000017_churn_sub_motivos.sql ========
+-- =====================================================================
+-- Etapa 17: Motivos detalhados de rescisão e inteligência de Churn
+-- Adiciona termination_sub_reason a contracts
+-- =====================================================================
+
+alter table public.contracts
+  add column if not exists termination_sub_reason text check (
+    termination_sub_reason is null or termination_sub_reason in (
+      'conclusao_projeto',
+      'fim_vigencia',
+      'corte_custos',
+      'insatisfacao',
+      'trocou_fornecedor',
+      'mudanca_estrategia',
+      'inadimplencia',
+      'escopo_inviavel',
+      'rentabilidade_negativa',
+      'conflito_relacionamento',
+      'outro'
+    )
+  );
+
+-- ======== 20260917000018_correcao_e_solicitacao_exclusao.sql ========
+-- =====================================================================
+-- Etapa 18: Correção de apontamentos para todos e fluxo de solicitação / aprovação / rejeição de exclusão
+-- 1. Qualquer colaborador ou gestor pode corrigir seus apontamentos.
+--    Se o colaborador corrigir um apontamento já aprovado/rejeitado,
+--    o apontamento volta para status 'pendente' para nova aprovação da gestão.
+-- 2. Colaboradores podem solicitar a exclusão de apontamentos já aprovados.
+--    Gestores e administradores podem aprovar a exclusão (removendo o apontamento)
+--    ou rejeitar a exclusão (mantendo o apontamento ativo).
+-- =====================================================================
+
+-- Novas colunas para controle da solicitação de exclusão
+alter table public.time_entries
+  add column if not exists deletion_requested_at timestamptz default null,
+  add column if not exists deletion_reason text default null,
+  add column if not exists deletion_requested_by uuid references public.profiles(id) on delete set null default null;
+
+create index if not exists time_entries_deletion_requested_idx
+  on public.time_entries (tenant_id, deletion_requested_at)
+  where deletion_requested_at is not null;
+
+-- Atualiza a função de regras dos apontamentos
+create or replace function private.time_entries_rules()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_is_manager boolean := private.is_manager();
+  v_review_only boolean := false;
+  v_entry_end timestamptz;
+  v_is_within_36h boolean;
+begin
+  -- Gestor ainda pode aprovar/rejeitar em período fechado (sem mudar horas)
+  if tg_op = 'UPDATE' then
+    v_review_only := v_is_manager
+      and new.entry_date = old.entry_date
+      and new.minutes = old.minutes
+      and new.employee_id = old.employee_id
+      and new.contract_id is not distinct from old.contract_id
+      and new.activity_id = old.activity_id;
+  end if;
+
+  if not v_review_only then
+    if tg_op = 'DELETE' then
+      if private.period_locked(old.entry_date) then
+        raise exception 'Período fechado: não é possível excluir apontamentos dessa data.' using errcode = 'P0001';
+      end if;
+    else
+      if private.period_locked(new.entry_date) then
+        raise exception 'Período fechado: não é possível lançar ou alterar horas nessa data.' using errcode = 'P0001';
+      end if;
+      if tg_op = 'UPDATE' and private.period_locked(old.entry_date) then
+        raise exception 'Período fechado: não é possível alterar este apontamento.' using errcode = 'P0001';
+      end if;
+    end if;
+  end if;
+
+  if tg_op = 'INSERT' then
+    -- Calcula término da atividade com base na data e hora final (ou final do dia)
+    v_entry_end := (new.entry_date + coalesce(new.end_time, '23:59:59'::time)) at time zone coalesce(nullif(current_setting('timezone', true), ''), 'America/Sao_Paulo');
+    v_is_within_36h := (now() <= v_entry_end + interval '36 hours' and new.entry_date <= (current_date + interval '1 day'));
+
+    if v_is_within_36h then
+      new.status := 'aprovado';
+      new.reviewed_at := now();
+      new.review_comment := 'Aprovado automaticamente (lançado em até 36h)';
+    else
+      if new.status = 'aprovado' then
+        raise exception 'Novos apontamentos fora do prazo de 36h entram como pendentes.' using errcode = 'P0001';
+      end if;
+      new.status := 'pendente';
+    end if;
+
+    return new;
+  end if;
+
+  if tg_op = 'UPDATE' then
+    if not v_is_manager then
+      -- Colaborador não pode transferir para outro colaborador
+      if new.employee_id is distinct from old.employee_id then
+        raise exception 'Não é possível transferir o apontamento para outra pessoa.' using errcode = '42501';
+      end if;
+
+      -- Caso 1: Apenas solicitando ou cancelando exclusão (sem alterar campos da atividade/horas)
+      if (new.entry_date = old.entry_date
+          and new.minutes = old.minutes
+          and new.activity_id = old.activity_id
+          and new.contract_id is not distinct from old.contract_id
+          and new.client_id is not distinct from old.client_id
+          and new.start_time is not distinct from old.start_time
+          and new.end_time is not distinct from old.end_time
+          and new.description is not distinct from old.description) then
+        if new.status is distinct from old.status then
+          raise exception 'Apenas gestores podem aprovar ou rejeitar apontamentos.' using errcode = '42501';
+        end if;
+        return new;
+      end if;
+
+      -- Caso 2: Colaborador corrigindo o apontamento
+      -- Qualquer colaborador pode corrigir seus apontamentos.
+      -- Se foi alterado e era aprovado/rejeitado, ou se está fora de 36h,
+      -- volta para 'pendente' solicitando aprovação do gestor/admin!
+      declare
+        v_old_end timestamptz;
+      begin
+        v_old_end := (old.entry_date + coalesce(old.end_time, '23:59:59'::time)) at time zone coalesce(nullif(current_setting('timezone', true), ''), 'America/Sao_Paulo');
+        v_entry_end := (new.entry_date + coalesce(new.end_time, '23:59:59'::time)) at time zone coalesce(nullif(current_setting('timezone', true), ''), 'America/Sao_Paulo');
+        v_is_within_36h := (now() <= v_entry_end + interval '36 hours' and new.entry_date <= (current_date + interval '1 day'));
+
+        if old.reviewed_by is not null or not v_is_within_36h or old.status in ('aprovado', 'rejeitado') then
+          new.status := 'pendente';
+          new.reviewed_at := null;
+          new.reviewed_by := null;
+          new.review_comment := 'Revisão solicitada após correção do apontamento';
+        else
+          new.status := 'aprovado';
+          new.reviewed_at := now();
+          new.review_comment := 'Aprovado automaticamente (lançado em até 36h)';
+        end if;
+
+        -- Qualquer correção limpa solicitação de exclusão pendente
+        new.deletion_requested_at := null;
+        new.deletion_reason := null;
+        new.deletion_requested_by := null;
+      end;
+    end if;
+
+    if v_is_manager and new.status is distinct from old.status then
+      new.reviewed_by := auth.uid();
+      new.reviewed_at := now();
+    end if;
+
+    return new;
+  end if;
+
+  -- DELETE
+  if not v_is_manager then
+    declare
+      v_can_self_delete boolean := false;
+      v_old_end timestamptz;
+    begin
+      v_old_end := (old.entry_date + coalesce(old.end_time, '23:59:59'::time)) at time zone coalesce(nullif(current_setting('timezone', true), ''), 'America/Sao_Paulo');
+      -- Colaborador pode excluir direto apenas se o apontamento estiver pendente sem revisão do gestor,
+      -- ou se foi auto-aprovado e ainda estiver dentro do prazo de 36h
+      if (old.status = 'pendente' and old.reviewed_by is null)
+         or (old.status = 'aprovado' and old.reviewed_by is null and now() <= v_old_end + interval '36 hours') then
+        v_can_self_delete := true;
+      end if;
+
+      if not v_can_self_delete then
+        raise exception 'Apontamentos já aprovados não podem ser excluídos diretamente. Solicite a exclusão para aprovação do gestor.' using errcode = 'P0001';
+      end if;
+    end;
+  end if;
+
+  return old;
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- Funções RPC para fluxo de solicitação e revisão de exclusão
+-- ---------------------------------------------------------------------
+
+-- 1. Colaborador solicita exclusão de um apontamento
+create or replace function public.request_time_entry_deletion(
+  p_id uuid,
+  p_reason text
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := private.current_tenant_id();
+  v_emp uuid := private.current_employee_id();
+  v_is_mgr boolean := private.is_manager();
+  v_entry_date date;
+begin
+  select entry_date into v_entry_date
+  from public.time_entries
+  where id = p_id
+    and tenant_id = v_tenant
+    and (v_is_mgr or employee_id = v_emp);
+
+  if not found then
+    raise exception 'Apontamento não encontrado ou sem permissão.' using errcode = 'P0001';
+  end if;
+
+  if private.period_locked(v_entry_date) then
+    raise exception 'Período fechado: não é possível solicitar exclusão de apontamentos dessa data.' using errcode = 'P0001';
+  end if;
+
+  if coalesce(trim(p_reason), '') = '' then
+    raise exception 'Informe o motivo da exclusão.' using errcode = 'P0001';
+  end if;
+
+  update public.time_entries
+  set deletion_requested_at = now(),
+      deletion_reason = trim(p_reason),
+      deletion_requested_by = auth.uid()
+  where id = p_id
+    and tenant_id = v_tenant;
+end;
+$$;
+
+revoke execute on function public.request_time_entry_deletion(uuid, text) from public, anon;
+grant execute on function public.request_time_entry_deletion(uuid, text) to authenticated;
+
+-- 2. Colaborador cancela a própria solicitação de exclusão
+create or replace function public.cancel_time_entry_deletion(
+  p_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := private.current_tenant_id();
+  v_emp uuid := private.current_employee_id();
+  v_is_mgr boolean := private.is_manager();
+begin
+  update public.time_entries
+  set deletion_requested_at = null,
+      deletion_reason = null,
+      deletion_requested_by = null
+  where id = p_id
+    and tenant_id = v_tenant
+    and (v_is_mgr or employee_id = v_emp);
+
+  if not found then
+    raise exception 'Apontamento não encontrado ou sem permissão.' using errcode = 'P0001';
+  end if;
+end;
+$$;
+
+revoke execute on function public.cancel_time_entry_deletion(uuid) from public, anon;
+grant execute on function public.cancel_time_entry_deletion(uuid) to authenticated;
+
+-- 3. Gestor/Administrador aprova ou rejeita a solicitação de exclusão
+create or replace function public.review_time_entry_deletion(
+  p_ids uuid[],
+  p_action text,
+  p_comment text default null
+)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := private.current_tenant_id();
+  v_count integer := 0;
+begin
+  if not private.is_manager() then
+    raise exception 'Apenas gestores podem aprovar ou rejeitar solicitações de exclusão.' using errcode = '42501';
+  end if;
+
+  if p_action not in ('aprovar', 'rejeitar') then
+    raise exception 'Ação inválida. Escolha aprovar ou rejeitar.' using errcode = 'P0001';
+  end if;
+
+  if p_action = 'aprovar' then
+    delete from public.time_entries
+    where id = any(p_ids)
+      and tenant_id = v_tenant;
+    get diagnostics v_count = row_count;
+  else
+    update public.time_entries
+    set deletion_requested_at = null,
+        deletion_reason = null,
+        deletion_requested_by = null,
+        review_comment = coalesce(p_comment, 'Solicitação de exclusão rejeitada pelo gestor.')
+    where id = any(p_ids)
+      and tenant_id = v_tenant;
+    get diagnostics v_count = row_count;
+  end if;
+
+  return v_count;
+end;
+$$;
+
+revoke execute on function public.review_time_entry_deletion(uuid[], text, text) from public, anon;
+grant execute on function public.review_time_entry_deletion(uuid[], text, text) to authenticated;
+
+-- ======== 20260917000019_fix_admin_update_member.sql ========
+-- =====================================================================
+-- Etapa 19: Correção de permissões e RLS para atualização de membros por administradores
+-- Permite que administradores alterem papel (gestor, colaborador, admin),
+-- permissão de ver custos e status ativo de qualquer membro da sua empresa.
+-- =====================================================================
+
+-- Concede privilégio de update nas colunas de gerenciamento de membros
+grant update (role, can_view_costs, active) on public.profiles to authenticated;
+
+-- Adiciona política explícita de RLS para administradores atualizarem membros da sua empresa
+drop policy if exists profiles_update_admin on public.profiles;
+create policy profiles_update_admin on public.profiles
+  for update to authenticated
+  using (
+    tenant_id = (select private.current_tenant_id())
+    and (select private.is_admin())
+  )
+  with check (
+    tenant_id = (select private.current_tenant_id())
+  );
+
+-- Atualiza a função admin_update_member com verificação estrita de row_count
+create or replace function public.admin_update_member(
+  p_profile_id uuid,
+  p_role public.app_role,
+  p_can_view_costs boolean,
+  p_active boolean
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := private.current_tenant_id();
+  v_target public.profiles;
+  v_count integer;
+begin
+  if not private.is_admin() then
+    raise exception 'Apenas administradores podem alterar membros.' using errcode = '42501';
+  end if;
+
+  select * into v_target from public.profiles where id = p_profile_id and tenant_id = v_tenant;
+  if not found then
+    raise exception 'Membro não encontrado.' using errcode = 'P0002';
+  end if;
+
+  if v_target.role = 'admin' and v_target.active
+     and (p_role <> 'admin' or not p_active)
+     and (select count(*) from public.profiles
+          where tenant_id = v_tenant and role = 'admin' and active) <= 1 then
+    raise exception 'A empresa precisa de pelo menos um administrador ativo.' using errcode = 'P0001';
+  end if;
+
+  update public.profiles
+  set role = p_role,
+      can_view_costs = case when p_role = 'gestor' then p_can_view_costs else false end,
+      active = p_active
+  where id = p_profile_id and tenant_id = v_tenant;
+
+  get diagnostics v_count = row_count;
+  if v_count = 0 then
+    raise exception 'Não foi possível atualizar o perfil. Verifique as permissões.' using errcode = 'P0001';
+  end if;
+end;
+$$;
+
+revoke execute on function public.admin_update_member(uuid, public.app_role, boolean, boolean) from public, anon;
+grant execute on function public.admin_update_member(uuid, public.app_role, boolean, boolean) to authenticated;
+
+-- ======== 20260917000020_alterar_regra_24_horas.sql ========
+-- =====================================================================
+-- Etapa 20: Alteração da regra de aprovação/exclusão automática de 36h para 24h
+-- 1. Novos apontamentos lançados em até 24 horas são aprovados automaticamente.
+--    Apontamentos lançados após 24 horas entram como 'pendente'.
+-- 2. Qualquer colaborador pode alterar seus apontamentos. Se for alterado após
+--    24h ou já tiver sido revisado/aprovado, volta para 'pendente' para o gestor validar.
+-- 3. O colaborador pode apagar diretamente em até 24 horas.
+--    Após 24 horas, a exclusão necessita de aprovação do gestor/administrador.
+-- =====================================================================
+
+create or replace function private.time_entries_rules()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_is_manager boolean := private.is_manager();
+  v_review_only boolean := false;
+  v_entry_end timestamptz;
+  v_is_within_24h boolean;
+begin
+  -- Gestor ainda pode aprovar/rejeitar em período fechado (sem mudar horas)
+  if tg_op = 'UPDATE' then
+    v_review_only := v_is_manager
+      and new.entry_date = old.entry_date
+      and new.minutes = old.minutes
+      and new.employee_id = old.employee_id
+      and new.contract_id is not distinct from old.contract_id
+      and new.activity_id = old.activity_id;
+  end if;
+
+  if not v_review_only then
+    if tg_op = 'DELETE' then
+      if private.period_locked(old.entry_date) then
+        raise exception 'Período fechado: não é possível excluir apontamentos dessa data.' using errcode = 'P0001';
+      end if;
+    else
+      if private.period_locked(new.entry_date) then
+        raise exception 'Período fechado: não é possível lançar ou alterar horas nessa data.' using errcode = 'P0001';
+      end if;
+      if tg_op = 'UPDATE' and private.period_locked(old.entry_date) then
+        raise exception 'Período fechado: não é possível alterar este apontamento.' using errcode = 'P0001';
+      end if;
+    end if;
+  end if;
+
+  if tg_op = 'INSERT' then
+    -- Calcula término da atividade com base na data e hora final (ou final do dia)
+    v_entry_end := (new.entry_date + coalesce(new.end_time, '23:59:59'::time)) at time zone coalesce(nullif(current_setting('timezone', true), ''), 'America/Sao_Paulo');
+    v_is_within_24h := (now() <= v_entry_end + interval '24 hours' and new.entry_date <= (current_date + interval '1 day'));
+
+    if v_is_within_24h then
+      new.status := 'aprovado';
+      new.reviewed_at := now();
+      new.review_comment := 'Aprovado automaticamente (lançado em até 24h)';
+    else
+      if new.status = 'aprovado' then
+        raise exception 'Novos apontamentos fora do prazo de 24h entram como pendentes.' using errcode = 'P0001';
+      end if;
+      new.status := 'pendente';
+    end if;
+
+    return new;
+  end if;
+
+  if tg_op = 'UPDATE' then
+    if not v_is_manager then
+      -- Colaborador não pode transferir para outro colaborador
+      if new.employee_id is distinct from old.employee_id then
+        raise exception 'Não é possível transferir o apontamento para outra pessoa.' using errcode = '42501';
+      end if;
+
+      -- Caso 1: Apenas solicitando ou cancelando exclusão (sem alterar campos da atividade/horas)
+      if (new.entry_date = old.entry_date
+          and new.minutes = old.minutes
+          and new.activity_id = old.activity_id
+          and new.contract_id is not distinct from old.contract_id
+          and new.client_id is not distinct from old.client_id
+          and new.start_time is not distinct from old.start_time
+          and new.end_time is not distinct from old.end_time
+          and new.description is not distinct from old.description) then
+        if new.status is distinct from old.status then
+          raise exception 'Apenas gestores podem aprovar ou rejeitar apontamentos.' using errcode = '42501';
+        end if;
+        return new;
+      end if;
+
+      -- Caso 2: Colaborador alterando/corrigindo o apontamento
+      -- Qualquer colaborador pode corrigir seus apontamentos.
+      -- Se foi alterado e era aprovado/rejeitado, ou se está fora de 24h,
+      -- volta para 'pendente' solicitando aprovação do gestor/admin!
+      declare
+        v_old_end timestamptz;
+      begin
+        v_old_end := (old.entry_date + coalesce(old.end_time, '23:59:59'::time)) at time zone coalesce(nullif(current_setting('timezone', true), ''), 'America/Sao_Paulo');
+        v_entry_end := (new.entry_date + coalesce(new.end_time, '23:59:59'::time)) at time zone coalesce(nullif(current_setting('timezone', true), ''), 'America/Sao_Paulo');
+        v_is_within_24h := (now() <= v_entry_end + interval '24 hours' and new.entry_date <= (current_date + interval '1 day'));
+
+        if old.reviewed_by is not null or not v_is_within_24h or old.status in ('aprovado', 'rejeitado') then
+          new.status := 'pendente';
+          new.reviewed_at := null;
+          new.reviewed_by := null;
+          new.review_comment := 'Revisão solicitada após alteração do apontamento';
+        else
+          new.status := 'aprovado';
+          new.reviewed_at := now();
+          new.review_comment := 'Aprovado automaticamente (lançado em até 24h)';
+        end if;
+
+        -- Qualquer correção limpa solicitação de exclusão pendente
+        new.deletion_requested_at := null;
+        new.deletion_reason := null;
+        new.deletion_requested_by := null;
+      end;
+    end if;
+
+    if v_is_manager and new.status is distinct from old.status then
+      new.reviewed_by := auth.uid();
+      new.reviewed_at := now();
+    end if;
+
+    return new;
+  end if;
+
+  -- DELETE
+  if not v_is_manager then
+    declare
+      v_can_self_delete boolean := false;
+      v_old_end timestamptz;
+    begin
+      v_old_end := (old.entry_date + coalesce(old.end_time, '23:59:59'::time)) at time zone coalesce(nullif(current_setting('timezone', true), ''), 'America/Sao_Paulo');
+      -- Colaborador pode excluir direto apenas se o apontamento estiver pendente sem revisão do gestor,
+      -- ou se foi auto-aprovado e ainda estiver dentro do prazo de 24h
+      if (old.status = 'pendente' and old.reviewed_by is null)
+         or (old.status = 'aprovado' and old.reviewed_by is null and now() <= v_old_end + interval '24 hours') then
+        v_can_self_delete := true;
+      end if;
+
+      if not v_can_self_delete then
+        raise exception 'Apontamentos com mais de 24 horas requerem aprovação do gestor para exclusão. Solicite a exclusão para o gestor.' using errcode = 'P0001';
+      end if;
+    end;
+  end if;
+
+  return old;
+end;
+$$;

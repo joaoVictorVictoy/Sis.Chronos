@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LinkIcon } from "lucide-react";
 import { NativeCheckbox, NativeSelect } from "@/components/native-select";
 import { CopyLink } from "@/components/copy-link";
 import { FormAlert, SubmitButton } from "@/components/form";
+import { Button } from "@/components/ui/button";
 import { initialActionState } from "@/lib/actions";
+import { cn } from "@/lib/utils";
 import type { AppRole, Tables } from "@/lib/database.types";
 import { accessLinkAction, updateMemberAction } from "./actions";
 
@@ -14,6 +16,19 @@ function MemberRow({ member, isCurrentUser }: { member: Tables<"profiles">; isCu
   const [state, formAction] = useActionState(updateMemberAction, initialActionState);
   const [linkState, linkAction] = useActionState(accessLinkAction, initialActionState);
   const [role, setRole] = useState<AppRole>(member.role);
+  const [canViewCosts, setCanViewCosts] = useState<boolean>(member.can_view_costs);
+  const [active, setActive] = useState<boolean>(member.active);
+
+  const hasChanges =
+    role !== member.role ||
+    canViewCosts !== member.can_view_costs ||
+    active !== member.active;
+
+  useEffect(() => {
+    setRole(member.role);
+    setCanViewCosts(member.can_view_costs);
+    setActive(member.active);
+  }, [member.role, member.can_view_costs, member.active]);
 
   return (
     <TableRow>
@@ -24,11 +39,6 @@ function MemberRow({ member, isCurrentUser }: { member: Tables<"profiles">; isCu
             {isCurrentUser ? <span className="ml-1 text-xs text-muted-foreground">(você)</span> : null}
           </span>
           <span className="text-xs text-muted-foreground break-all">{member.email}</span>
-          {state.error || state.success ? (
-            <div className="mt-2 max-w-md">
-              <FormAlert state={state} />
-            </div>
-          ) : null}
         </div>
       </TableCell>
       <TableCell className="p-0 align-top whitespace-normal">
@@ -38,8 +48,17 @@ function MemberRow({ member, isCurrentUser }: { member: Tables<"profiles">; isCu
             aria-label={`Perfil de ${member.full_name}`}
             name="role"
             value={role}
-            onChange={(e) => setRole(e.target.value as AppRole)}
-            className="w-36"
+            onChange={(e) => {
+              const newRole = e.target.value as AppRole;
+              setRole(newRole);
+              if (newRole !== "gestor") {
+                setCanViewCosts(false);
+              }
+            }}
+            className={cn(
+              "w-36 h-8 text-sm transition-all",
+              role !== member.role && "border-primary ring-1 ring-primary/40 font-medium",
+            )}
           >
             <option value="colaborador">Colaborador</option>
             <option value="gestor">Gestor</option>
@@ -49,7 +68,8 @@ function MemberRow({ member, isCurrentUser }: { member: Tables<"profiles">; isCu
           <label className="flex items-center gap-1.5 text-sm whitespace-nowrap">
             <NativeCheckbox
               name="canViewCosts"
-              defaultChecked={member.can_view_costs}
+              checked={canViewCosts}
+              onChange={(e) => setCanViewCosts(e.target.checked)}
               disabled={role !== "gestor"}
               title={role === "gestor" ? undefined : "Disponível apenas para gestores"}
             />
@@ -57,13 +77,40 @@ function MemberRow({ member, isCurrentUser }: { member: Tables<"profiles">; isCu
           </label>
 
           <label className="flex items-center gap-1.5 text-sm whitespace-nowrap">
-            <NativeCheckbox name="active" defaultChecked={member.active} />
+            <NativeCheckbox
+              name="active"
+              checked={active}
+              onChange={(e) => setActive(e.target.checked)}
+            />
             Ativo
           </label>
 
-          <SubmitButton size="sm" variant="outline">
-            Salvar
-          </SubmitButton>
+          {hasChanges ? (
+            <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
+              <SubmitButton size="sm" variant="default" className="shadow-xs font-medium">
+                Salvar
+              </SubmitButton>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setRole(member.role);
+                  setCanViewCosts(member.can_view_costs);
+                  setActive(member.active);
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground h-8 px-2"
+              >
+                Cancelar
+              </Button>
+            </div>
+          ) : null}
+
+          {state.error || state.success ? (
+            <div className="w-full">
+              <FormAlert state={state} />
+            </div>
+          ) : null}
         </form>
 
         {/* Serve para quem ainda não criou a senha e para quem a esqueceu */}
@@ -99,7 +146,11 @@ export function MembersTable({ members, currentUserId }: { members: Tables<"prof
       </TableHeader>
       <TableBody>
         {members.map((member) => (
-          <MemberRow key={member.id} member={member} isCurrentUser={member.id === currentUserId} />
+          <MemberRow
+            key={`${member.id}-${member.role}-${member.can_view_costs}-${member.active}`}
+            member={member}
+            isCurrentUser={member.id === currentUserId}
+          />
         ))}
         {members.length === 0 ? (
           <TableRow>

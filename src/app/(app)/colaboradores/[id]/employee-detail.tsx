@@ -32,7 +32,7 @@ export function EmployeeDetailsForm({
     <form action={formAction} className="grid gap-4">
       <input type="hidden" name="id" value={employee.id} />
       <FormAlert state={state} />
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
         <Field label="Nome" htmlFor="fullName" errors={state.fieldErrors?.fullName}>
           <Input id="fullName" name="fullName" defaultValue={employee.full_name} required />
         </Field>

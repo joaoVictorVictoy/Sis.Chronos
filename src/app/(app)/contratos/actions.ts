@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/session";
 import { translateError } from "@/lib/auth/errors";
 import { parseForm, type ActionState } from "@/lib/actions";
-import { contractSchema, expenseSchema } from "@/lib/validation/schemas";
+import { contractSchema, expenseSchema, reopenContractSchema, terminateContractSchema } from "@/lib/validation/schemas";
 
 function contractPayload(data: z.output<typeof contractSchema>) {
   return {
@@ -136,3 +136,96 @@ export async function deleteExpenseAction(_prev: ActionState, formData: FormData
   revalidatePath(`/contratos/${parsed.data.contractId}`);
   return { success: "Gasto removido." };
 }
+
+export async function terminateContractAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireRole(["admin", "gestor"]);
+  const parsed = parseForm(terminateContractSchema, formData);
+  if (!parsed.ok) return parsed.state;
+
+  const supabase = await createClient();
+
+  const { data: contract, error: contractErr } = await supabase
+    .from("contracts")
+    .select("id, client_id, name")
+    .eq("id", parsed.data.contractId)
+    .single();
+
+  if (contractErr || !contract) return { error: "Contrato não encontrado." };
+
+  const { error: updateErr } = await supabase
+    .from("contracts")
+    .update({
+      status: "encerrado",
+      termination_reason: parsed.data.terminationReason,
+      termination_sub_reason: parsed.data.terminationSubReason || null,
+      termination_notes: parsed.data.terminationNotes || null,
+      terminated_at: parsed.data.terminatedAt,
+      termination_penalty: parsed.data.terminationPenalty ?? null,
+      end_date: parsed.data.terminatedAt,
+    })
+    .eq("id", contract.id);
+
+  if (updateErr) return { error: translateError(updateErr) };
+
+  // Se solicitado desativar o cliente, verifica se não há outros contratos ativos
+  if (parsed.data.deactivateClient) {
+    const { count } = await supabase
+      .from("contracts")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", contract.client_id)
+      .eq("status", "ativo")
+      .neq("id", contract.id);
+
+    if (count === 0) {
+      await supabase.from("clients").update({ active: false }).eq("id", contract.client_id);
+    }
+  }
+
+  revalidatePath(`/contratos/${contract.id}`);
+  revalidatePath(`/clientes/${contract.client_id}`);
+  revalidatePath("/apontamentos");
+  revalidatePath("/dashboard");
+
+  return { success: "Contrato encerrado com sucesso." };
+}
+
+export async function reopenContractAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireRole(["admin", "gestor"]);
+  const parsed = parseForm(reopenContractSchema, formData);
+  if (!parsed.ok) return parsed.state;
+
+  const supabase = await createClient();
+
+  const { data: contract, error: contractErr } = await supabase
+    .from("contracts")
+    .select("id, client_id")
+    .eq("id", parsed.data.contractId)
+    .single();
+
+  if (contractErr || !contract) return { error: "Contrato não encontrado." };
+
+  const { error: updateErr } = await supabase
+    .from("contracts")
+    .update({
+      status: "ativo",
+      termination_reason: null,
+      termination_sub_reason: null,
+      termination_notes: null,
+      terminated_at: null,
+      termination_penalty: null,
+    })
+    .eq("id", contract.id);
+
+  if (updateErr) return { error: translateError(updateErr) };
+
+  // Reativa o cliente
+  await supabase.from("clients").update({ active: true }).eq("id", contract.client_id);
+
+  revalidatePath(`/contratos/${contract.id}`);
+  revalidatePath(`/clientes/${contract.client_id}`);
+  revalidatePath("/apontamentos");
+  revalidatePath("/dashboard");
+
+  return { success: "Contrato reaberto como ativo." };
+}
+

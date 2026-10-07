@@ -286,6 +286,12 @@ const optionalTimeSchema = fromForm(
 
 export const timeEntrySchema = z
   .object({
+    employeeId: z
+      .string()
+      .trim()
+      .transform((v) => (v === "" ? null : v))
+      .refine((v) => v === null || z.uuid().safeParse(v).success, "Colaborador inválido.")
+      .optional(),
     clientId: z
       .string()
       .trim()
@@ -335,3 +341,45 @@ export const updateMemberSchema = z.object({
   canViewCosts: checkboxSchema,
   active: checkboxSchema,
 });
+
+export const terminationReasonSchema = z.enum([
+  "termino_prazo",
+  "rescisao_cliente",
+  "rescisao_consultoria",
+  "outro",
+]);
+
+export const terminationSubReasonSchema = z.enum([
+  "conclusao_projeto",
+  "fim_vigencia",
+  "corte_custos",
+  "insatisfacao",
+  "trocou_fornecedor",
+  "mudanca_estrategia",
+  "inadimplencia",
+  "escopo_inviavel",
+  "rentabilidade_negativa",
+  "conflito_relacionamento",
+  "outro",
+]);
+
+export const terminateContractSchema = z.object({
+  contractId: z.uuid(),
+  terminationReason: terminationReasonSchema,
+  terminationSubReason: z.preprocess(
+    (v) => (v === "" || v === undefined || v === null ? null : v),
+    terminationSubReasonSchema.nullable().optional(),
+  ),
+  terminatedAt: dateSchema,
+  terminationPenalty: optionalDecimalSchema.refine(
+    (v) => v === null || v >= 0,
+    "A multa rescisória não pode ser negativa.",
+  ),
+  terminationNotes: optionalText(1000),
+  deactivateClient: checkboxSchema,
+});
+
+export const reopenContractSchema = z.object({
+  contractId: z.uuid(),
+});
+

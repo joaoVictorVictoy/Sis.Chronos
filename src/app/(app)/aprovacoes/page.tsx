@@ -7,6 +7,8 @@ import { formatHours } from "@/lib/format";
 import type { Tables } from "@/lib/database.types";
 import { ApprovalList } from "./approval-list";
 
+import { DeletionApprovalList } from "./deletion-approval-list";
+
 export const metadata = { title: "Aprovações | Apontamento" };
 
 export type PendingEntry = Tables<"time_entries"> & {
@@ -21,37 +23,81 @@ export default async function ApprovalsPage() {
   await requireRole(["admin", "gestor"]);
   const supabase = await createClient();
 
-  const { data } = await supabase
-    .from("time_entries")
-    .select(
-      "*, employees(id, full_name), activities(id, name), contracts(id, name, clients(legal_name, trade_name))",
-    )
-    .eq("status", "pendente")
-    .order("entry_date", { ascending: false })
-    .limit(300);
+  const [{ data: pendingData }, { data: deletionData }] = await Promise.all([
+    supabase
+      .from("time_entries")
+      .select(
+        "*, employees(id, full_name), activities(id, name), contracts(id, name, clients(legal_name, trade_name))",
+      )
+      .eq("status", "pendente")
+      .order("entry_date", { ascending: false })
+      .limit(300),
+    supabase
+      .from("time_entries")
+      .select(
+        "*, employees(id, full_name), activities(id, name), contracts(id, name, clients(legal_name, trade_name))",
+      )
+      .not("deletion_requested_at", "is", null)
+      .order("deletion_requested_at", { ascending: false })
+      .limit(300),
+  ]);
 
-  const entries = (data ?? []) as unknown as PendingEntry[];
+  const entries = (pendingData ?? []) as unknown as PendingEntry[];
+  const deletionRequests = (deletionData ?? []) as unknown as PendingEntry[];
+
   const totalMinutes = entries.reduce((sum, e) => sum + e.minutes, 0);
+  const totalDeletionMinutes = deletionRequests.reduce((sum, e) => sum + e.minutes, 0);
 
   return (
     <div className="grid gap-6">
       <PageHeader
-        title="Aprovações"
-        description="Apontamentos pendentes de revisão. Aprovar ou rejeitar não altera as horas lançadas."
+        title="Aprovações e Solicitações"
+        description="Gestão de apontamentos de horas. Revise novos lançamentos, correções solicitadas e pedidos de exclusão."
       >
         <ExportMenu dataset="apontamentos" label="Exportar apontamentos" scope="todos" />
       </PageHeader>
 
+      {/* Seção 1: Solicitações de Exclusão */}
+      <Card className={deletionRequests.length > 0 ? "border-amber-500/50 shadow-sm" : ""}>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <span>Solicitações de Exclusão</span>
+                {deletionRequests.length > 0 ? (
+                  <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                    {deletionRequests.length} pendente(s) · {formatHours(totalDeletionMinutes / 60)}
+                  </span>
+                ) : null}
+              </CardTitle>
+              <CardDescription>
+                Apontamentos já aprovados cuja exclusão foi solicitada por colaboradores com justificativa.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {deletionRequests.length === 0 ? (
+            <EmptyState>Nenhuma solicitação de exclusão pendente. Tudo em conformidade.</EmptyState>
+          ) : (
+            <DeletionApprovalList requests={deletionRequests} />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Seção 2: Apontamentos Pendentes (novos ou corrigidos) */}
       <Card>
         <CardHeader>
           <CardTitle>
-            {entries.length} pendente(s) · {formatHours(totalMinutes / 60)}
+            Apontamentos Pendentes · {entries.length} registro(s) ({formatHours(totalMinutes / 60)})
           </CardTitle>
-          <CardDescription>Selecione os apontamentos e escolha a ação.</CardDescription>
+          <CardDescription>
+            Apontamentos aguardando aprovação ou corrigidos por colaboradores. Selecione os itens para aprovar ou rejeitar.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {entries.length === 0 ? (
-            <EmptyState>Nada pendente. Tudo revisado por aqui.</EmptyState>
+            <EmptyState>Nenhum apontamento pendente de revisão. Tudo revisado por aqui.</EmptyState>
           ) : (
             <ApprovalList entries={entries} />
           )}

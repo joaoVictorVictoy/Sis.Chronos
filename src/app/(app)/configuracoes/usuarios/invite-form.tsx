@@ -10,9 +10,9 @@ import type { AppRole } from "@/lib/database.types";
 import { inviteMemberAction } from "./actions";
 
 const ROLE_HINTS: Record<AppRole, string> = {
-  admin: "Acesso total, inclusive custos e salários.",
-  gestor: "Dashboards, rentabilidade, cadastros e aprovação de apontamentos.",
-  colaborador: "Apenas os próprios apontamentos e análises pessoais.",
+  admin: "Acesso total, inclusive custos.",
+  gestor: "Dashboards e aprovações.",
+  colaborador: "Apenas próprios apontamentos.",
 };
 
 export function InviteForm() {
@@ -22,20 +22,42 @@ export function InviteForm() {
   return (
     <form action={formAction} className="grid gap-4">
       <FormAlert state={state} />
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Nome" htmlFor="fullName" errors={state.fieldErrors?.fullName}>
-          <Input id="fullName" name="fullName" required />
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start w-full">
+        <Field label="Nome" htmlFor="fullName" errors={state.fieldErrors?.fullName} className="flex-1 min-w-0">
+          <Input id="fullName" name="fullName" required placeholder="Nome completo" />
         </Field>
-        <Field label="E-mail" htmlFor="email" errors={state.fieldErrors?.email}>
-          <Input id="email" name="email" type="email" required />
+
+        <Field label="E-mail" htmlFor="email" errors={state.fieldErrors?.email} className="flex-1 min-w-0">
+          <Input id="email" name="email" type="email" required placeholder="email@empresa.com.br" />
         </Field>
-        <Field label="Perfil de acesso" htmlFor="role" hint={ROLE_HINTS[role]} errors={state.fieldErrors?.role}>
-          <NativeSelect id="role" name="role" value={role} onChange={(e) => setRole(e.target.value as AppRole)}>
+
+        <Field
+          label="Perfil de acesso"
+          htmlFor="role"
+          hint={ROLE_HINTS[role]}
+          errors={state.fieldErrors?.role}
+          className="w-full sm:w-44 shrink-0"
+        >
+          <NativeSelect
+            id="role"
+            name="role"
+            value={role}
+            onChange={(e) => setRole(e.target.value as AppRole)}
+            className="w-full h-8"
+          >
             <option value="colaborador">Colaborador</option>
             <option value="gestor">Gestor</option>
             <option value="admin">Administrador</option>
           </NativeSelect>
         </Field>
+
+        <div className="grid gap-1.5 shrink-0">
+          <span className="hidden sm:block text-sm font-medium invisible select-none" aria-hidden="true">
+            Botão
+          </span>
+          <SubmitButton className="w-full sm:w-auto whitespace-nowrap">Enviar convite</SubmitButton>
+        </div>
       </div>
 
       {role === "gestor" ? (
@@ -44,10 +66,6 @@ export function InviteForm() {
           Pode ver o custo individual dos colaboradores
         </label>
       ) : null}
-
-      <div>
-        <SubmitButton>Enviar convite</SubmitButton>
-      </div>
 
       {state.link ? <CopyLink link={state.link} /> : null}
     </form>

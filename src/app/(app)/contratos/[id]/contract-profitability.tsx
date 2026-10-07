@@ -21,7 +21,8 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
 }
 
 export async function ContractProfitability({ contractId, period }: { contractId: string; period: Period }) {
-  const { tenant } = await requireRole(["admin", "gestor"]);
+  const { tenant, profile } = await requireRole(["admin", "gestor"]);
+  const canSeeCosts = profile.role === "admin" || profile.can_view_costs;
   const supabase = await createClient();
   const options = { attentionTolerancePoints: Number(tenant.margin_attention_tolerance) || 0 };
   const today = todayISO();
@@ -37,7 +38,9 @@ export async function ContractProfitability({ contractId, period }: { contractId
       .lte("entry_date", period.to)
       .order("entry_date", { ascending: false })
       .limit(20),
-    getMonthlyEvolution(monthsInRange(resolvePeriod(today, { periodo: "ano" }).from, period.to), contractId),
+    canSeeCosts
+      ? getMonthlyEvolution(monthsInRange(resolvePeriod(today, { periodo: "ano" }).from, period.to), contractId)
+      : Promise.resolve([]),
   ]);
 
   const row = ((metrics ?? []) as ContractMetricsRow[]).find((m) => m.contract_id === contractId);
@@ -66,45 +69,68 @@ export async function ContractProfitability({ contractId, period }: { contractId
       <Card>
         <CardHeader className="flex flex-wrap items-start justify-between gap-3">
           <div className="grid gap-1">
-            <CardTitle>Rentabilidade · {period.label}</CardTitle>
-            <CardDescription>
-              Margem real {p.realMargin === null ? "—" : formatPercent(p.realMargin)} contra meta de{" "}
-              {formatPercent(p.desiredMargin)}
-              {p.marginGapPoints !== null
-                ? ` (${p.marginGapPoints >= 0 ? "+" : ""}${p.marginGapPoints.toFixed(1)} p.p.)`
-                : ""}
-              .
-            </CardDescription>
+            <CardTitle>{canSeeCosts ? `Rentabilidade · ${period.label}` : `Horas e apontamentos · ${period.label}`}</CardTitle>
+            {canSeeCosts ? (
+              <CardDescription>
+                Margem real {p.realMargin === null ? "—" : formatPercent(p.realMargin)} contra meta de{" "}
+                {formatPercent(p.desiredMargin)}
+                {p.marginGapPoints !== null
+                  ? ` (${p.marginGapPoints >= 0 ? "+" : ""}${p.marginGapPoints.toFixed(1)} p.p.)`
+                  : ""}
+                .
+              </CardDescription>
+            ) : (
+              <CardDescription>
+                Acompanhamento de horas e consumo do limite contratual no período.
+              </CardDescription>
+            )}
           </div>
-          <StatusBadge status={p.status} />
+          {canSeeCosts ? <StatusBadge status={p.status} /> : null}
         </CardHeader>
         <CardContent className="grid gap-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Metric
-              label="Receita líquida"
-              value={formatCurrency(p.netRevenue)}
-              hint={p.taxAmount > 0 ? `Bruta ${formatCurrency(p.revenue)} − impostos ${formatCurrency(p.taxAmount)}` : undefined}
-            />
-            <Metric
-              label="Custo total"
-              value={formatCurrency(p.totalCost)}
-              hint={`Horas ${formatCurrency(p.laborCost)} · extras ${formatCurrency(p.expenseCost)}`}
-            />
-            <Metric
-              label="Lucro"
-              value={formatCurrency(p.profit)}
-              hint={`Valor hora efetivo ${p.effectiveHourlyRate === null ? "—" : formatCurrency(p.effectiveHourlyRate)}`}
-            />
-            <Metric
-              label="Horas apontadas"
-              value={formatHours(p.hours)}
-              hint={
-                p.hoursLimit === null
-                  ? "Sem custo hora da equipe"
-                  : `Limite ${formatHours(p.hoursLimit)} · ${formatPercent(p.hoursConsumption ?? 0)} consumido`
-              }
-            />
-          </div>
+          {canSeeCosts ? (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <Metric
+                label="Receita líquida"
+                value={formatCurrency(p.netRevenue)}
+                hint={p.taxAmount > 0 ? `Bruta ${formatCurrency(p.revenue)} − impostos ${formatCurrency(p.taxAmount)}` : undefined}
+              />
+              <Metric
+                label="Custo total"
+                value={formatCurrency(p.totalCost)}
+                hint={`Horas ${formatCurrency(p.laborCost)} · extras ${formatCurrency(p.expenseCost)}`}
+              />
+              <Metric
+                label="Lucro"
+                value={formatCurrency(p.profit)}
+                hint={`Valor hora efetivo ${p.effectiveHourlyRate === null ? "—" : formatCurrency(p.effectiveHourlyRate)}`}
+              />
+              <Metric
+                label="Horas apontadas"
+                value={formatHours(p.hours)}
+                hint={
+                  p.hoursLimit === null
+                    ? "Sem limite definido"
+                    : `Limite ${formatHours(p.hoursLimit)} · ${formatPercent(p.hoursConsumption ?? 0)} consumido`
+                }
+              />
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Metric
+                label="Horas apontadas"
+                value={formatHours(p.hours)}
+                hint={`${row.entries_count} apontamento(s) no período`}
+              />
+              {p.hoursLimit !== null ? (
+                <Metric
+                  label="Limite de horas"
+                  value={formatHours(p.hoursLimit)}
+                  hint={`${formatPercent(p.hoursConsumption ?? 0)} consumido`}
+                />
+              ) : null}
+            </div>
+          )}
 
           {p.hoursLimit !== null ? (
             <div className="grid gap-1">
@@ -123,57 +149,61 @@ export async function ContractProfitability({ contractId, period }: { contractId
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Limite de horas para bater a meta: {formatHours(p.hoursLimit)} · apontadas {formatHours(p.hours)}
+                Limite de horas: {formatHours(p.hoursLimit)} · apontadas {formatHours(p.hours)}
               </p>
             </div>
           ) : null}
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            {projection ? (
-              <div className="grid gap-1 rounded-lg border p-3">
-                <p className="text-sm font-medium">Projeção de fechamento</p>
-                <p className="text-sm text-muted-foreground">
-                  {formatPercent(projection.elapsed)} do período decorrido. No ritmo atual:{" "}
-                  {formatHours(projection.projectedHours)}, custo de {formatCurrency(projection.projectedTotalCost)} e
-                  margem de {projection.projectedMargin === null ? "—" : formatPercent(projection.projectedMargin)}.
-                </p>
-                <StatusBadge status={projection.projectedStatus} className="w-fit" />
-              </div>
-            ) : null}
+          {canSeeCosts ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {projection ? (
+                <div className="grid gap-1 rounded-lg border p-3">
+                  <p className="text-sm font-medium">Projeção de fechamento</p>
+                  <p className="text-sm text-muted-foreground">
+                    {formatPercent(projection.elapsed)} do período decorrido. No ritmo atual:{" "}
+                    {formatHours(projection.projectedHours)}, custo de {formatCurrency(projection.projectedTotalCost)} e
+                    margem de {projection.projectedMargin === null ? "—" : formatPercent(projection.projectedMargin)}.
+                  </p>
+                  <StatusBadge status={projection.projectedStatus} className="w-fit" />
+                </div>
+              ) : null}
 
-            {needed !== null ? (
-              <div className="grid gap-1 rounded-lg border p-3">
-                <p className="text-sm font-medium">Para bater a meta</p>
-                <p className="text-sm text-muted-foreground">
-                  Com o consumo atual de horas, o contrato precisaria faturar {formatCurrency(needed)} no período
-                  {p.revenue > 0 ? ` (${formatPercent(needed / p.revenue - 1)} de reajuste)` : ""}.
-                </p>
-              </div>
-            ) : null}
-          </div>
+              {needed !== null ? (
+                <div className="grid gap-1 rounded-lg border p-3">
+                  <p className="text-sm font-medium">Para bater a meta</p>
+                  <p className="text-sm text-muted-foreground">
+                    Com o consumo atual de horas, o contrato precisaria faturar {formatCurrency(needed)} no período
+                    {p.revenue > 0 ? ` (${formatPercent(needed / p.revenue - 1)} de reajuste)` : ""}.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Evolução mensal</CardTitle>
-            <CardDescription>Receita líquida, custo e lucro deste contrato no ano.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MonthlyResultChart data={evolution} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Margem mês a mês</CardTitle>
-            <CardDescription>Contra a margem desejada do contrato.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MarginEvolutionChart data={evolution} />
-          </CardContent>
-        </Card>
-      </div>
+      {canSeeCosts ? (
+        <div className="grid gap-6 xl:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Evolução mensal</CardTitle>
+              <CardDescription>Receita líquida, custo e lucro deste contrato no ano.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <MonthlyResultChart data={evolution} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Margem mês a mês</CardTitle>
+              <CardDescription>Contra a margem desejada do contrato.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <MarginEvolutionChart data={evolution} />
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-3">
         <Card>

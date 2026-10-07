@@ -17,6 +17,8 @@ import { CONTRACT_STATUS_LABELS, PERIODICITY_LABELS, PERIODICITY_MONTHS, monthsB
 import type { Tables } from "@/lib/database.types";
 import { ContractForm } from "../contract-form";
 import { ContractLinksForm, ExpensesCard } from "./contract-detail";
+import { TerminateContractDialog, TerminationBanner } from "./contract-termination";
+import { ContractPostMortemCard } from "./contract-post-mortem";
 
 export const metadata = { title: "Contrato | Apontamento" };
 
@@ -47,6 +49,7 @@ export default async function ContractPage({ params, searchParams }: PageProps<"
     { data: linkedActivities },
     { data: members },
     { data: expenses },
+    { count: otherActiveContractsCount },
   ] = await Promise.all([
     supabase.from("areas").select("id, name, active").order("name"),
     supabase.from("activities").select("id, name, active, area_id").order("name"),
@@ -55,6 +58,12 @@ export default async function ContractPage({ params, searchParams }: PageProps<"
     supabase.from("contract_activities").select("activity_id").eq("contract_id", id),
     supabase.from("contract_members").select("employee_id").eq("contract_id", id),
     supabase.from("contract_expenses").select("*").eq("contract_id", id).order("expense_date", { ascending: false }),
+    supabase
+      .from("contracts")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", contract.client_id)
+      .eq("status", "ativo")
+      .neq("id", id),
   ]);
 
   const periodMonths = PERIODICITY_MONTHS[contract.periodicity];
@@ -87,8 +96,26 @@ export default async function ContractPage({ params, searchParams }: PageProps<"
           <Badge variant={contract.status === "ativo" ? "default" : "secondary"}>
             {CONTRACT_STATUS_LABELS[contract.status]}
           </Badge>
+          {contract.status !== "encerrado" ? (
+            <TerminateContractDialog
+              contract={contract}
+              otherActiveContractsCount={otherActiveContractsCount ?? 0}
+              today={todayISO()}
+            />
+          ) : null}
         </div>
       </PageHeader>
+
+      {contract.status === "encerrado" ? (
+        <>
+          <TerminationBanner
+            contract={contract}
+            otherActiveContractsCount={otherActiveContractsCount ?? 0}
+            today={todayISO()}
+          />
+          <ContractPostMortemCard contract={contract} />
+        </>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

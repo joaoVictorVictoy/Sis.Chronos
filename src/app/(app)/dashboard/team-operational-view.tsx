@@ -13,10 +13,17 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate, formatHours } from "@/lib/format";
 import type { TeamOperationalReport } from "@/lib/server/metrics";
 
-export function TeamOperationalView({ report }: { report: TeamOperationalReport }) {
+export function TeamOperationalView({
+  report,
+  canSeeCosts = true,
+}: {
+  report: TeamOperationalReport;
+  canSeeCosts?: boolean;
+}) {
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
 
   const toggleExpand = (id: string) => {
@@ -26,7 +33,7 @@ export function TeamOperationalView({ report }: { report: TeamOperationalReport 
   return (
     <div className="grid gap-6">
       {/* 1. Blocos Resumo no Topo */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={cn("grid gap-4 sm:grid-cols-2", canSeeCosts ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
         <Card className="border-border/60 bg-card/60 backdrop-blur-xs">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription className="font-medium text-muted-foreground">Total de Horas</CardDescription>
@@ -60,20 +67,22 @@ export function TeamOperationalView({ report }: { report: TeamOperationalReport 
           </CardContent>
         </Card>
 
-        <Card className="border-border/60 bg-card/60 backdrop-blur-xs">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription className="font-medium text-muted-foreground">Custo Total Acumulado</CardDescription>
-            <div className="rounded-md bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
-              <DollarSignIcon className="size-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tracking-tight">{formatCurrency(report.totalLaborCost)}</div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Custo operacional direto no período
-            </p>
-          </CardContent>
-        </Card>
+        {canSeeCosts ? (
+          <Card className="border-border/60 bg-card/60 backdrop-blur-xs">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardDescription className="font-medium text-muted-foreground">Custo Total Acumulado</CardDescription>
+              <div className="rounded-md bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
+                <DollarSignIcon className="size-4" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold tracking-tight">{formatCurrency(report.totalLaborCost)}</div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Custo operacional direto no período
+              </p>
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card className="border-border/60 bg-card/60 backdrop-blur-xs">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -88,10 +97,15 @@ export function TeamOperationalView({ report }: { report: TeamOperationalReport 
             ) : (
               report.topConsumingActivities.slice(0, 2).map((act, i) => (
                 <div key={i} className="flex items-center justify-between text-xs">
-                  <span className="truncate max-w-[130px] font-medium" title={act.name}>
-                    {act.name}
-                  </span>
-                  <span className="font-semibold tabular-nums text-foreground">
+                  <div className="min-w-0 pr-2">
+                    <span className="truncate block font-medium" title={`${act.name} (${act.clientName})`}>
+                      {act.name}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground truncate block">
+                      {act.clientName}
+                    </span>
+                  </div>
+                  <span className="font-semibold tabular-nums text-foreground shrink-0">
                     {formatHours(act.avgHours)}
                     <span className="text-[10px] text-muted-foreground font-normal">/apont</span>
                   </span>
@@ -107,7 +121,9 @@ export function TeamOperationalView({ report }: { report: TeamOperationalReport 
         <CardHeader className="border-b bg-muted/10 pb-4">
           <CardTitle className="text-lg font-semibold tracking-tight">Desempenho por Colaborador</CardTitle>
           <CardDescription>
-            Acompanhe o total de horas, média por dia trabalhado, custo acumulado e detalhe individual dos apontamentos.
+            {canSeeCosts
+              ? "Acompanhe o total de horas, média por dia trabalhado, custo acumulado e detalhe individual dos apontamentos."
+              : "Acompanhe o total de horas, média por dia trabalhado e detalhe individual dos apontamentos."}
           </CardDescription>
         </CardHeader>
         <CardContent className="divide-y p-0">
@@ -180,14 +196,16 @@ export function TeamOperationalView({ report }: { report: TeamOperationalReport 
                         </span>
                       </div>
 
-                      <div className="text-left sm:text-right">
-                        <span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                          Custo Total
-                        </span>
-                        <span className="font-semibold tabular-nums text-foreground">
-                          {formatCurrency(member.totalCost)}
-                        </span>
-                      </div>
+                      {canSeeCosts ? (
+                        <div className="text-left sm:text-right">
+                          <span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                            Custo Total
+                          </span>
+                          <span className="font-semibold tabular-nums text-foreground">
+                            {formatCurrency(member.totalCost)}
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 
@@ -276,7 +294,9 @@ export function TeamOperationalView({ report }: { report: TeamOperationalReport 
           <CardHeader className="border-b bg-muted/10 pb-4">
             <CardTitle className="text-lg font-semibold tracking-tight">Análise de Hora Média por Atividade</CardTitle>
             <CardDescription>
-              Média de horas consumidas por apontamento e impacto no custo operacional da equipe no período.
+              {canSeeCosts
+                ? "Média de horas consumidas por apontamento e impacto no custo operacional da equipe no período."
+                : "Média de horas consumidas por apontamento no período."}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -285,16 +305,24 @@ export function TeamOperationalView({ report }: { report: TeamOperationalReport 
                 <TableHeader>
                   <TableRow className="text-xs">
                     <TableHead>Atividade</TableHead>
+                    <TableHead>Empresa</TableHead>
                     <TableHead>Área</TableHead>
                     <TableHead className="text-right">Hora Média / Apontamento</TableHead>
                     <TableHead className="text-right">Total Horas</TableHead>
-                    <TableHead className="text-right">Custo Total</TableHead>
+                    {canSeeCosts ? <TableHead className="text-right">Custo Total</TableHead> : null}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {report.topConsumingActivities.map((act, idx) => (
                     <TableRow key={idx}>
                       <TableCell className="font-medium text-foreground">{act.name}</TableCell>
+                      <TableCell className="font-medium text-foreground">
+                        {act.clientName === "Interno" ? (
+                          <span className="text-muted-foreground text-xs italic">Interno</span>
+                        ) : (
+                          act.clientName
+                        )}
+                      </TableCell>
                       <TableCell className="text-muted-foreground">{act.areaName}</TableCell>
                       <TableCell className="text-right font-semibold tabular-nums text-foreground">
                         {formatHours(act.avgHours)}
@@ -303,9 +331,11 @@ export function TeamOperationalView({ report }: { report: TeamOperationalReport 
                       <TableCell className="text-right tabular-nums text-muted-foreground">
                         {formatHours(act.totalHours)}
                       </TableCell>
-                      <TableCell className="text-right font-medium tabular-nums text-foreground">
-                        {formatCurrency(act.totalCost)}
-                      </TableCell>
+                      {canSeeCosts ? (
+                        <TableCell className="text-right font-medium tabular-nums text-foreground">
+                          {formatCurrency(act.totalCost)}
+                        </TableCell>
+                      ) : null}
                     </TableRow>
                   ))}
                 </TableBody>

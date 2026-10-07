@@ -53,9 +53,15 @@ function ConsumptionBar({ consumption }: { consumption: number | null }) {
   );
 }
 
-export function ClientsPanel({ items }: { items: PanelItem[] }) {
+export function ClientsPanel({
+  items,
+  canSeeCosts = true,
+}: {
+  items: PanelItem[];
+  canSeeCosts?: boolean;
+}) {
   const [view, setView] = useState<"cards" | "tabela">("cards");
-  const [sort, setSort] = useState<SortKey>("profit");
+  const [sort, setSort] = useState<SortKey>(canSeeCosts ? "profit" : "consumption");
 
   const sorted = [...items].sort((a, b) => {
     const pick = (item: PanelItem) =>
@@ -69,15 +75,23 @@ export function ClientsPanel({ items }: { items: PanelItem[] }) {
     return pick(b) - pick(a);
   });
 
+  const availableSortKeys = (Object.keys(SORT_LABELS) as SortKey[]).filter(
+    (key) => canSeeCosts || key === "consumption",
+  );
+
   return (
     <Card>
       <CardHeader className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
           <CardTitle>Clientes e contratos</CardTitle>
-          <CardDescription>Margem real contra a desejada e consumo do limite de horas.</CardDescription>
+          <CardDescription>
+            {canSeeCosts
+              ? "Margem real contra a desejada e consumo do limite de horas."
+              : "Acompanhe as horas e o consumo do limite de horas dos contratos."}
+          </CardDescription>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
+          {availableSortKeys.map((key) => (
             <Button
               key={key}
               size="xs"
@@ -118,25 +132,42 @@ export function ClientsPanel({ items }: { items: PanelItem[] }) {
                   <StatusBadge status={item.status} />
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-sm">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Receita</p>
-                    <p className="tabular-nums">{formatCurrency(item.revenue)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Custo</p>
-                    <p className="tabular-nums">{formatCurrency(item.cost)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Lucro</p>
-                    <p className="tabular-nums font-medium">{formatCurrency(item.profit)}</p>
-                  </div>
-                </div>
+                {canSeeCosts ? (
+                  <>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Receita</p>
+                        <p className="tabular-nums">{formatCurrency(item.revenue)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Custo</p>
+                        <p className="tabular-nums">{formatCurrency(item.cost)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Lucro</p>
+                        <p className="tabular-nums font-medium">{formatCurrency(item.profit)}</p>
+                      </div>
+                    </div>
 
-                <p className="text-sm">
-                  Margem <span className="font-medium">{item.margin === null ? "—" : formatPercent(item.margin)}</span>
-                  <span className="text-muted-foreground"> · meta {formatPercent(item.desiredMargin)}</span>
-                </p>
+                    <p className="text-sm">
+                      Margem <span className="font-medium">{item.margin === null ? "—" : formatPercent(item.margin)}</span>
+                      <span className="text-muted-foreground"> · meta {formatPercent(item.desiredMargin)}</span>
+                    </p>
+                  </>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 text-sm py-1">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Horas Apontadas</p>
+                      <p className="tabular-nums font-medium">{formatHours(item.hours)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Consumo de Horas</p>
+                      <p className="tabular-nums font-medium">
+                        {item.consumption === null ? "—" : formatPercent(item.consumption)}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <ConsumptionBar consumption={item.consumption} />
               </Link>
@@ -147,11 +178,17 @@ export function ClientsPanel({ items }: { items: PanelItem[] }) {
             <TableHeader>
               <TableRow>
                 <TableHead>Cliente / contrato</TableHead>
-                <TableHead className="text-right">Receita</TableHead>
-                <TableHead className="text-right">Custo</TableHead>
-                <TableHead className="text-right">Lucro</TableHead>
-                <TableHead className="text-right">Margem</TableHead>
-                <TableHead className="text-right">Meta</TableHead>
+                {canSeeCosts ? (
+                  <>
+                    <TableHead className="text-right">Receita</TableHead>
+                    <TableHead className="text-right">Custo</TableHead>
+                    <TableHead className="text-right">Lucro</TableHead>
+                    <TableHead className="text-right">Margem</TableHead>
+                    <TableHead className="text-right">Meta</TableHead>
+                  </>
+                ) : (
+                  <TableHead>Periodicidade</TableHead>
+                )}
                 <TableHead className="text-right">Horas</TableHead>
                 <TableHead className="text-right">Consumo</TableHead>
                 <TableHead>Status</TableHead>
@@ -166,15 +203,21 @@ export function ClientsPanel({ items }: { items: PanelItem[] }) {
                     </Link>
                     <p className="text-xs text-muted-foreground">{item.contractName}</p>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(item.revenue)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(item.cost)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(item.profit)}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {item.margin === null ? "—" : formatPercent(item.margin)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {formatPercent(item.desiredMargin)}
-                  </TableCell>
+                  {canSeeCosts ? (
+                    <>
+                      <TableCell className="text-right tabular-nums">{formatCurrency(item.revenue)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatCurrency(item.cost)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatCurrency(item.profit)}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {item.margin === null ? "—" : formatPercent(item.margin)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {formatPercent(item.desiredMargin)}
+                      </TableCell>
+                    </>
+                  ) : (
+                    <TableCell className="text-muted-foreground">{PERIODICITY_LABELS[item.periodicity]}</TableCell>
+                  )}
                   <TableCell className="text-right tabular-nums">{formatHours(item.hours)}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {item.consumption === null ? "—" : formatPercent(item.consumption)}

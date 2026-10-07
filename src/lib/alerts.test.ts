@@ -124,4 +124,38 @@ describe("alertas", () => {
     expect(alerts[0].level).toBe("critico");
     expect(alerts.at(-1)!.title).toContain("aguardando aprovação");
   });
+
+  it("alerta contrato vencido (critico), a menos de 30 dias (atencao) e a 45 dias (info)", () => {
+    // today = 2026-03-17
+    const vencido = buildAlerts({
+      ...base,
+      contracts: [report({ end_date: "2026-03-10" })],
+    });
+    expect(vencido.some((a) => a.id.startsWith("vencido-") && a.level === "critico")).toBe(true);
+
+    const trintaDias = buildAlerts({
+      ...base,
+      contracts: [report({ end_date: "2026-04-05" })], // +19 dias
+    });
+    expect(trintaDias.some((a) => a.id.startsWith("renovacao-30-") && a.level === "atencao")).toBe(true);
+
+    const quarentaCincoDias = buildAlerts({
+      ...base,
+      contracts: [report({ end_date: "2026-04-25" })], // +39 dias
+    });
+    expect(quarentaCincoDias.some((a) => a.id.startsWith("renovacao-45-") && a.level === "info")).toBe(true);
+
+    const longe = buildAlerts({
+      ...base,
+      contracts: [report({ end_date: "2026-06-30" })], // +105 dias
+    });
+    expect(longe.some((a) => a.id.includes("renovacao") || a.id.includes("vencido"))).toBe(false);
+
+    const encerrado = buildAlerts({
+      ...base,
+      contracts: [report({ end_date: "2026-03-10", contract_status: "encerrado" })],
+    });
+    expect(encerrado.some((a) => a.id.includes("vencido") || a.id.includes("renovacao"))).toBe(false);
+  });
 });
+

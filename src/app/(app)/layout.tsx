@@ -10,7 +10,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   return (
     <div className="flex min-h-svh flex-col lg:flex-row">
-      <aside className="flex shrink-0 flex-col gap-6 border-b bg-muted/30 p-4 lg:h-svh lg:w-64 lg:border-r lg:border-b-0">
+      <aside className="flex shrink-0 flex-col gap-6 border-b bg-sidebar p-4 lg:h-svh lg:w-64 lg:border-r lg:border-sidebar-border lg:border-b-0">
         <div className="flex items-center gap-2">
           <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <ClockIcon className="size-4" />

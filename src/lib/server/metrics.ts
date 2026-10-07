@@ -194,6 +194,7 @@ export type TeamOperationalReport = {
   totalLaborCost: number;
   topConsumingActivities: {
     name: string;
+    clientName: string;
     areaName: string;
     avgHours: number;
     totalHours: number;
@@ -207,7 +208,7 @@ export async function getTeamOperationalReport(period: Period): Promise<TeamOper
   await requireRole(["admin", "gestor"]);
   const supabase = await createClient();
 
-  const [{ data: employeesData }, { data: entriesData }, { data: activitiesData }] = await Promise.all([
+  const [{ data: employeesData }, { data: entriesData }] = await Promise.all([
     supabase.from("employees").select("id, full_name, active, job_title").order("full_name"),
     supabase
       .from("time_entries")
@@ -219,32 +220,33 @@ export async function getTeamOperationalReport(period: Period): Promise<TeamOper
         cost_amount,
         billable,
         status,
+        activity_id,
         client_id,
         clients(legal_name, trade_name),
         contract_id,
         contracts(name, clients(legal_name, trade_name)),
-        activities(name, area_id, areas(name))
+        activities(id, name, area_id, client_id, areas(name))
       `)
       .gte("entry_date", period.from)
       .lte("entry_date", period.to)
       .neq("status", "rejeitado")
       .order("entry_date", { ascending: false }),
-    supabase.rpc("activity_metrics", { p_from: period.from, p_to: period.to }),
   ]);
 
   const employees = employeesData ?? [];
   const rawEntries = entriesData ?? [];
 
-  const topConsumingActivities = (activitiesData ?? [])
-    .map((a) => ({
-      name: a.activity_name,
-      areaName: a.area_name,
-      avgHours: Number(a.avg_hours) || (a.entries_count > 0 ? Number(a.hours) / a.entries_count : 0),
-      totalHours: Number(a.hours),
-      totalCost: Number(a.labor_cost),
-    }))
-    .sort((a, b) => b.avgHours - a.avgHours)
-    .slice(0, 5);
+  const activityGroups = new Map<
+    string,
+    {
+      name: string;
+      clientName: string;
+      areaName: string;
+      totalMinutes: number;
+      totalCost: number;
+      entriesCount: number;
+    }
+  >();
 
   const entriesByEmployee = new Map<string, typeof rawEntries>();
   const allUniqueDates = new Set<string>();
@@ -259,7 +261,48 @@ export async function getTeamOperationalReport(period: Period): Promise<TeamOper
     const list = entriesByEmployee.get(entry.employee_id) ?? [];
     list.push(entry);
     entriesByEmployee.set(entry.employee_id, list);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const anyE = entry as any;
+    const clientName =
+      anyE.clients?.trade_name ||
+      anyE.clients?.legal_name ||
+      anyE.contracts?.clients?.trade_name ||
+      anyE.contracts?.clients?.legal_name ||
+      "Interno";
+
+    const activityName = anyE.activities?.name || "Atividade";
+    const areaName = anyE.activities?.areas?.name || "Sem área";
+    const activityKey = `${anyE.activity_id || anyE.activities?.id || activityName}__${clientName}`;
+
+    const existingGroup = activityGroups.get(activityKey);
+    if (existingGroup) {
+      existingGroup.totalMinutes += entry.minutes;
+      existingGroup.totalCost += Number(entry.cost_amount) || 0;
+      existingGroup.entriesCount += 1;
+    } else {
+      activityGroups.set(activityKey, {
+        name: activityName,
+        clientName,
+        areaName,
+        totalMinutes: entry.minutes,
+        totalCost: Number(entry.cost_amount) || 0,
+        entriesCount: 1,
+      });
+    }
   }
+
+  const topConsumingActivities = Array.from(activityGroups.values())
+    .map((g) => ({
+      name: g.name,
+      clientName: g.clientName,
+      areaName: g.areaName,
+      avgHours: g.entriesCount > 0 ? g.totalMinutes / 60 / g.entriesCount : 0,
+      totalHours: g.totalMinutes / 60,
+      totalCost: g.totalCost,
+    }))
+    .sort((a, b) => b.avgHours - a.avgHours)
+    .slice(0, 10);
 
   const uniqueDaysWorked = allUniqueDates.size;
   const averageDailyHours = uniqueDaysWorked > 0 ? totalHours / uniqueDaysWorked : 0;
