@@ -13,7 +13,7 @@ export const metadata = { title: "Início | Apontamento" };
 
 function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <Card>
+    <Card className="bg-muted/40 shadow-none ring-foreground/5">
       <CardHeader className="gap-1">
         <CardDescription>{label}</CardDescription>
         <CardTitle className="text-2xl tabular-nums">{value}</CardTitle>
