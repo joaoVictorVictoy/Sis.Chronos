@@ -23,12 +23,12 @@ export function InviteForm() {
     <form action={formAction} className="grid gap-4">
       <FormAlert state={state} />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
-        <Field label="Nome" htmlFor="fullName" errors={state.fieldErrors?.fullName} className="w-full sm:w-56">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start w-full">
+        <Field label="Nome" htmlFor="fullName" errors={state.fieldErrors?.fullName} className="flex-1 min-w-0">
           <Input id="fullName" name="fullName" required placeholder="Nome completo" />
         </Field>
 
-        <Field label="E-mail" htmlFor="email" errors={state.fieldErrors?.email} className="w-full sm:w-64">
+        <Field label="E-mail" htmlFor="email" errors={state.fieldErrors?.email} className="flex-1 min-w-0">
           <Input id="email" name="email" type="email" required placeholder="email@empresa.com.br" />
         </Field>
 
@@ -37,14 +37,14 @@ export function InviteForm() {
           htmlFor="role"
           hint={ROLE_HINTS[role]}
           errors={state.fieldErrors?.role}
-          className="w-full sm:w-36 shrink-0"
+          className="w-full sm:w-44 shrink-0"
         >
           <NativeSelect
             id="role"
             name="role"
             value={role}
             onChange={(e) => setRole(e.target.value as AppRole)}
-            className="w-full"
+            className="w-full h-8"
           >
             <option value="colaborador">Colaborador</option>
             <option value="gestor">Gestor</option>
@@ -56,7 +56,7 @@ export function InviteForm() {
           <span className="hidden sm:block text-sm font-medium invisible select-none" aria-hidden="true">
             Botão
           </span>
-          <SubmitButton className="w-full sm:w-auto">Enviar convite</SubmitButton>
+          <SubmitButton className="w-full sm:w-auto whitespace-nowrap">Enviar convite</SubmitButton>
         </div>
       </div>
 
