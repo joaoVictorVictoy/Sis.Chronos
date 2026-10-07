@@ -390,6 +390,9 @@ export function WeekEntries({
 
   // Jornada diária esperada ≈ jornada mensal ÷ 21 dias úteis
   const dailyTarget = monthlyHours / 21;
+  const isAllEmployees = isManagerUser && selectedEmployeeId === "todos";
+  const activeEmployeesCount = employees && employees.length > 0 ? employees.length : 1;
+  const effectiveDailyTarget = isAllEmployees ? dailyTarget * activeEmployeesCount : dailyTarget;
   const totalMinutes = entries.reduce((sum, e) => sum + e.minutes, 0);
   const billableMinutes = entries.filter((e) => e.billable).reduce((sum, e) => sum + e.minutes, 0);
 
@@ -494,7 +497,7 @@ export function WeekEntries({
           {days.map((day, i) => {
             const dayEntries = entries.filter((e) => e.entry_date === day);
             const dayMinutes = dayEntries.reduce((sum, e) => sum + e.minutes, 0);
-            const ratio = dailyTarget > 0 ? Math.min(dayMinutes / 60 / dailyTarget, 1) : 0;
+            const ratio = effectiveDailyTarget > 0 ? Math.min(dayMinutes / 60 / effectiveDailyTarget, 1) : 0;
             const isWeekend = i >= 5;
             const isToday = day === today;
             const isLocked = lockedThrough !== null && day <= lockedThrough;

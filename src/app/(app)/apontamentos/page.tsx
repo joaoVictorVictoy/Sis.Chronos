@@ -102,13 +102,13 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
     active: e.active,
   }));
 
-  // Resolução do colaborador selecionado para filtro da semana
+  // Resolução do colaborador selecionado para visualização:
+  // - Gestor e Admin: por padrão vê as horas de TODOS os colaboradores ("todos"), ou filtra pelo colaborador da URL.
+  // - Colaborador: estritamente restrito a ver APENAS as suas próprias horas.
   let selectedEmployeeId: string = "todos";
   if (isManagerUser) {
     if (typeof colaborador === "string" && colaborador) {
       selectedEmployeeId = colaborador;
-    } else if (employeeId) {
-      selectedEmployeeId = employeeId;
     } else {
       selectedEmployeeId = "todos";
     }
