@@ -26,6 +26,7 @@ export type AlertInput = {
   today: string;
   /** Dias úteis sem apontamento que disparam alerta. */
   idleBusinessDays?: number;
+  canManageContracts?: boolean;
 };
 
 const pct = (value: number) => `${Math.round(value * 100)}%`;
@@ -38,6 +39,7 @@ export function buildAlerts({
   pendingCount,
   today,
   idleBusinessDays = 3,
+  canManageContracts = false,
 }: AlertInput): Alert[] {
   const alerts: Alert[] = [];
 
@@ -58,7 +60,7 @@ export function buildAlerts({
   }
 
   for (const { row, profitability, projection } of contracts) {
-    const href = `/contratos/${row.contract_id}`;
+    const href = canManageContracts ? `/contratos/${row.contract_id}` : undefined;
     const name = `${row.client_name} · ${row.contract_name}`;
 
     if (profitability.status === "critico") {

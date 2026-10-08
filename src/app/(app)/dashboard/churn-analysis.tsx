@@ -16,7 +16,13 @@ import { formatCurrency, formatDate, formatPercent } from "@/lib/format";
 import { TERMINATION_REASON_LABELS, TERMINATION_SUB_REASON_LABELS } from "@/lib/contracts";
 import type { ChurnReport } from "@/lib/server/churn";
 
-export function ChurnAnalysisCard({ report }: { report: ChurnReport }) {
+export function ChurnAnalysisCard({
+  report,
+  canManageContracts = false,
+}: {
+  report: ChurnReport;
+  canManageContracts?: boolean;
+}) {
   const hasChurn = report.totalTerminatedCount > 0;
 
   return (
@@ -250,9 +256,13 @@ export function ChurnAnalysisCard({ report }: { report: ChurnReport }) {
                       return (
                         <TableRow key={c.id}>
                           <TableCell>
-                            <Link href={`/contratos/${c.id}`} className="font-medium hover:underline block">
-                              {c.name}
-                            </Link>
+                            {canManageContracts ? (
+                              <Link href={`/contratos/${c.id}`} className="font-medium hover:underline block">
+                                {c.name}
+                              </Link>
+                            ) : (
+                              <span className="font-medium block">{c.name}</span>
+                            )}
                             <span className="text-xs text-muted-foreground">{c.clientName}</span>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">

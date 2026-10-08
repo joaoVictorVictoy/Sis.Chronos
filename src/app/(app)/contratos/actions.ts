@@ -25,7 +25,7 @@ function contractPayload(data: z.output<typeof contractSchema>) {
 }
 
 export async function createContractAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const { tenant } = await requireRole(["admin", "gestor"]);
+  const { tenant } = await requireRole(["admin"]);
   const parsed = parseForm(contractSchema, formData);
   if (!parsed.ok) return parsed.state;
 
@@ -43,7 +43,7 @@ export async function createContractAction(_prev: ActionState, formData: FormDat
 }
 
 export async function updateContractAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireRole(["admin", "gestor"]);
+  await requireRole(["admin"]);
   const parsed = parseForm(contractSchema.safeExtend({ id: z.uuid() }), formData);
   if (!parsed.ok) return parsed.state;
 
@@ -58,7 +58,7 @@ export async function updateContractAction(_prev: ActionState, formData: FormDat
 
 /** Áreas, atividades e colaboradores alocados. */
 export async function setContractLinksAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const { tenant } = await requireRole(["admin", "gestor"]);
+  const { tenant } = await requireRole(["admin"]);
   const contractId = z.uuid().safeParse(formData.get("contractId"));
   if (!contractId.success) return { error: "Contrato inválido." };
 
@@ -103,7 +103,7 @@ export async function setContractLinksAction(_prev: ActionState, formData: FormD
 }
 
 export async function createExpenseAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const { tenant } = await requireRole(["admin", "gestor"]);
+  const { tenant } = await requireRole(["admin"]);
   const parsed = parseForm(expenseSchema, formData);
   if (!parsed.ok) return parsed.state;
 
@@ -125,7 +125,7 @@ export async function createExpenseAction(_prev: ActionState, formData: FormData
 }
 
 export async function deleteExpenseAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireRole(["admin", "gestor"]);
+  await requireRole(["admin"]);
   const parsed = parseForm(z.object({ id: z.uuid(), contractId: z.uuid() }), formData);
   if (!parsed.ok) return parsed.state;
 
@@ -138,7 +138,7 @@ export async function deleteExpenseAction(_prev: ActionState, formData: FormData
 }
 
 export async function terminateContractAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireRole(["admin", "gestor"]);
+  await requireRole(["admin"]);
   const parsed = parseForm(terminateContractSchema, formData);
   if (!parsed.ok) return parsed.state;
 
@@ -190,7 +190,7 @@ export async function terminateContractAction(_prev: ActionState, formData: Form
 }
 
 export async function reopenContractAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireRole(["admin", "gestor"]);
+  await requireRole(["admin"]);
   const parsed = parseForm(reopenContractSchema, formData);
   if (!parsed.ok) return parsed.state;
 

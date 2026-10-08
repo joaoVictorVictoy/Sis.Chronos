@@ -30,7 +30,7 @@ export default async function ContractPage({ params, searchParams }: PageProps<"
     de: typeof query.de === "string" ? query.de : undefined,
     ate: typeof query.ate === "string" ? query.ate : undefined,
   });
-  await requireRole(["admin", "gestor"]);
+  await requireRole(["admin"]);
   const supabase = await createClient();
 
   const { data: contract } = await supabase

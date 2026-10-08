@@ -56,9 +56,11 @@ function ConsumptionBar({ consumption }: { consumption: number | null }) {
 export function ClientsPanel({
   items,
   canSeeCosts = true,
+  canManageContracts = false,
 }: {
   items: PanelItem[];
   canSeeCosts?: boolean;
+  canManageContracts?: boolean;
 }) {
   const [view, setView] = useState<"cards" | "tabela">("cards");
   const [sort, setSort] = useState<SortKey>(canSeeCosts ? "profit" : "consumption");
@@ -116,62 +118,74 @@ export function ClientsPanel({
           <EmptyState>Nenhum contrato com movimento no período.</EmptyState>
         ) : view === "cards" ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {sorted.map((item) => (
-              <Link
-                key={item.contractId}
-                href={`/contratos/${item.contractId}`}
-                className="grid gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/40"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{item.clientName}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {item.contractName} · {PERIODICITY_LABELS[item.periodicity]}
-                    </p>
-                  </div>
-                  <StatusBadge status={item.status} />
-                </div>
-
-                {canSeeCosts ? (
-                  <>
-                    <div className="grid grid-cols-3 gap-2 text-sm">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Receita</p>
-                        <p className="tabular-nums">{formatCurrency(item.revenue)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Custo</p>
-                        <p className="tabular-nums">{formatCurrency(item.cost)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Lucro</p>
-                        <p className="tabular-nums font-medium">{formatCurrency(item.profit)}</p>
-                      </div>
-                    </div>
-
-                    <p className="text-sm">
-                      Margem <span className="font-medium">{item.margin === null ? "—" : formatPercent(item.margin)}</span>
-                      <span className="text-muted-foreground"> · meta {formatPercent(item.desiredMargin)}</span>
-                    </p>
-                  </>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2 text-sm py-1">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Horas Apontadas</p>
-                      <p className="tabular-nums font-medium">{formatHours(item.hours)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Consumo de Horas</p>
-                      <p className="tabular-nums font-medium">
-                        {item.consumption === null ? "—" : formatPercent(item.consumption)}
+            {sorted.map((item) => {
+              const content = (
+                <>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{item.clientName}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {item.contractName} · {PERIODICITY_LABELS[item.periodicity]}
                       </p>
                     </div>
+                    <StatusBadge status={item.status} />
                   </div>
-                )}
 
-                <ConsumptionBar consumption={item.consumption} />
-              </Link>
-            ))}
+                  {canSeeCosts ? (
+                    <>
+                      <div className="grid grid-cols-3 gap-2 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Receita</p>
+                          <p className="tabular-nums">{formatCurrency(item.revenue)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Custo</p>
+                          <p className="tabular-nums">{formatCurrency(item.cost)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Lucro</p>
+                          <p className="tabular-nums font-medium">{formatCurrency(item.profit)}</p>
+                        </div>
+                      </div>
+
+                      <p className="text-sm">
+                        Margem <span className="font-medium">{item.margin === null ? "—" : formatPercent(item.margin)}</span>
+                        <span className="text-muted-foreground"> · meta {formatPercent(item.desiredMargin)}</span>
+                      </p>
+                    </>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2 text-sm py-1">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Horas Apontadas</p>
+                        <p className="tabular-nums font-medium">{formatHours(item.hours)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Consumo de Horas</p>
+                        <p className="tabular-nums font-medium">
+                          {item.consumption === null ? "—" : formatPercent(item.consumption)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <ConsumptionBar consumption={item.consumption} />
+                </>
+              );
+
+              return canManageContracts ? (
+                <Link
+                  key={item.contractId}
+                  href={`/contratos/${item.contractId}`}
+                  className="grid gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/40"
+                >
+                  {content}
+                </Link>
+              ) : (
+                <div key={item.contractId} className="grid gap-3 rounded-lg border p-4">
+                  {content}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <Table>
@@ -198,9 +212,13 @@ export function ClientsPanel({
               {sorted.map((item) => (
                 <TableRow key={item.contractId}>
                   <TableCell>
-                    <Link href={`/contratos/${item.contractId}`} className="font-medium hover:underline">
-                      {item.clientName}
-                    </Link>
+                    {canManageContracts ? (
+                      <Link href={`/contratos/${item.contractId}`} className="font-medium hover:underline">
+                        {item.clientName}
+                      </Link>
+                    ) : (
+                      <span className="font-medium">{item.clientName}</span>
+                    )}
                     <p className="text-xs text-muted-foreground">{item.contractName}</p>
                   </TableCell>
                   {canSeeCosts ? (

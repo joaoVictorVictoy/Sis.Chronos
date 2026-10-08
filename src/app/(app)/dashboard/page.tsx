@@ -74,7 +74,8 @@ function Kpi({
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   const params = await searchParams;
   const { profile } = await requireRole(["admin", "gestor"]);
-  const canSeeCosts = profile.role === "admin" || profile.can_view_costs;
+  const isAdmin = profile.role === "admin";
+  const canSeeCosts = isAdmin || profile.can_view_costs;
 
   const today = todayISO();
   const period = resolvePeriod(today, {
@@ -118,6 +119,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     missingCosts: canSeeCosts ? missingCosts : [],
     pendingCount,
     today,
+    canManageContracts: isAdmin,
   });
 
   const byStatus = report.contracts.reduce<Record<HealthStatus, number>>(
@@ -306,9 +308,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
       <TeamOperationalView report={teamOperationalReport} canSeeCosts={canSeeCosts} />
 
-      <ClientsPanel items={panelItems} canSeeCosts={canSeeCosts} />
+      <ClientsPanel items={panelItems} canSeeCosts={canSeeCosts} canManageContracts={isAdmin} />
 
-      {canSeeCosts ? <ChurnAnalysisCard report={churnReport} /> : null}
+      {canSeeCosts ? <ChurnAnalysisCard report={churnReport} canManageContracts={isAdmin} /> : null}
 
       {canSeeCosts ? (
         <>
@@ -461,17 +463,32 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               <CardDescription>Maior lucro no período.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2">
-              {ranking.slice(0, 5).map(({ row, profitability }) => (
-                <Link
-                  key={row.contract_id}
-                  href={`/contratos/${row.contract_id}`}
-                  className="flex min-w-0 items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
-                  title={row.client_name}
-                >
-                  <span className="min-w-0 truncate font-medium">{row.client_name}</span>
-                  <span className="shrink-0 tabular-nums font-medium">{formatCurrency(profitability.profit)}</span>
-                </Link>
-              ))}
+              {ranking.slice(0, 5).map(({ row, profitability }) => {
+                const inner = (
+                  <>
+                    <span className="min-w-0 truncate font-medium">{row.client_name}</span>
+                    <span className="shrink-0 tabular-nums font-medium">{formatCurrency(profitability.profit)}</span>
+                  </>
+                );
+                return isAdmin ? (
+                  <Link
+                    key={row.contract_id}
+                    href={`/contratos/${row.contract_id}`}
+                    className="flex min-w-0 items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
+                    title={row.client_name}
+                  >
+                    {inner}
+                  </Link>
+                ) : (
+                  <div
+                    key={row.contract_id}
+                    className="flex min-w-0 items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-sm"
+                    title={row.client_name}
+                  >
+                    {inner}
+                  </div>
+                );
+              })}
               {ranking.length === 0 ? <EmptyState>Sem dados.</EmptyState> : null}
             </CardContent>
           </Card>
@@ -482,20 +499,35 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               <CardDescription>Onde a meta está mais longe.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2">
-              {worstMargin.slice(0, 5).map(({ row, profitability }) => (
-                <Link
-                  key={row.contract_id}
-                  href={`/contratos/${row.contract_id}`}
-                  className="flex min-w-0 items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
-                  title={row.client_name}
-                >
-                  <span className="min-w-0 truncate font-medium">{row.client_name}</span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <span className="tabular-nums font-medium">{formatPercent(profitability.realMargin ?? 0)}</span>
-                    <StatusBadge status={profitability.status} />
-                  </span>
-                </Link>
-              ))}
+              {worstMargin.slice(0, 5).map(({ row, profitability }) => {
+                const inner = (
+                  <>
+                    <span className="min-w-0 truncate font-medium">{row.client_name}</span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className="tabular-nums font-medium">{formatPercent(profitability.realMargin ?? 0)}</span>
+                      <StatusBadge status={profitability.status} />
+                    </span>
+                  </>
+                );
+                return isAdmin ? (
+                  <Link
+                    key={row.contract_id}
+                    href={`/contratos/${row.contract_id}`}
+                    className="flex min-w-0 items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
+                    title={row.client_name}
+                  >
+                    {inner}
+                  </Link>
+                ) : (
+                  <div
+                    key={row.contract_id}
+                    className="flex min-w-0 items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-sm"
+                    title={row.client_name}
+                  >
+                    {inner}
+                  </div>
+                );
+              })}
               {worstMargin.length === 0 ? <EmptyState>Sem dados.</EmptyState> : null}
             </CardContent>
           </Card>
@@ -506,23 +538,38 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               <CardDescription>Aumento necessário para atingir a margem desejada.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2">
-              {adjustments.map(({ row, adjustment, profitability }) => (
-                <Link
-                  key={row.contract_id}
-                  href={`/contratos/${row.contract_id}`}
-                  className="grid min-w-0 gap-0.5 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
-                  title={row.client_name}
-                >
-                  <span className="flex min-w-0 items-center justify-between gap-2.5">
-                    <span className="min-w-0 truncate font-medium">{row.client_name}</span>
-                    <span className="shrink-0 tabular-nums font-medium">+{formatPercent(adjustment ?? 0)}</span>
-                  </span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    De {formatCurrency(profitability.revenue)} para{" "}
-                    {formatCurrency(profitability.revenue * (1 + (adjustment ?? 0)))} no período
-                  </span>
-                </Link>
-              ))}
+              {adjustments.map(({ row, adjustment, profitability }) => {
+                const inner = (
+                  <>
+                    <span className="flex min-w-0 items-center justify-between gap-2.5">
+                      <span className="min-w-0 truncate font-medium">{row.client_name}</span>
+                      <span className="shrink-0 tabular-nums font-medium">+{formatPercent(adjustment ?? 0)}</span>
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      De {formatCurrency(profitability.revenue)} para{" "}
+                      {formatCurrency(profitability.revenue * (1 + (adjustment ?? 0)))} no período
+                    </span>
+                  </>
+                );
+                return isAdmin ? (
+                  <Link
+                    key={row.contract_id}
+                    href={`/contratos/${row.contract_id}`}
+                    className="grid min-w-0 gap-0.5 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
+                    title={row.client_name}
+                  >
+                    {inner}
+                  </Link>
+                ) : (
+                  <div
+                    key={row.contract_id}
+                    className="grid min-w-0 gap-0.5 rounded-lg border px-3 py-2 text-sm"
+                    title={row.client_name}
+                  >
+                    {inner}
+                  </div>
+                );
+              })}
               {adjustments.length === 0 ? (
                 <EmptyState>Todos os contratos já cobrem a margem desejada.</EmptyState>
               ) : null}

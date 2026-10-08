@@ -15,7 +15,8 @@ import { NewClientForm } from "./clients-client";
 export const metadata = { title: "Clientes | Apontamento" };
 
 export default async function ClientsPage() {
-  await requireRole(["admin", "gestor"]);
+  const { profile } = await requireRole(["admin", "gestor"]);
+  const isAdmin = profile.role === "admin";
   const supabase = await createClient();
   const { data } = await supabase.from("clients").select("*, contracts(count)").order("legal_name");
   const clients = (data ?? []) as (Tables<"clients"> & { contracts: { count: number }[] })[];
@@ -24,13 +25,19 @@ export default async function ClientsPage() {
     <div className="grid gap-6">
       <PageHeader
         title="Clientes"
-        description="Cada cliente pode ter um ou mais contratos — é onde a rentabilidade é medida."
+        description={
+          isAdmin
+            ? "Cada cliente pode ter um ou mais contratos — é onde a rentabilidade é medida."
+            : "Cadastro e acompanhamento de clientes e suas atividades."
+        }
       />
 
       <Card>
         <CardHeader>
           <CardTitle>Novo cliente</CardTitle>
-          <CardDescription>Os contratos são cadastrados dentro do cliente.</CardDescription>
+          <CardDescription>
+            {isAdmin ? "Os contratos são cadastrados dentro do cliente." : "Cadastre uma nova empresa cliente."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <NewClientForm />
@@ -79,21 +86,21 @@ export default async function ClientsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {contractCount > 0 ? (
+                          {isAdmin && contractCount > 0 ? (
                             <span
                               className="text-xs text-muted-foreground"
                               title="Tem contrato cadastrado. Desative em vez de excluir."
                             >
                               {contractCount} contrato(s)
                             </span>
-                          ) : (
+                          ) : !contractCount ? (
                             <DeleteButton
                               action={deleteClientAction}
                               hiddenFields={{ id: client.id }}
                               title="Excluir cliente"
                               description={`Tem certeza que deseja excluir "${client.trade_name || client.legal_name}"? Essa ação não pode ser desfeita.`}
                             />
-                          )}
+                          ) : null}
                           <Link href={`/clientes/${client.id}`} aria-label={`Abrir ${client.legal_name}`}>
                             <ChevronRightIcon className="size-4 text-muted-foreground" />
                           </Link>

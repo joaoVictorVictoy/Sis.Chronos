@@ -68,7 +68,14 @@ export function AppNav({ role, onNavigate }: { role: AppRole; onNavigate?: () =>
   return (
     <nav className="grid gap-3.5 text-sm">
       {NAV.map((section) => {
-        const items = section.items.filter((item) => item.roles.includes(role));
+        const items = section.items
+          .filter((item) => item.roles.includes(role))
+          .map((item) => {
+            if (item.href === "/clientes") {
+              return { ...item, label: role === "admin" ? "Clientes e contratos" : "Clientes" };
+            }
+            return item;
+          });
         if (!items.length) return null;
         return (
           <div key={section.group} className="grid gap-1">

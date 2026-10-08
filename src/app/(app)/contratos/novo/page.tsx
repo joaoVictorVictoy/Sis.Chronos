@@ -12,7 +12,7 @@ export const metadata = { title: "Novo contrato | Apontamento" };
 
 export default async function NewContractPage({ searchParams }: PageProps<"/contratos/novo">) {
   const { cliente } = await searchParams;
-  await requireRole(["admin", "gestor"]);
+  await requireRole(["admin"]);
 
   const clientId = typeof cliente === "string" ? cliente : null;
   if (!clientId) notFound();
