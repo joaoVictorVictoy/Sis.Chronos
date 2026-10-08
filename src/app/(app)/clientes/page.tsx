@@ -19,7 +19,9 @@ export default async function ClientsPage() {
   const isAdmin = profile.role === "admin";
   const supabase = await createClient();
   const { data } = await supabase.from("clients").select("*, contracts(count)").order("legal_name");
-  const clients = (data ?? []) as (Tables<"clients"> & { contracts: { count: number }[] })[];
+  const clients = ((data ?? []) as (Tables<"clients"> & { contracts: { count: number }[] })[]).sort((a, b) =>
+    (a.trade_name || a.legal_name).localeCompare(b.trade_name || b.legal_name, "pt-BR", { numeric: true }),
+  );
 
   return (
     <div className="grid gap-6">

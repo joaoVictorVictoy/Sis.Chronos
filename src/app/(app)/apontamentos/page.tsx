@@ -8,6 +8,7 @@ import { formatDate, todayISO } from "@/lib/format";
 import { startOfWeek, weekDays } from "@/lib/time";
 import { getEmployeeMissingDays } from "@/lib/pending-actions";
 import type { Tables } from "@/lib/database.types";
+import type { LeaveRecord } from "../minhas-analises/leaves-dialog";
 import { EntryModes } from "./entry-modes";
 import { WeekEntries } from "./week-entries";
 
@@ -16,6 +17,7 @@ export const metadata = { title: "Apontamentos | Apontamento" };
 export type ClientOption = {
   id: string;
   name: string;
+  legalName?: string;
 };
 
 export type AreaOption = {
@@ -127,18 +129,32 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
     .lte("entry_date", days[6])
     .order("entry_date");
 
+  // Busca de férias e afastamentos na semana
+  let leavesQuery = supabase
+    .from("employee_leaves")
+    .select("id, employee_id, start_date, end_date, type, notes")
+    .lte("start_date", days[6])
+    .gte("end_date", days[0]);
+
   if (selectedEmployeeId !== "todos") {
     entriesQuery = entriesQuery.eq("employee_id", selectedEmployeeId);
+    leavesQuery = leavesQuery.eq("employee_id", selectedEmployeeId);
   }
 
-  const { data: entries } = await entriesQuery;
+  const [{ data: entries }, { data: leavesData }] = await Promise.all([
+    entriesQuery,
+    leavesQuery,
+  ]);
 
   const clientMap = new Map((clientsData ?? []).map((c) => [c.id, c.trade_name || c.legal_name]));
 
-  const clientOptions: ClientOption[] = (clientsData ?? []).map((c) => ({
-    id: c.id,
-    name: c.trade_name || c.legal_name,
-  }));
+  const clientOptions: ClientOption[] = (clientsData ?? [])
+    .map((c) => ({
+      id: c.id,
+      name: c.trade_name || c.legal_name,
+      legalName: c.legal_name || "",
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { numeric: true }));
 
   const areaOptions: AreaOption[] = (areasData ?? []).map((a) => ({
     id: a.id,
@@ -249,6 +265,7 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
         employees={employees}
         selectedEmployeeId={selectedEmployeeId}
         currentEmployeeId={employeeId ?? null}
+        leaves={(leavesData ?? []) as LeaveRecord[]}
       />
     </div>
   );

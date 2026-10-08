@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowUpDownIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/native-select";
@@ -68,6 +69,39 @@ export function CascadeSelectors({
 
   const [internalActivityId, setInternalActivityId] = useState<string>(defaultActivityId ?? "");
   const [extraActivities, setExtraActivities] = useState<ActivityOption[]>([]);
+  const [clientSortMode, setClientSortMode] = useState<"code" | "name">("code");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("chronos_client_sort_order");
+      if (saved === "code" || saved === "name") {
+        setClientSortMode(saved);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const toggleClientSort = () => {
+    const nextMode = clientSortMode === "code" ? "name" : "code";
+    setClientSortMode(nextMode);
+    try {
+      localStorage.setItem("chronos_client_sort_order", nextMode);
+    } catch {
+      // ignore
+    }
+  };
+
+  const sortedClients = useMemo(() => {
+    return [...clients].sort((a, b) => {
+      if (clientSortMode === "name") {
+        const nameA = a.legalName || a.name.replace(/^[A-Z0-9]+:\s*/i, "");
+        const nameB = b.legalName || b.name.replace(/^[A-Z0-9]+:\s*/i, "");
+        return nameA.localeCompare(nameB, "pt-BR", { numeric: true });
+      }
+      return a.name.localeCompare(b.name, "pt-BR", { numeric: true });
+    });
+  }, [clients, clientSortMode]);
 
   // Sincroniza se default mudar externamente no modo não-controlado
   useEffect(() => {
@@ -126,12 +160,12 @@ export function CascadeSelectors({
       if (!areaId) return [];
       return allActivities.filter((act) => {
         if (act.area_id !== areaId) return false;
-        // Se a atividade estiver associada a um cliente específico, só exibe para ele
-        if (act.client_id) {
+        // Se um cliente específico está selecionado, exibe apenas as atividades daquele cliente
+        if (clientId) {
           return act.client_id === clientId;
         }
-        // Atividades sem cliente específico (gerais da área) ficam disponíveis
-        return true;
+        // Se nenhum cliente foi selecionado (Sem cliente / interno), exibe apenas atividades internas (sem cliente vinculado)
+        return !act.client_id;
       });
     },
     [allActivities],
@@ -218,7 +252,18 @@ export function CascadeSelectors({
       {/* 1. Cliente */}
       <div className="grid gap-1.5">
         <div className="flex h-5 items-center justify-between gap-1">
-          <Label htmlFor={clientIdAttr}>Cliente</Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor={clientIdAttr}>Cliente</Label>
+            <button
+              type="button"
+              onClick={toggleClientSort}
+              title={`Organização atual: ${clientSortMode === "code" ? "por código (BNR)" : "por nome da empresa (A-Z)"}. Clique para alternar.`}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors px-1 py-0.5 rounded hover:bg-muted cursor-pointer"
+            >
+              <ArrowUpDownIcon className="size-3" />
+              <span>{clientSortMode === "code" ? "Por código" : "Por nome"}</span>
+            </button>
+          </div>
           {activeContract ? (
             <span className="text-[11px] text-muted-foreground truncate max-w-[140px]" title={activeContract.name}>
               Contrato: <strong className="font-medium text-foreground">{activeContract.name}</strong>
@@ -235,7 +280,7 @@ export function CascadeSelectors({
           disabled={disabled}
         >
           <option value="">Sem cliente (interno)</option>
-          {clients.map((c) => (
+          {sortedClients.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>

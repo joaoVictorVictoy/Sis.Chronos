@@ -229,3 +229,56 @@ export async function reopenContractAction(_prev: ActionState, formData: FormDat
   return { success: "Contrato reaberto como ativo." };
 }
 
+export async function deleteContractAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireRole(["admin", "gestor"]);
+  const parsed = parseForm(z.object({ id: z.uuid() }), formData);
+  if (!parsed.ok) return parsed.state;
+
+  const supabase = await createClient();
+
+  // 1. Busca o contrato e seu cliente
+  const { data: contract, error: contractErr } = await supabase
+    .from("contracts")
+    .select("id, client_id, name")
+    .eq("id", parsed.data.id)
+    .single();
+
+  if (contractErr || !contract) return { error: "Contrato não encontrado." };
+
+  // 2. Verifica se há apontamentos vinculados a este contrato
+  const { count: entriesCount } = await supabase
+    .from("time_entries")
+    .select("id", { count: "exact", head: true })
+    .eq("contract_id", contract.id);
+
+  if ((entriesCount ?? 0) > 0) {
+    return {
+      error: `Não é possível excluir o contrato "${contract.name}" pois existem ${entriesCount} apontamento(s) de horas vinculado(s) a ele. Caso tenha sido lançado por engano, exclua ou realoque os apontamentos antes, ou encerre o contrato.`,
+    };
+  }
+
+  // 3. Remove vínculos dependentes e gastos extras associados
+  await Promise.all([
+    supabase.from("contract_areas").delete().eq("contract_id", contract.id),
+    supabase.from("contract_activities").delete().eq("contract_id", contract.id),
+    supabase.from("contract_members").delete().eq("contract_id", contract.id),
+    supabase.from("contract_expenses").delete().eq("contract_id", contract.id),
+  ]);
+
+  // 4. Exclui o contrato
+  const { error: delErr } = await supabase.from("contracts").delete().eq("id", contract.id);
+  if (delErr) return { error: translateError(delErr) };
+
+  revalidatePath(`/clientes/${contract.client_id}`);
+  revalidatePath("/clientes");
+  revalidatePath("/apontamentos");
+  revalidatePath("/dashboard");
+
+  const shouldRedirect = formData.get("redirectToClient") === "true";
+  if (shouldRedirect) {
+    redirect(`/clientes/${contract.client_id}`);
+  }
+
+  return { success: `Contrato "${contract.name}" excluído com sucesso.` };
+}
+

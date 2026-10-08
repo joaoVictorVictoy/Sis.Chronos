@@ -114,8 +114,12 @@ export default async function MyAnalyticsPage({ searchParams }: PageProps<"/minh
         <Kpi
           label="No período"
           value={a.totalHours}
-          expected={a.expectedHours}
-          hint={`Saldo de ${a.balance >= 0 ? "+" : ""}${formatHours(a.balance)} até hoje`}
+          expected={a.expectedHoursTotal}
+          hint={
+            a.leaveDays.length > 0
+              ? `${a.leaveDays.length} ${a.leaveDays.length === 1 ? "dia útil" : "dias úteis"} férias/recesso · saldo ${a.balance >= 0 ? "+" : ""}${formatHours(a.balance)} até hoje`
+              : `Saldo de ${a.balance >= 0 ? "+" : ""}${formatHours(a.balance)} até hoje`
+          }
         />
         <Card>
           <CardHeader className="gap-1">

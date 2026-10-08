@@ -17,12 +17,13 @@ function safeNext(next: FormDataEntryValue | null): string {
 
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const email = (formData.get("email") as string)?.trim() || "";
   const parsed = parseForm(loginSchema, formData);
-  if (!parsed.ok) return parsed.state;
+  if (!parsed.ok) return { ...parsed.state, email };
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
-  if (error) return { error: translateError(error) };
+  if (error) return { error: translateError(error), email };
 
   revalidatePath("/", "layout");
   redirect(safeNext(formData.get("next")));

@@ -19,6 +19,7 @@ import { ContractForm } from "../contract-form";
 import { ContractLinksForm, ExpensesCard } from "./contract-detail";
 import { TerminateContractDialog, TerminationBanner } from "./contract-termination";
 import { ContractPostMortemCard } from "./contract-post-mortem";
+import { DeleteContractButton } from "../delete-contract-button";
 
 export const metadata = { title: "Contrato | Apontamento" };
 
@@ -103,6 +104,13 @@ export default async function ContractPage({ params, searchParams }: PageProps<"
               today={todayISO()}
             />
           ) : null}
+          <DeleteContractButton
+            contractId={contract.id}
+            contractName={contract.name}
+            redirectToClient
+            variant="outline"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+          />
         </div>
       </PageHeader>
 

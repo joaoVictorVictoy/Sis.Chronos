@@ -30,8 +30,10 @@ export type PersonalAnalytics = {
   billableShare: number;
   hoursToday: number;
   hoursThisWeek: number;
-  /** Jornada esperada no período (dias úteis de trabalho × jornada diária). */
+  /** Jornada esperada até hoje no período (dias úteis de trabalho passados × jornada diária). */
   expectedHours: number;
+  /** Jornada esperada no período inteiro (dias úteis de trabalho totais do período × jornada diária). */
+  expectedHoursTotal: number;
   expectedToday: number;
   expectedThisWeek: number;
   balance: number;
@@ -102,20 +104,31 @@ export function analyzeMyHours(
     .filter(([date]) => date >= weekStart && date <= weekEnd)
     .reduce((sum, [, hours]) => sum + hours, 0);
 
-  // Só cobra jornada de dias úteis já passados que não foram férias/recesso
-  const limit = period.today < period.to ? period.today : period.to;
   const isBusinessDay = (iso: string) => businessDaysBetween(iso, iso) === 1;
 
-  const missingDays: string[] = [];
+  // 1. Mapeia todos os dias úteis do período (from até to) e todos os dias de férias/recesso do período
   const leaveDays: string[] = [];
+  let periodTotalWorkingDays = 0;
+
+  for (let day = period.from; day <= period.to; day = addDays(day, 1)) {
+    if (isBusinessDay(day)) {
+      if (leaveDatesSet.has(day)) {
+        leaveDays.push(day);
+      } else {
+        periodTotalWorkingDays++;
+      }
+    }
+  }
+
+  // 2. Só cobra jornada de dias úteis já passados que não foram férias/recesso (para cálculo do saldo até hoje)
+  const limit = period.today < period.to ? period.today : period.to;
+  const missingDays: string[] = [];
   let workingBusinessDays = 0;
   let weekWorkingBusinessDays = 0;
 
   for (let day = period.from; day <= limit; day = addDays(day, 1)) {
     if (isBusinessDay(day)) {
-      if (leaveDatesSet.has(day)) {
-        leaveDays.push(day);
-      } else {
+      if (!leaveDatesSet.has(day)) {
         workingBusinessDays++;
         if (day >= weekStart && day <= weekEnd) {
           weekWorkingBusinessDays++;
@@ -140,6 +153,7 @@ export function analyzeMyHours(
     hoursToday: byDayMap.get(period.today) ?? 0,
     hoursThisWeek,
     expectedHours: workingBusinessDays * dailyTarget,
+    expectedHoursTotal: periodTotalWorkingDays * dailyTarget,
     expectedToday,
     expectedThisWeek: weekWorkingBusinessDays * dailyTarget,
     balance: total - workingBusinessDays * dailyTarget,

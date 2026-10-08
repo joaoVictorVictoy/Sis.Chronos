@@ -12,6 +12,7 @@ import { CONTRACT_STATUS_LABELS, PERIODICITY_LABELS, PERIODICITY_MONTHS, monthsB
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { Tables } from "@/lib/database.types";
 import { ClientActivitiesSection, ClientAreasForm, ClientDetailsForm } from "../clients-client";
+import { DeleteContractButton } from "@/app/(app)/contratos/delete-contract-button";
 
 export const metadata = { title: "Cliente | Apontamento" };
 
@@ -119,6 +120,7 @@ export default async function ClientPage({ params }: PageProps<"/clientes/[id]">
                     <TableHead>Margem desejada</TableHead>
                     <TableHead>Vigência</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -152,6 +154,13 @@ export default async function ClientPage({ params }: PageProps<"/clientes/[id]">
                           <Badge variant={contract.status === "ativo" ? "default" : "secondary"}>
                             {CONTRACT_STATUS_LABELS[contract.status]}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DeleteContractButton
+                            contractId={contract.id}
+                            contractName={contract.name}
+                            iconOnly
+                          />
                         </TableCell>
                       </TableRow>
                     );

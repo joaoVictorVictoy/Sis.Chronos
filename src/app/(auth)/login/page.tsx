@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,14 @@ function LoginForm() {
   const [state, formAction] = useActionState(loginAction, initialActionState);
   const params = useSearchParams();
   const next = params.get("next") ?? "";
+  const [email, setEmail] = useState(params.get("email") ?? "");
+
+  // Atualiza o e-mail caso a action retorne o e-mail enviado
+  useEffect(() => {
+    if (state.email) {
+      setEmail(state.email);
+    }
+  }, [state.email]);
 
   // Mensagem vinda de um link de e-mail que não pôde ser usado
   const erro = params.get("erro");
@@ -33,14 +41,26 @@ function LoginForm() {
           <input type="hidden" name="next" value={next} />
           <FormAlert state={aviso && !state.error ? { ...state, error: aviso } : state} />
           <Field label="E-mail" htmlFor="email" errors={state.fieldErrors?.email}>
-            <Input id="email" name="email" type="email" autoComplete="email" required placeholder="voce@empresa.com.br" />
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              placeholder="voce@empresa.com.br"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </Field>
           <Field label="Senha" htmlFor="password" errors={state.fieldErrors?.password}>
             <Input id="password" name="password" type="password" autoComplete="current-password" required />
           </Field>
           <SubmitButton className="w-full">Entrar</SubmitButton>
           <div className="flex items-center justify-between text-sm">
-            <Link href="/esqueci-senha" className="text-muted-foreground hover:underline">
+            <Link
+              href={email ? `/esqueci-senha?email=${encodeURIComponent(email)}` : "/esqueci-senha"}
+              className="text-muted-foreground hover:underline"
+            >
               Esqueci minha senha
             </Link>
             <Link href="/cadastro" className="font-medium hover:underline">

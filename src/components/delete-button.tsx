@@ -28,6 +28,8 @@ export function DeleteButton({
   description,
   label = "Excluir",
   iconOnly = true,
+  variant = "ghost",
+  className,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   hiddenFields: Record<string, string>;
@@ -35,6 +37,8 @@ export function DeleteButton({
   description: string;
   label?: string;
   iconOnly?: boolean;
+  variant?: "ghost" | "outline" | "destructive" | "secondary" | "default";
+  className?: string;
 }) {
   const [state, formAction] = useActionState(action, initialActionState);
 
@@ -42,7 +46,14 @@ export function DeleteButton({
     <Dialog>
       <DialogTrigger
         render={
-          <Button type="button" variant="ghost" size={iconOnly ? "icon-sm" : "sm"} aria-label={label} title={label}>
+          <Button
+            type="button"
+            variant={variant}
+            size={iconOnly ? "icon-sm" : "sm"}
+            aria-label={label}
+            title={label}
+            className={className}
+          >
             <Trash2Icon />
             {iconOnly ? null : label}
           </Button>

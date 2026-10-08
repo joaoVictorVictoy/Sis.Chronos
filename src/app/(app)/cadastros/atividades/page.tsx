@@ -21,11 +21,13 @@ export default async function ActivitiesPage() {
   ]);
 
   const areaOptions = (areas ?? []) as Pick<Tables<"areas">, "id" | "name" | "active">[];
-  const clientOptions = (clients ?? []).map((c) => ({
-    id: c.id,
-    name: c.trade_name || c.legal_name,
-    active: c.active,
-  }));
+  const clientOptions = (clients ?? [])
+    .map((c) => ({
+      id: c.id,
+      name: c.trade_name || c.legal_name,
+      active: c.active,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { numeric: true }));
   const clientAreaOptions = (clientAreas ?? []).map((ca) => ({
     clientId: ca.client_id,
     areaId: ca.area_id,

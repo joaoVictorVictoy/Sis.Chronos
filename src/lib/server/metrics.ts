@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/session";
 import { todayISO } from "@/lib/format";
+import { addDays, businessDaysBetween } from "@/lib/time";
 import {
   computeProfitability,
   projectClosing,
@@ -56,8 +57,50 @@ export async function getProfitabilityReport(period: Period): Promise<Profitabil
 export async function getEmployeeMetrics(period: Period) {
   await requireRole(["admin", "gestor"]);
   const supabase = await createClient();
-  const { data } = await supabase.rpc("employee_metrics", { p_from: period.from, p_to: period.to });
-  return (data ?? []).filter((e) => e.active);
+  const [{ data: metricsData }, { data: leavesData }] = await Promise.all([
+    supabase.rpc("employee_metrics", { p_from: period.from, p_to: period.to }),
+    supabase
+      .from("employee_leaves")
+      .select("employee_id, start_date, end_date, type")
+      .lte("start_date", period.to)
+      .gte("end_date", period.from),
+  ]);
+
+  const activeEmployees = (metricsData ?? []).filter((e) => e.active);
+  if (!leavesData || leavesData.length === 0) {
+    return activeEmployees;
+  }
+
+  // Agrupa dias úteis de afastamento (férias, recesso, folga, atestado, falta, etc.) por colaborador
+  const leavesByEmployee = new Map<string, Set<string>>();
+  for (const leave of leavesData) {
+    const start = leave.start_date <= leave.end_date ? leave.start_date : leave.end_date;
+    const end = leave.start_date <= leave.end_date ? leave.end_date : leave.start_date;
+    const boundedStart = start < period.from ? period.from : start;
+    const boundedEnd = end > period.to ? period.to : end;
+
+    if (boundedStart <= boundedEnd) {
+      const set = leavesByEmployee.get(leave.employee_id) ?? new Set<string>();
+      for (let d = boundedStart; d <= boundedEnd; d = addDays(d, 1)) {
+        if (businessDaysBetween(d, d) === 1) {
+          set.add(d);
+        }
+      }
+      leavesByEmployee.set(leave.employee_id, set);
+    }
+  }
+
+  return activeEmployees.map((emp) => {
+    const leaveSet = leavesByEmployee.get(emp.employee_id);
+    if (!leaveSet || leaveSet.size === 0) return emp;
+    const dailyTarget = Number(emp.available_hours) > 0 ? Number(emp.available_hours) / 21 : 0;
+    const leaveHours = Math.round(leaveSet.size * dailyTarget * 10) / 10;
+    const adjustedAvailable = Math.max(0, Math.round((Number(emp.available_hours) - leaveHours) * 10) / 10);
+    return {
+      ...emp,
+      available_hours: adjustedAvailable,
+    };
+  });
 }
 
 /** Rentabilidade por área: receita do contrato rateada pelas horas de cada área. */

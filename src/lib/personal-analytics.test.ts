@@ -140,4 +140,25 @@ describe("análises do colaborador", () => {
       "2026-09-16",
     ]);
   });
+
+  it("reduz expectedHoursTotal e inclui em leaveDays mesmo quando férias estão no futuro do período", () => {
+    // period: 01 a 30/09 (22 dias úteis), today: 17/09
+    // Férias de 21 a 25/09 (5 dias úteis, todos futuros em relação a today)
+    const leaves = [
+      { start_date: "2026-09-21", end_date: "2026-09-25", type: "ferias" },
+    ];
+    const a = analyzeMyHours(rows, period, dailyTarget, leaves);
+
+    // Total de dias úteis no mês: 22 - 5 férias = 17 dias úteis
+    expect(a.expectedHoursTotal).toBe(17 * 8); // 136h a serem trabalhadas no mês
+    expect(a.leaveDays).toEqual([
+      "2026-09-21",
+      "2026-09-22",
+      "2026-09-23",
+      "2026-09-24",
+      "2026-09-25",
+    ]);
+    // Até hoje (17/09) não teve férias ainda, então expectedHours até hoje permanece 13 * 8 = 104h
+    expect(a.expectedHours).toBe(13 * 8);
+  });
 });

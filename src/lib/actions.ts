@@ -6,6 +6,8 @@ export type ActionState = {
   fieldErrors?: Record<string, string[]>;
   /** Link de acesso gerado para entregar por fora do e-mail. */
   link?: string;
+  /** E-mail preservado após submissão de formulário. */
+  email?: string;
 };
 
 export const initialActionState: ActionState = {};

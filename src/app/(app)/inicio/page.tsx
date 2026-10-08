@@ -45,23 +45,14 @@ export default async function HomePage() {
     const monthStart = startOfMonth(today);
     const monthEnd = endOfMonth(today);
     const supabase = await createClient();
-    const [{ data: breakdownData }, { data: leavesData }, { data: currentCost }] = await Promise.all([
+    const [{ data: breakdownData }, { data: leavesData }] = await Promise.all([
       supabase.rpc("my_hours_breakdown", { p_from: fromDate, p_to: today }),
       supabase
         .from("employee_leaves")
         .select("id, start_date, end_date, type, notes")
         .eq("employee_id", employeeId)
-        .lte("start_date", today)
+        .lte("start_date", monthEnd)
         .gte("end_date", fromDate),
-      supabase
-        .from("employee_costs")
-        .select("monthly_salary, monthly_hours, hourly_cost, valid_from, valid_to")
-        .eq("employee_id", employeeId)
-        .lte("valid_from", today)
-        .or(`valid_to.is.null,valid_to.gte.${today}`)
-        .order("valid_from", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
     ]);
     rawEntries = (breakdownData ?? []) as HeatmapRawEntry[];
     rawLeaves = (leavesData ?? []) as HeatmapRawLeave[];
@@ -72,7 +63,7 @@ export default async function HomePage() {
     const hoursLoggedMonth = monthEntries.reduce((sum, e) => sum + Number(e.hours), 0);
 
     projection = calculateSalaryProjection({
-      baseSalary: currentCost?.monthly_salary ? Number(currentCost.monthly_salary) : null,
+      baseSalary: null,
       monthlyHours: effectiveMonthlyHours,
       hoursLogged: hoursLoggedMonth,
       leaves: rawLeaves,
@@ -240,7 +231,10 @@ function CollaboratorSummary({
   projection: SalaryProjection | null;
 }) {
   const hoursLogged = projection?.hoursLogged ?? 0;
-  const hoursRemaining = projection?.hoursRemaining ?? monthlyHours;
+  const targetHours = projection?.targetHours ?? monthlyHours;
+  const leaveHours = projection?.leaveHours ?? 0;
+  const leaveDaysCount = projection?.leaveDaysCount ?? 0;
+  const hoursRemaining = projection?.hoursRemaining ?? Math.max(0, targetHours - hoursLogged);
   const progressPercent = projection?.progressPercent ?? 0;
 
   return (
@@ -252,11 +246,18 @@ function CollaboratorSummary({
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-semibold">Sua jornada no mês</CardTitle>
-              {isCustomHours && (
-                <span className="rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 text-xs px-2.5 py-0.5 font-medium">
-                  Jornada individual
-                </span>
-              )}
+              <div className="flex items-center gap-1.5">
+                {leaveHours > 0 && (
+                  <span className="rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-xs px-2.5 py-0.5 font-medium">
+                    Férias/Recesso aplicado
+                  </span>
+                )}
+                {isCustomHours && (
+                  <span className="rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 text-xs px-2.5 py-0.5 font-medium">
+                    Jornada individual
+                  </span>
+                )}
+              </div>
             </div>
             <CardDescription className="text-xs">
               Acompanhamento de horas realizadas e saldo restante no mês.
@@ -270,9 +271,20 @@ function CollaboratorSummary({
                 </span>
                 <span className="text-xs text-muted-foreground ml-1.5">apontadas</span>
               </div>
-              <span className="text-xs text-muted-foreground">
-                de {formatHours(monthlyHours)} contratadas
-              </span>
+              <div className="text-right">
+                <span className="text-xs font-semibold text-foreground">
+                  de {formatHours(targetHours)} a trabalhar
+                </span>
+                {leaveHours > 0 ? (
+                  <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                    🏖️ -{formatHours(leaveHours)} ({leaveDaysCount}d férias/recesso)
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    de {formatHours(monthlyHours)} contratadas
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Barra de Progresso Visual */}
@@ -286,7 +298,7 @@ function CollaboratorSummary({
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>{progressPercent.toFixed(1)}% cumprido</span>
                 <span className="font-semibold text-foreground">
-                  {hoursRemaining > 0 ? `${formatHours(hoursRemaining)} restantes` : "Meta cumprida!"}
+                  {hoursRemaining > 0 ? `${formatHours(hoursRemaining)} restantes a trabalhar` : "Meta cumprida!"}
                 </span>
               </div>
             </div>
@@ -304,84 +316,70 @@ function CollaboratorSummary({
           </CardContent>
         </Card>
 
-        {/* Card 2: Salário Esperado no Fim do Mês */}
+        {/* Card 2: Ausências e Regularidade */}
         <Card className="flex flex-col justify-between">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold">Salário esperado no fim do mês</CardTitle>
-              <span className="rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-xs px-2.5 py-0.5 font-medium">
-                Previsão estimada
+              <CardTitle className="text-base font-semibold">Ausências e regularidade</CardTitle>
+              <span className="rounded-full bg-muted text-muted-foreground text-xs px-2.5 py-0.5 font-medium">
+                Mês atual
               </span>
             </div>
             <CardDescription className="text-xs">
-              Estimativa líquida considerando faltas não justificadas no período.
+              Acompanhamento de férias, recessos e faltas registradas no mês.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {projection && projection.hasSalaryData ? (
-              <>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-3xl font-semibold tabular-nums text-foreground">
-                    {formatCurrency(projection.expectedSalary)}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    Base: {formatCurrency(projection.baseSalary)}
-                  </span>
+            <div className="rounded-md border p-3 space-y-2 text-xs bg-muted/30">
+              {projection && projection.absenceDaysCount > 0 ? (
+                <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
+                  <CalendarX2Icon className="size-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">
+                      {projection.absenceDaysCount} {projection.absenceDaysCount === 1 ? "falta registrada" : "faltas registradas"} no mês
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Faltas não justificadas impactam o fechamento da sua jornada.
+                    </p>
+                  </div>
                 </div>
+              ) : leaveDaysCount > 0 ? (
+                <div className="flex items-start gap-2 text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle2Icon className="size-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">
+                      {leaveDaysCount} {leaveDaysCount === 1 ? "dia útil" : "dias úteis"} em férias/recesso
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Sua jornada esperada a cumprir no mês foi ajustada para {formatHours(targetHours)}.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2 text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle2Icon className="size-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">Regularidade em dia</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Nenhuma ausência pendente ou falta registrada neste mês.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
 
-                <div className="rounded-md border p-2.5 space-y-1.5 text-xs bg-muted/30">
-                  {projection.absenceDaysCount > 0 ? (
-                    <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
-                      <CalendarX2Icon className="size-4 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-medium">
-                          {projection.absenceDaysCount} {projection.absenceDaysCount === 1 ? "falta registrada" : "faltas registradas"} no mês
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">
-                          Desconto estimado: -{formatCurrency(projection.absenceDeduction)} ({formatCurrency(projection.dailyRate)}/dia útil).
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
-                      <CheckCircle2Icon className="size-4 shrink-0" />
-                      <div>
-                        <p className="font-medium">Nenhuma falta no mês</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          Recebimento integral previsto conforme a jornada contratada.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
+            <p className="text-xs text-muted-foreground">
+              Precisa registrar um período de férias, descanso, folga ou atestado? Use o botão abaixo para manter seus registros alinhados.
+            </p>
 
-                <div className="pt-1">
-                  <LeavesDialog
-                    currentLeaves={leaves as LeaveRecord[]}
-                    triggerText="Informar férias / falta / recesso"
-                    triggerVariant="outline"
-                    triggerClassName="h-8 text-xs font-medium w-full sm:w-auto"
-                  />
-                </div>
-              </>
-            ) : (
-              <div className="space-y-3 py-1 text-xs text-muted-foreground">
-                <p>
-                  Sua jornada e horas apontadas são computadas para apuração de honorários e fechamento da folha.
-                </p>
-                <p className="text-[11px]">
-                  Faltas ou recessos podem ser declarados a qualquer momento pelo botão abaixo para não gerar pendências.
-                </p>
-                <div className="pt-1">
-                  <LeavesDialog
-                    currentLeaves={leaves as LeaveRecord[]}
-                    triggerText="Informar férias / falta / recesso"
-                    triggerVariant="outline"
-                    triggerClassName="h-8 text-xs font-medium"
-                  />
-                </div>
-              </div>
-            )}
+            <div className="pt-1">
+              <LeavesDialog
+                currentLeaves={leaves as LeaveRecord[]}
+                triggerText="Informar férias / falta / recesso"
+                triggerVariant="outline"
+                triggerClassName="h-8 text-xs font-medium w-full sm:w-auto"
+              />
+            </div>
           </CardContent>
         </Card>
       </div>

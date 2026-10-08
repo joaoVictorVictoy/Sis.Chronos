@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangleIcon,
   CalendarIcon,
@@ -28,6 +28,7 @@ import { formatDate, formatHours } from "@/lib/format";
 import { addDays, minutesToInput, WEEKDAY_LABELS } from "@/lib/time";
 import type { AppRole, TimeEntryStatus } from "@/lib/database.types";
 import { isManager } from "@/lib/auth/session.shared";
+import type { LeaveRecord } from "../minhas-analises/leaves-dialog";
 import type { ActivityOption, AreaOption, ClientAreaOption, ClientOption, ContractOption, EmployeeOption, TimeEntryWithEmployee } from "./page";
 import {
   cancelTimeEntryDeletionAction,
@@ -37,6 +38,24 @@ import {
   updateTimeEntryAction,
 } from "./actions";
 import { CascadeSelectors } from "./entry-form";
+
+const LEAVE_ICONS: Record<string, string> = {
+  ferias: "🏖️",
+  recesso: "🎉",
+  folga: "☕",
+  atestado: "🏥",
+  falta: "❌",
+  outro: "📋",
+};
+
+const LEAVE_LABELS: Record<string, string> = {
+  ferias: "Férias",
+  recesso: "Recesso",
+  folga: "Folga",
+  atestado: "Atestado",
+  falta: "Falta",
+  outro: "Ausência",
+};
 
 const STATUS_VARIANT: Record<TimeEntryStatus, "default" | "secondary" | "destructive"> = {
   pendente: "secondary",
@@ -363,6 +382,7 @@ export function WeekEntries({
   employees,
   selectedEmployeeId,
   currentEmployeeId,
+  leaves,
 }: {
   weekStart: string;
   days: string[];
@@ -379,6 +399,7 @@ export function WeekEntries({
   employees?: EmployeeOption[];
   selectedEmployeeId?: string;
   currentEmployeeId?: string | null;
+  leaves?: LeaveRecord[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -391,6 +412,38 @@ export function WeekEntries({
   const isAllEmployees = isManagerUser && selectedEmployeeId === "todos";
   const activeEmployeesCount = employees && employees.length > 0 ? employees.length : 1;
   const effectiveDailyTarget = isAllEmployees ? dailyTarget * activeEmployeesCount : dailyTarget;
+
+  // Mapeia afastamentos por dia na semana (férias, recesso, folga, atestado, falta, outro)
+  const leavesMap = useMemo(() => {
+    const map = new Map<string, { type: string; notes?: string | null }>();
+    if (!leaves || leaves.length === 0) return map;
+    for (const leave of leaves) {
+      const type = leave.type || "ferias";
+      const start = leave.start_date <= leave.end_date ? leave.start_date : leave.end_date;
+      const end = leave.start_date <= leave.end_date ? leave.end_date : leave.start_date;
+      for (let d = start; d <= end; d = addDays(d, 1)) {
+        map.set(d, { type, notes: leave.notes });
+      }
+    }
+    return map;
+  }, [leaves]);
+
+  // Contagem de dias úteis com afastamento na semana corrente (segunda a sexta = dias 0 a 4)
+  const weekLeaveDaysCount = useMemo(() => {
+    let count = 0;
+    for (let i = 0; i < 5; i++) {
+      if (leavesMap.has(days[i])) {
+        count++;
+      }
+    }
+    return count;
+  }, [days, leavesMap]);
+
+  // Horas de apontamento esperadas na semana ajustadas pelas horas diárias de qualquer afastamento
+  const workingDaysInWeek = isAllEmployees ? 5 : Math.max(0, 5 - weekLeaveDaysCount);
+  const expectedWeekHours = workingDaysInWeek * effectiveDailyTarget;
+  const leaveWeekHours = weekLeaveDaysCount * effectiveDailyTarget;
+
   const totalMinutes = entries.reduce((sum, e) => sum + e.minutes, 0);
   const billableMinutes = entries.filter((e) => e.billable).reduce((sum, e) => sum + e.minutes, 0);
 
@@ -438,8 +491,13 @@ export function WeekEntries({
         <div className="grid gap-1">
           <CardTitle>Semana de {formatDate(weekStart)}</CardTitle>
           <CardDescription>
-            {formatHours(totalMinutes / 60)} apontadas{subtitleContext ? ` ${subtitleContext}` : ""} ·{" "}
+            {formatHours(totalMinutes / 60)} apontadas de {formatHours(expectedWeekHours)} esperadas{subtitleContext ? ` ${subtitleContext}` : ""} ·{" "}
             {totalMinutes > 0 ? Math.round((billableMinutes / totalMinutes) * 100) : 0}% faturável
+            {leaveWeekHours > 0 && !isAllEmployees ? (
+              <span className="block sm:inline sm:ml-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                · {weekLeaveDaysCount} {weekLeaveDaysCount === 1 ? "dia" : "dias"} com afastamento (-{formatHours(leaveWeekHours)} de horas diárias dispensadas)
+              </span>
+            ) : null}
           </CardDescription>
         </div>
 
@@ -495,11 +553,16 @@ export function WeekEntries({
           {days.map((day, i) => {
             const dayEntries = entries.filter((e) => e.entry_date === day);
             const dayMinutes = dayEntries.reduce((sum, e) => sum + e.minutes, 0);
-            const ratio = effectiveDailyTarget > 0 ? Math.min(dayMinutes / 60 / effectiveDailyTarget, 1) : 0;
             const isWeekend = i >= 5;
+            const dayLeave = !isWeekend ? leavesMap.get(day) : undefined;
+            const targetForDay = dayLeave ? 0 : effectiveDailyTarget;
+            const ratio = targetForDay > 0 ? Math.min(dayMinutes / 60 / targetForDay, 1) : (dayLeave ? 1 : 0);
             const isToday = day === today;
             const isLocked = lockedThrough !== null && day <= lockedThrough;
             const isSelected = selectedDay === day;
+
+            const leaveLabel = dayLeave ? LEAVE_LABELS[dayLeave.type] ?? "Ausência" : null;
+            const leaveIcon = dayLeave ? LEAVE_ICONS[dayLeave.type] ?? "📋" : null;
 
             return (
               <button
@@ -511,6 +574,8 @@ export function WeekEntries({
                   "flex flex-col gap-1 rounded-lg border p-2 text-center transition-all cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring text-left sm:text-center",
                   isSelected
                     ? "border-primary bg-primary/10 ring-2 ring-primary/40 shadow-xs text-foreground font-semibold"
+                    : dayLeave
+                    ? "border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10"
                     : isToday
                     ? "border-primary/60 hover:bg-muted/40"
                     : isWeekend
@@ -518,7 +583,9 @@ export function WeekEntries({
                     : "hover:bg-muted/40",
                 )}
                 title={
-                  isSelected
+                  dayLeave
+                    ? `${leaveIcon} ${leaveLabel} (${formatHours(effectiveDailyTarget)} de horas diárias dispensadas)`
+                    : isSelected
                     ? "Clique para remover o filtro deste dia"
                     : `Filtrar por ${WEEKDAY_LABELS[i]} ${day.slice(8, 10)}`
                 }
@@ -531,9 +598,23 @@ export function WeekEntries({
                     <span className="inline-block size-1.5 rounded-full bg-primary" />
                   )}
                 </div>
-                <p className="text-sm font-medium tabular-nums">{dayMinutes ? formatHours(dayMinutes / 60) : "—"}</p>
-                <div className="h-1 rounded-full bg-muted">
-                  <div className="h-1 rounded-full bg-primary" style={{ width: `${ratio * 100}%` }} />
+                {dayLeave ? (
+                  <div className="flex flex-col items-center justify-center">
+                    <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                      {leaveIcon} {leaveLabel}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {dayMinutes ? `${formatHours(dayMinutes / 60)} extra` : "dispensado"}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-sm font-medium tabular-nums">{dayMinutes ? formatHours(dayMinutes / 60) : "—"}</p>
+                )}
+                <div className="h-1 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={cn("h-1 rounded-full", dayLeave ? "bg-emerald-500" : "bg-primary")}
+                    style={{ width: `${ratio * 100}%` }}
+                  />
                 </div>
                 {isLocked ? <LockIcon className="mx-auto size-3 text-muted-foreground" /> : null}
               </button>
@@ -548,6 +629,11 @@ export function WeekEntries({
               <CalendarIcon className="size-4 shrink-0 text-primary" />
               <span>
                 Filtrando por <strong>{formatDate(selectedDay)}</strong>
+                {leavesMap.has(selectedDay) && (
+                  <span className="ml-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                    · {LEAVE_ICONS[leavesMap.get(selectedDay)!.type]} {LEAVE_LABELS[leavesMap.get(selectedDay)!.type]} (jornada diária de {formatHours(effectiveDailyTarget)} dispensada)
+                  </span>
+                )}
                 <span className="ml-1.5 text-xs text-muted-foreground">
                   ({dayFilteredEntries.length} {dayFilteredEntries.length === 1 ? "apontamento" : "apontamentos"} · {formatHours(dayFilteredMinutes / 60)})
                 </span>
