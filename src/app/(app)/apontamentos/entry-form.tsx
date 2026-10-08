@@ -250,26 +250,26 @@ export function CascadeSelectors({
       <input type="hidden" name="contractId" value={activeContract?.id ?? defaultContractId ?? ""} />
 
       {/* 1. Cliente */}
-      <div className="grid gap-1.5">
-        <div className="flex h-5 items-center justify-between gap-1">
-          <div className="flex items-center gap-1.5">
-            <Label htmlFor={clientIdAttr}>Cliente</Label>
+      <div className="grid gap-1.5 min-w-0">
+        <div className="flex h-5 items-center justify-between gap-1 min-w-0">
+          <div className="flex items-center gap-1 shrink-0">
+            <Label htmlFor={clientIdAttr} className="shrink-0">Cliente</Label>
             <button
               type="button"
               onClick={toggleClientSort}
               title={`Organização atual: ${clientSortMode === "code" ? "por código (BNR)" : "por nome da empresa (A-Z)"}. Clique para alternar.`}
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors px-1 py-0.5 rounded hover:bg-muted cursor-pointer"
+              className="inline-flex items-center gap-0.5 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors px-1 py-0.5 rounded hover:bg-muted cursor-pointer shrink-0"
             >
-              <ArrowUpDownIcon className="size-3" />
-              <span>{clientSortMode === "code" ? "Por código" : "Por nome"}</span>
+              <ArrowUpDownIcon className="size-2.5" />
+              <span>{clientSortMode === "code" ? "BNR" : "A-Z"}</span>
             </button>
           </div>
           {activeContract ? (
-            <span className="text-[11px] text-muted-foreground truncate max-w-[140px]" title={activeContract.name}>
-              Contrato: <strong className="font-medium text-foreground">{activeContract.name}</strong>
+            <span className="text-[10px] text-muted-foreground truncate min-w-0 text-right" title={`Contrato: ${activeContract.name}`}>
+              {activeContract.name}
             </span>
           ) : selectedClientId ? (
-            <span className="text-[11px] text-muted-foreground">Sem contrato ativo</span>
+            <span className="text-[10px] text-muted-foreground truncate min-w-0 text-right">Sem contrato</span>
           ) : null}
         </div>
         <NativeSelect
@@ -289,9 +289,9 @@ export function CascadeSelectors({
       </div>
 
       {/* 2. Área de Atuação */}
-      <div className="grid gap-1.5">
-        <div className="flex h-5 items-center">
-          <Label htmlFor={areaIdAttr}>Área de atuação</Label>
+      <div className="grid gap-1.5 min-w-0">
+        <div className="flex h-5 items-center min-w-0">
+          <Label htmlFor={areaIdAttr} className="truncate">Área de atuação</Label>
         </div>
         <NativeSelect
           id={areaIdAttr}
@@ -313,9 +313,9 @@ export function CascadeSelectors({
       </div>
 
       {/* 3. Atividade */}
-      <div className="grid gap-1.5">
-        <div className="flex h-5 items-center justify-between gap-1">
-          <Label htmlFor={activityIdAttr}>Atividade</Label>
+      <div className="grid gap-1.5 min-w-0">
+        <div className="flex h-5 items-center justify-between gap-1 min-w-0">
+          <Label htmlFor={activityIdAttr} className="truncate shrink-0">Atividade</Label>
           <QuickActivityDialog
             clients={clients}
             areas={availableAreas.length > 0 ? availableAreas : areas}
@@ -494,8 +494,8 @@ export function EntryForm({
       <FormAlert state={state} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="grid gap-1.5">
-          <div className="flex h-5 items-center">
+        <div className="grid gap-1.5 min-w-0">
+          <div className="flex h-5 items-center min-w-0">
             <Label htmlFor={`${idPrefix}entryDate`}>Data</Label>
           </div>
           <Input
@@ -528,9 +528,9 @@ export function EntryForm({
         />
 
         {currentUseInterval ? (
-          <div className="grid grid-cols-2 gap-2">
-            <div className="grid gap-1.5">
-              <div className="flex h-5 items-center justify-between gap-1">
+          <div className="grid grid-cols-2 gap-2 min-w-0">
+            <div className="grid gap-1.5 min-w-0">
+              <div className="flex h-5 items-center justify-between gap-1 min-w-0">
                 <Label htmlFor={`${idPrefix}startTime`}>Início (24h)</Label>
                 <span className="text-[10px] text-muted-foreground font-mono">00:00</span>
               </div>
@@ -546,8 +546,8 @@ export function EntryForm({
                 <p className="text-xs text-destructive">{state.fieldErrors.startTime[0]}</p>
               ) : null}
             </div>
-            <div className="grid gap-1.5">
-              <div className="flex h-5 items-center justify-between gap-1">
+            <div className="grid gap-1.5 min-w-0">
+              <div className="flex h-5 items-center justify-between gap-1 min-w-0">
                 <Label htmlFor={`${idPrefix}endTime`}>Fim (24h)</Label>
                 <span className="text-[10px] text-muted-foreground font-mono">23:59</span>
               </div>
@@ -565,8 +565,8 @@ export function EntryForm({
             </div>
           </div>
         ) : (
-          <div className="grid gap-1.5">
-            <div className="flex h-5 items-center justify-between gap-1">
+          <div className="grid gap-1.5 min-w-0">
+            <div className="flex h-5 items-center justify-between gap-1 min-w-0">
               <Label htmlFor={`${idPrefix}duration`}>Duração</Label>
               <span className="text-[11px] text-muted-foreground">1:30 · 1,5 · 90m</span>
             </div>

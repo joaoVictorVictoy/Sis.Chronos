@@ -190,8 +190,8 @@ export function TimerCard({
           defaultActivityId={timer.activityId}
         />
 
-        <div className="grid gap-1.5">
-          <div className="flex h-5 items-center">
+        <div className="grid gap-1.5 min-w-0">
+          <div className="flex h-5 items-center min-w-0">
             <Label htmlFor={`${idPrefix}description`}>Descrição</Label>
           </div>
           <div className="flex gap-2">
