@@ -54,6 +54,39 @@ export async function extendTrialAction(tenantId: string, daysToAdd: number) {
   revalidatePath("/", "layout");
 }
 
+export async function deleteTenantAction(tenantId: string) {
+  const { user } = await requireSuperAdmin();
+  const admin = createAdminClient();
+
+  // 1. Busca perfis da empresa para limpar usuários do Auth se necessário
+  const { data: profiles } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("tenant_id", tenantId);
+
+  // 2. Apaga a empresa (o cascade do Postgres apaga automaticamente contratos, colaboradores, apontamentos, etc.)
+  const { error } = await admin.from("tenants").delete().eq("id", tenantId);
+  if (error) {
+    throw new Error(translateError(error));
+  }
+
+  // 3. Remove os logins correspondentes do Auth (exceto se for o próprio Super Admin logado)
+  if (profiles && profiles.length > 0) {
+    for (const p of profiles) {
+      if (p.id !== user.id) {
+        try {
+          await admin.auth.admin.deleteUser(p.id);
+        } catch {
+          // ignora caso o usuário do Auth já não exista mais
+        }
+      }
+    }
+  }
+
+  revalidatePath("/super-admin");
+  revalidatePath("/", "layout");
+}
+
 export async function updateTenantSubscriptionAction(
   _prev: ActionState,
   formData: FormData

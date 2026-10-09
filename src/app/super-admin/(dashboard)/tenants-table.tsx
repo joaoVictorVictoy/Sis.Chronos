@@ -8,6 +8,7 @@ import {
   MoreHorizontalIcon,
   PlayIcon,
   SparklesIcon,
+  Trash2Icon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import { initialActionState } from "@/lib/actions";
 import type { Tables } from "@/lib/database.types";
 import { getSubscriptionInfo } from "@/lib/subscription/status";
 import {
+  deleteTenantAction,
   extendTrialAction,
   toggleTenantStatusAction,
   updateTenantSubscriptionAction,
@@ -76,6 +78,28 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
 
     startTransition(async () => {
       await extendTrialAction(tenant.id, days);
+    });
+  };
+
+  const handleDeleteTenant = (tenant: TenantRowData) => {
+    const confirmText = prompt(
+      `ATENÇÃO: Você está prestes a EXCLUIR DEFINITIVAMENTE a empresa "${tenant.name}"!\n\nTodos os contratos, apontamentos, clientes e acessos vinculados serão apagados de forma irreversível.\n\nPara confirmar a exclusão, digite o nome exato da empresa abaixo:`
+    );
+
+    if (confirmText !== tenant.name) {
+      if (confirmText !== null) {
+        alert("O nome digitado não confere. Operação de exclusão cancelada.");
+      }
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        await deleteTenantAction(tenant.id);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Erro ao excluir empresa.";
+        alert(msg);
+      }
     });
   };
 
@@ -226,6 +250,14 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
                               <DropdownMenuItem onClick={() => handleExtendTrial(t, 30)}>
                                 <SparklesIcon className="mr-2 size-4 text-amber-500" />
                                 +30 dias grátis
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteTenant(t)}
+                                className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
+                              >
+                                <Trash2Icon className="mr-2 size-4 text-destructive" />
+                                Excluir Empresa
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
