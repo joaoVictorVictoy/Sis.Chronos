@@ -37,7 +37,7 @@ create unique index if not exists super_admins_email_idx
   on public.super_admins (lower(email));
 
 insert into public.super_admins (email)
-values ('joaovvt@gmail.com')
+values ('joaovvt@gmail.com'), ('joaovictor@binariconsultoria.com.br')
 on conflict (lower(email)) do nothing;
 
 alter table public.super_admins enable row level security;
