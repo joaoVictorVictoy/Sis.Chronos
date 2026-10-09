@@ -109,12 +109,26 @@ export type Database = {
           created_at: string;
           updated_at: string;
         };
-        Insert: never;
+        Insert: {
+          id: string;
+          tenant_id: string;
+          full_name: string;
+          email: string;
+          role?: AppRole;
+          can_view_costs?: boolean;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
         Update: {
+          id?: string;
+          tenant_id?: string;
           full_name?: string;
+          email?: string;
           active?: boolean;
           role?: AppRole;
           can_view_costs?: boolean;
+          updated_at?: string;
         };
         Relationships: [
           {

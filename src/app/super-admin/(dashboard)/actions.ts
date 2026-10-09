@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseForm, type ActionState } from "@/lib/actions";
@@ -188,3 +190,139 @@ export async function createTenantByAdminAction(
     success: `Empresa ${parsed.data.companyName} criada com sucesso. Convite enviado para ${parsed.data.ownerEmail}.`,
   };
 }
+
+export async function impersonateTenantAction(tenantId: string) {
+  const { user } = await requireSuperAdmin();
+  const admin = createAdminClient();
+
+  const { data: tenant, error: tErr } = await admin
+    .from("tenants")
+    .select("id, name")
+    .eq("id", tenantId)
+    .single();
+
+  if (tErr || !tenant) {
+    throw new Error("Empresa não encontrada.");
+  }
+
+  // Busca se o super admin já tem um perfil
+  const { data: currentProfile } = await admin
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const cookieStore = await cookies();
+  if (currentProfile?.tenant_id && currentProfile.tenant_id !== tenantId) {
+    cookieStore.set("sa_original_tenant_id", currentProfile.tenant_id, {
+      path: "/",
+      httpOnly: true,
+      maxAge: 60 * 60 * 24,
+    });
+  }
+
+  // Atualiza ou insere o perfil do super admin para este tenant com permissão de admin
+  const { error: pErr } = await admin.from("profiles").upsert(
+    {
+      id: user.id,
+      tenant_id: tenantId,
+      full_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "Super Admin",
+      email: user.email!,
+      role: "admin",
+      can_view_costs: true,
+      active: true,
+    },
+    { onConflict: "id" }
+  );
+
+  if (pErr) {
+    throw new Error("Falha ao configurar suporte: " + pErr.message);
+  }
+
+  cookieStore.set("sa_impersonate_active", "true", { path: "/", maxAge: 60 * 60 * 24 });
+  cookieStore.set("sa_impersonate_tenant_name", encodeURIComponent(tenant.name), { path: "/", maxAge: 60 * 60 * 24 });
+  cookieStore.set("sa_impersonate_tenant_id", tenant.id, { path: "/", maxAge: 60 * 60 * 24 });
+
+  revalidatePath("/", "layout");
+  redirect("/inicio");
+}
+
+export async function stopImpersonationAction() {
+  const { user } = await requireSuperAdmin();
+  const admin = createAdminClient();
+  const cookieStore = await cookies();
+
+  const originalTenantId = cookieStore.get("sa_original_tenant_id")?.value;
+
+  if (originalTenantId) {
+    await admin
+      .from("profiles")
+      .update({ tenant_id: originalTenantId })
+      .eq("id", user.id);
+  }
+
+  cookieStore.delete("sa_impersonate_active");
+  cookieStore.delete("sa_impersonate_tenant_name");
+  cookieStore.delete("sa_impersonate_tenant_id");
+  cookieStore.delete("sa_original_tenant_id");
+
+  revalidatePath("/", "layout");
+  redirect("/super-admin");
+}
+
+export async function saveAnnouncementAction(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await requireSuperAdmin();
+  const admin = createAdminClient();
+
+  const title = String(formData.get("title") ?? "").trim();
+  const message = String(formData.get("message") ?? "").trim();
+  const type = String(formData.get("type") ?? "info");
+  const isActive = formData.get("isActive") === "true" || formData.get("isActive") === "on";
+
+  if (isActive && (!title || !message)) {
+    return { error: "Título e mensagem são obrigatórios para ativar o comunicado." };
+  }
+
+  try {
+    const announcementsTable = (admin as any).from("system_announcements");
+    const { data: existing } = await announcementsTable
+      .select("id")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing?.id) {
+      const { error: updErr } = await announcementsTable
+        .update({
+          title: title || "Aviso do Sistema",
+          message,
+          type,
+          is_active: isActive,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+
+      if (updErr) return { error: `Erro ao atualizar comunicado: ${translateError(updErr)}` };
+    } else {
+      const { error: insErr } = await announcementsTable.insert({
+        title: title || "Aviso do Sistema",
+        message,
+        type,
+        is_active: isActive,
+      });
+
+      if (insErr) return { error: `Erro ao criar comunicado: ${translateError(insErr)}` };
+    }
+
+    revalidatePath("/", "layout");
+    revalidatePath("/super-admin");
+    return { success: isActive ? "Comunicado publicado com sucesso para todos os usuários!" : "Comunicado desativado com sucesso." };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Erro desconhecido";
+    return { error: `Erro ao salvar comunicado: ${msg}` };
+  }
+}
+

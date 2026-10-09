@@ -91,7 +91,26 @@ export async function requireContext(): Promise<AppContext> {
   const user = await getUser();
   if (!user) redirect("/login");
   const ctx = await getAppContext();
-  if (!ctx) redirect("/onboarding");
+  if (!ctx) {
+    let isSuper = isSuperAdminEmail(user.email);
+    if (!isSuper && user.email) {
+      try {
+        const supabase = await createClient();
+        const { data: sa } = await supabase
+          .from("super_admins")
+          .select("id")
+          .ilike("email", user.email)
+          .maybeSingle();
+        if (sa) isSuper = true;
+      } catch {
+        // Ignora erro
+      }
+    }
+    if (isSuper) {
+      redirect("/super-admin");
+    }
+    redirect("/onboarding");
+  }
   if (!ctx.profile.active) redirect("/acesso-suspenso");
   if (!ctx.isSuperAdmin && !ctx.subscription.isActive) {
     redirect("/assinatura-suspensa");

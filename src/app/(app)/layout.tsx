@@ -1,17 +1,41 @@
 import Link from "next/link";
-import { ClockIcon, SparklesIcon } from "lucide-react";
+import { cookies } from "next/headers";
+import { ArrowLeftIcon, ClockIcon, MegaphoneIcon, ShieldAlertIcon, SparklesIcon } from "lucide-react";
 import { AppNav } from "@/components/app-nav";
 import { NotificationBell } from "@/components/notification-bell";
 import { SignOutButton } from "@/components/sign-out-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { requireContext, ROLE_LABELS } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getPendingCounts } from "@/lib/pending-actions";
+import { stopImpersonationAction } from "@/app/super-admin/(dashboard)/actions";
+import { cn } from "@/lib/utils";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const { profile, tenant, employeeId, subscription, isSuperAdmin } = await requireContext();
   const supabase = await createClient();
+
+  const cookieStore = await cookies();
+  const isImpersonating = isSuperAdmin && cookieStore.get("sa_impersonate_active")?.value === "true";
+  const impersonatedTenantName = decodeURIComponent(
+    cookieStore.get("sa_impersonate_tenant_name")?.value || tenant.name
+  );
+
+  let activeAnnouncement: { title: string; message: string; type: string } | null = null;
+  try {
+    const { data: ann } = await (supabase as any)
+      .from("system_announcements")
+      .select("title, message, type")
+      .eq("is_active", true)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (ann) activeAnnouncement = ann;
+  } catch {
+    // Silencia caso a tabela ainda não exista no banco
+  }
 
   const { missingDaysCount, pendingApprovalsCount } = await getPendingCounts({
     supabase,
@@ -67,6 +91,53 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
       <main className="flex-1 overflow-x-hidden p-4 lg:p-8">
         <div className="mx-auto w-full max-w-6xl">
+          {/* Banner de Modo Suporte do Super Admin */}
+          {isImpersonating && (
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-indigo-500/40 bg-indigo-500/15 p-3 text-xs text-indigo-950 dark:text-indigo-200 shadow-sm animate-in fade-in">
+              <div className="flex items-center gap-2.5">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-indigo-600 text-white shadow-xs">
+                  <ShieldAlertIcon className="size-3.5" />
+                </span>
+                <span>
+                  Você está navegando como a empresa <strong>{impersonatedTenantName}</strong> em <strong>Modo Suporte (Super Admin)</strong>.
+                </span>
+              </div>
+              <form action={stopImpersonationAction}>
+                <Button
+                  size="sm"
+                  type="submit"
+                  className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium cursor-pointer gap-1.5 shadow-xs"
+                >
+                  <ArrowLeftIcon className="size-3.5" />
+                  Voltar para Super Admin
+                </Button>
+              </form>
+            </div>
+          )}
+
+          {/* Banner de Comunicado Global do Sistema */}
+          {activeAnnouncement && (
+            <div
+              className={cn(
+                "mb-6 flex items-center justify-between gap-3 rounded-lg border px-4 py-2.5 text-xs shadow-xs",
+                activeAnnouncement.type === "warning" &&
+                  "border-amber-500/30 bg-amber-500/10 text-amber-950 dark:text-amber-200",
+                activeAnnouncement.type === "success" &&
+                  "border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200",
+                activeAnnouncement.type === "info" &&
+                  "border-blue-500/30 bg-blue-500/10 text-blue-950 dark:text-blue-200"
+              )}
+            >
+              <div className="flex items-center gap-2.5">
+                <MegaphoneIcon className="size-4 shrink-0 text-primary" />
+                <span>
+                  <strong className="font-semibold">{activeAnnouncement.title}: </strong>
+                  {activeAnnouncement.message}
+                </span>
+              </div>
+            </div>
+          )}
+
           {subscription.isTrial && (
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-900 dark:text-amber-200">
               <div className="flex items-center gap-2">

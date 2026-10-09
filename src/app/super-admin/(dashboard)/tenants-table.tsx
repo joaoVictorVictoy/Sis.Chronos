@@ -2,9 +2,14 @@
 
 import { useState, useTransition } from "react";
 import {
+  AlertTriangleIcon,
   BanIcon,
   CalendarIcon,
+  CheckIcon,
+  CopyIcon,
   Edit3Icon,
+  LogInIcon,
+  MessageCircleIcon,
   MoreHorizontalIcon,
   PlayIcon,
   SparklesIcon,
@@ -38,6 +43,7 @@ import { getSubscriptionInfo } from "@/lib/subscription/status";
 import {
   deleteTenantAction,
   extendTrialAction,
+  impersonateTenantAction,
   toggleTenantStatusAction,
   updateTenantSubscriptionAction,
 } from "./actions";
@@ -46,19 +52,91 @@ export type TenantRowData = Tables<"tenants"> & {
   membersCount: number;
 };
 
+type FilterStatus = "all" | "active" | "trialing" | "expiring_soon" | "suspended";
+
 export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
   const [selectedTenant, setSelectedTenant] = useState<TenantRowData | null>(null);
+  const [whatsAppTenant, setWhatsAppTenant] = useState<TenantRowData | null>(null);
   const [isPending, startTransition] = useTransition();
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>("all");
+
+  // Contagens para os filtros
+  const counts = {
+    all: tenants.length,
+    active: tenants.filter(
+      (t) => t.subscription_status === "manual_active" || t.subscription_status === "active"
+    ).length,
+    trialing: tenants.filter((t) => t.subscription_status === "trialing").length,
+    expiring_soon: tenants.filter((t) => {
+      const sub = getSubscriptionInfo(t);
+      return (
+        sub.daysRemaining !== null &&
+        sub.daysRemaining >= 0 &&
+        sub.daysRemaining <= 7 &&
+        t.subscription_status !== "suspended" &&
+        t.subscription_status !== "canceled"
+      );
+    }).length,
+    suspended: tenants.filter(
+      (t) =>
+        t.subscription_status === "suspended" ||
+        t.subscription_status === "past_due" ||
+        t.subscription_status === "canceled"
+    ).length,
+  };
 
   const filteredTenants = tenants.filter((t) => {
     const term = searchTerm.toLowerCase();
-    return (
+    const matchesSearch =
       t.name.toLowerCase().includes(term) ||
       (t.email_domain && t.email_domain.toLowerCase().includes(term)) ||
-      (t.cnpj && t.cnpj.includes(term))
-    );
+      (t.cnpj && t.cnpj.includes(term));
+
+    if (!matchesSearch) return false;
+
+    if (statusFilter === "all") return true;
+
+    if (statusFilter === "active") {
+      return t.subscription_status === "manual_active" || t.subscription_status === "active";
+    }
+
+    if (statusFilter === "trialing") {
+      return t.subscription_status === "trialing";
+    }
+
+    if (statusFilter === "expiring_soon") {
+      const sub = getSubscriptionInfo(t);
+      return (
+        sub.daysRemaining !== null &&
+        sub.daysRemaining >= 0 &&
+        sub.daysRemaining <= 7 &&
+        t.subscription_status !== "suspended" &&
+        t.subscription_status !== "canceled"
+      );
+    }
+
+    if (statusFilter === "suspended") {
+      return (
+        t.subscription_status === "suspended" ||
+        t.subscription_status === "past_due" ||
+        t.subscription_status === "canceled"
+      );
+    }
+
+    return true;
   });
+
+  const handleImpersonate = (tenant: TenantRowData) => {
+    startTransition(async () => {
+      try {
+        await impersonateTenantAction(tenant.id);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Erro ao acessar workspace.";
+        alert(msg);
+      }
+    });
+  };
 
   const handleToggleStatus = (tenant: TenantRowData) => {
     const isSuspended = tenant.subscription_status === "suspended";
@@ -105,16 +183,65 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
+      {/* Barra de Filtros e Busca */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Input
           placeholder="Buscar por nome, domínio ou CNPJ..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"
         />
-        <span className="text-xs text-muted-foreground">
-          {filteredTenants.length} {filteredTenants.length === 1 ? "empresa" : "empresas"}
-        </span>
+
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Button
+            size="sm"
+            variant={statusFilter === "all" ? "default" : "outline"}
+            className="h-8 text-xs cursor-pointer"
+            onClick={() => setStatusFilter("all")}
+          >
+            Todas ({counts.all})
+          </Button>
+
+          <Button
+            size="sm"
+            variant={statusFilter === "active" ? "default" : "outline"}
+            className="h-8 text-xs cursor-pointer"
+            onClick={() => setStatusFilter("active")}
+          >
+            Ativas ({counts.active})
+          </Button>
+
+          <Button
+            size="sm"
+            variant={statusFilter === "trialing" ? "default" : "outline"}
+            className="h-8 text-xs cursor-pointer"
+            onClick={() => setStatusFilter("trialing")}
+          >
+            Em Teste ({counts.trialing})
+          </Button>
+
+          <Button
+            size="sm"
+            variant={statusFilter === "expiring_soon" ? "default" : "outline"}
+            className={`h-8 text-xs cursor-pointer ${
+              counts.expiring_soon > 0 && statusFilter !== "expiring_soon"
+                ? "border-amber-500/50 text-amber-700 dark:text-amber-400 bg-amber-500/10"
+                : ""
+            }`}
+            onClick={() => setStatusFilter("expiring_soon")}
+          >
+            A Vencer ({counts.expiring_soon})
+          </Button>
+
+          <Button
+            size="sm"
+            variant={statusFilter === "suspended" ? "default" : "outline"}
+            className="h-8 text-xs cursor-pointer"
+            onClick={() => setStatusFilter("suspended")}
+          >
+            Suspensas ({counts.suspended})
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-lg border bg-card overflow-hidden">
@@ -135,13 +262,18 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
               {filteredTenants.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                    Nenhuma empresa encontrada.
+                    Nenhuma empresa encontrada com os filtros atuais.
                   </td>
                 </tr>
               ) : (
                 filteredTenants.map((t) => {
                   const subInfo = getSubscriptionInfo(t);
                   const isSuspended = t.subscription_status === "suspended";
+                  const isExpiringSoon =
+                    subInfo.daysRemaining !== null &&
+                    subInfo.daysRemaining >= 0 &&
+                    subInfo.daysRemaining <= 7 &&
+                    !isSuspended;
 
                   return (
                     <tr key={t.id} className="hover:bg-muted/30 transition-colors">
@@ -153,7 +285,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
                         </div>
                       </td>
 
-                      <td className="p-3.5">
+                      <td className="p-3.5 whitespace-nowrap">
                         <Badge
                           variant={
                             isSuspended
@@ -175,14 +307,33 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
                         </p>
                       </td>
 
-                      <td className="p-3.5 whitespace-nowrap text-xs text-muted-foreground">
+                      <td className="p-3.5 whitespace-nowrap text-xs">
                         {subInfo.formattedExpiration ? (
-                          <div className="flex items-center gap-1.5">
-                            <CalendarIcon className="size-3.5 text-muted-foreground shrink-0" />
+                          <div
+                            className={`flex items-center gap-1.5 ${
+                              isExpiringSoon
+                                ? "font-semibold text-amber-600 dark:text-amber-400"
+                                : isSuspended
+                                ? "text-destructive"
+                                : "text-muted-foreground"
+                            }`}
+                          >
+                            {isExpiringSoon ? (
+                              <AlertTriangleIcon className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                            ) : (
+                              <CalendarIcon className="size-3.5 shrink-0" />
+                            )}
                             <span>{subInfo.formattedExpiration}</span>
+                            {isExpiringSoon && (
+                              <span className="text-[10px] bg-amber-500/15 px-1 py-0.2 rounded font-normal">
+                                {subInfo.daysRemaining === 0
+                                  ? "Vence hoje!"
+                                  : `(${subInfo.daysRemaining}d)`}
+                              </span>
+                            )}
                           </div>
                         ) : (
-                          "Sem data limite"
+                          <span className="text-muted-foreground">Sem data limite</span>
                         )}
                       </td>
 
@@ -190,19 +341,35 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
                         {t.membersCount}
                       </td>
 
-                      <td className="p-3.5 max-w-[220px] truncate text-xs text-muted-foreground" title={t.manual_notes ?? ""}>
+                      <td
+                        className="p-3.5 max-w-[200px] truncate text-xs text-muted-foreground"
+                        title={t.manual_notes ?? ""}
+                      >
                         {t.manual_notes || <span className="opacity-40">-</span>}
                       </td>
 
                       <td className="p-3.5 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Botão rápido para entrar como a empresa no modo suporte */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-900/50 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 cursor-pointer"
+                            onClick={() => handleImpersonate(t)}
+                            disabled={isPending}
+                            title="Acessar painel como esta empresa (Modo Suporte)"
+                          >
+                            <LogInIcon className="size-3.5" />
+                            <span className="hidden md:inline">Acessar</span>
+                          </Button>
+
                           <Button
                             size="sm"
                             variant={isSuspended ? "default" : "outline"}
                             className={
                               isSuspended
-                                ? "h-8 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 text-xs"
-                                : "h-8 text-destructive hover:bg-destructive/10 gap-1 text-xs"
+                                ? "h-8 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 text-xs cursor-pointer"
+                                : "h-8 text-destructive hover:bg-destructive/10 gap-1 text-xs cursor-pointer"
                             }
                             onClick={() => handleToggleStatus(t)}
                             disabled={isPending}
@@ -229,28 +396,58 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
                                 </Button>
                               }
                             />
-                            <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuContent align="end" className="w-52">
                               <DropdownMenuLabel>Gerenciar Empresa</DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => setSelectedTenant(t)}>
+                              <DropdownMenuItem
+                                onClick={() => handleImpersonate(t)}
+                                className="cursor-pointer text-indigo-600 dark:text-indigo-400 font-medium"
+                              >
+                                <LogInIcon className="mr-2 size-4" />
+                                Acessar como Empresa
+                              </DropdownMenuItem>
+
+                              <DropdownMenuItem
+                                onClick={() => setWhatsAppTenant(t)}
+                                className="cursor-pointer text-emerald-600 dark:text-emerald-400"
+                              >
+                                <MessageCircleIcon className="mr-2 size-4 text-emerald-600 dark:text-emerald-400" />
+                                Cobrar via WhatsApp
+                              </DropdownMenuItem>
+
+                              <DropdownMenuItem
+                                onClick={() => setSelectedTenant(t)}
+                                className="cursor-pointer"
+                              >
                                 <Edit3Icon className="mr-2 size-4" />
                                 Editar Assinatura
                               </DropdownMenuItem>
+
                               <DropdownMenuSeparator />
                               <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
                                 Prorrogar Teste
                               </DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => handleExtendTrial(t, 7)}>
+                              <DropdownMenuItem
+                                onClick={() => handleExtendTrial(t, 7)}
+                                className="cursor-pointer"
+                              >
                                 <SparklesIcon className="mr-2 size-4 text-amber-500" />
                                 +7 dias grátis
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleExtendTrial(t, 14)}>
+                              <DropdownMenuItem
+                                onClick={() => handleExtendTrial(t, 14)}
+                                className="cursor-pointer"
+                              >
                                 <SparklesIcon className="mr-2 size-4 text-amber-500" />
                                 +14 dias grátis
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleExtendTrial(t, 30)}>
+                              <DropdownMenuItem
+                                onClick={() => handleExtendTrial(t, 30)}
+                                className="cursor-pointer"
+                              >
                                 <SparklesIcon className="mr-2 size-4 text-amber-500" />
                                 +30 dias grátis
                               </DropdownMenuItem>
+
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 onClick={() => handleDeleteTenant(t)}
@@ -278,7 +475,132 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
           onClose={() => setSelectedTenant(null)}
         />
       )}
+
+      {whatsAppTenant && (
+        <WhatsAppReminderDialog
+          tenant={whatsAppTenant}
+          onClose={() => setWhatsAppTenant(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function WhatsAppReminderDialog({
+  tenant,
+  onClose,
+}: {
+  tenant: TenantRowData;
+  onClose: () => void;
+}) {
+  const subInfo = getSubscriptionInfo(tenant);
+  const expirationText = subInfo.formattedExpiration || "vencimento em aberto";
+
+  const defaultMsg = `Olá! Tudo bem?
+
+Passando para lembrar sobre a renovação da assinatura do Sis.Chronos da empresa *${tenant.name}*.
+
+📅 Vencimento: ${expirationText}
+📌 Plano: ${tenant.plan_tier ? tenant.plan_tier.toUpperCase() : "PRO"}
+💳 Chave Pix: financeiro@suaempresa.com.br (ou seu CNPJ)
+
+Qualquer dúvida ou caso o pagamento já tenha sido realizado, pode nos enviar o comprovante por aqui. Obrigado!`;
+
+  const [phone, setPhone] = useState("");
+  const [message, setMessage] = useState(defaultMsg);
+  const [copied, setCopied] = useState(false);
+
+  const handleOpenWhatsApp = () => {
+    const clean = phone.replace(/\D/g, "");
+    const targetUrl = clean
+      ? `https://wa.me/55${clean}?text=${encodeURIComponent(message)}`
+      : `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(targetUrl, "_blank");
+  };
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(message);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MessageCircleIcon className="size-5 text-emerald-600 dark:text-emerald-400" />
+            Lembrete de Cobrança WhatsApp
+          </DialogTitle>
+          <DialogDescription>
+            Envie uma mensagem de cobrança ou renovação rápida diretamente para o responsável da
+            empresa <strong>{tenant.name}</strong>.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 pt-2">
+          <Field
+            label="Número de WhatsApp com DDD"
+            htmlFor="whatsappPhone"
+            hint="Opcional. Se preenchido, abre a conversa com o número exato."
+          >
+            <Input
+              id="whatsappPhone"
+              placeholder="Ex: 11999998888"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+          </Field>
+
+          <Field label="Mensagem Formatada" htmlFor="whatsappMessage">
+            <Textarea
+              id="whatsappMessage"
+              rows={8}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="text-xs font-mono leading-relaxed"
+            />
+          </Field>
+
+          <div className="flex items-center justify-between gap-2 pt-2 border-t">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCopy}
+              className="gap-1.5 text-xs"
+            >
+              {copied ? (
+                <>
+                  <CheckIcon className="size-3.5 text-emerald-600" />
+                  Copiado!
+                </>
+              ) : (
+                <>
+                  <CopyIcon className="size-3.5" />
+                  Copiar Texto
+                </>
+              )}
+            </Button>
+
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={onClose}>
+                Fechar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 cursor-pointer shadow-xs"
+                onClick={handleOpenWhatsApp}
+              >
+                <MessageCircleIcon className="size-3.5" />
+                Abrir WhatsApp Web
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
