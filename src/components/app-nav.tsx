@@ -9,10 +9,12 @@ import {
   ChartLineIcon,
   CheckCheckIcon,
   ClockIcon,
+  CreditCardIcon,
   LayersIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
   LockIcon,
+  ShieldCheckIcon,
   UsersIcon,
   UserCogIcon,
 } from "lucide-react";
@@ -58,12 +60,36 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { href: "/configuracoes/empresa", label: "Empresa", icon: Building2Icon, roles: ["admin"] },
       { href: "/configuracoes/fechamento", label: "Fechamento de período", icon: LockIcon, roles: ["admin"] },
       { href: "/configuracoes/usuarios", label: "Usuários e acessos", icon: UserCogIcon, roles: ["admin"] },
+      { href: "/configuracoes/assinatura", label: "Assinatura e plano", icon: CreditCardIcon, roles: ["admin"] },
     ],
   },
 ];
 
-export function AppNav({ role, onNavigate }: { role: AppRole; onNavigate?: () => void }) {
+export function AppNav({
+  role,
+  isSuperAdmin = false,
+  onNavigate,
+}: {
+  role: AppRole;
+  isSuperAdmin?: boolean;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
+
+  const sections = [...NAV];
+  if (isSuperAdmin) {
+    sections.push({
+      group: "Gestão SaaS",
+      items: [
+        {
+          href: "/super-admin",
+          label: "Empresas & Assinaturas",
+          icon: ShieldCheckIcon,
+          roles: ["admin", "gestor", "colaborador"],
+        },
+      ],
+    });
+  }
 
   return (
     <nav className="grid gap-3.5 text-sm">

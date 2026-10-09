@@ -5,6 +5,8 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type AppRole = "admin" | "gestor" | "colaborador";
+export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled" | "manual_active" | "suspended";
+export type BillingMode = "stripe" | "manual";
 
 export type ContractPeriodicity = "mensal" | "bimestral" | "trimestral" | "semestral" | "anual" | "projeto";
 export type ContractStatus = "ativo" | "pausado" | "encerrado";
@@ -18,6 +20,22 @@ export type Database = {
   };
   public: {
     Tables: {
+      super_admins: {
+        Row: {
+          id: string;
+          email: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          created_at?: string;
+        };
+        Update: {
+          email?: string;
+        };
+        Relationships: [];
+      };
       tenants: {
         Row: {
           id: string;
@@ -29,16 +47,53 @@ export type Database = {
           timezone: string;
           email_domain: string | null;
           auto_join_domain: boolean;
+          subscription_status: SubscriptionStatus;
+          billing_mode: BillingMode;
+          plan_tier: string;
+          trial_ends_at: string;
+          current_period_end: string | null;
+          stripe_customer_id: string | null;
+          stripe_subscription_id: string | null;
+          manual_notes: string | null;
+          max_users: number | null;
           created_at: string;
           updated_at: string;
         };
-        Insert: never;
+        Insert: {
+          id?: string;
+          name: string;
+          cnpj?: string | null;
+          logo_url?: string | null;
+          monthly_hours?: number;
+          margin_attention_tolerance?: number;
+          timezone?: string;
+          email_domain?: string | null;
+          auto_join_domain?: boolean;
+          subscription_status?: SubscriptionStatus;
+          billing_mode?: BillingMode;
+          plan_tier?: string;
+          trial_ends_at?: string;
+          current_period_end?: string | null;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          manual_notes?: string | null;
+          max_users?: number | null;
+        };
         Update: {
           name?: string;
           cnpj?: string | null;
           logo_url?: string | null;
           monthly_hours?: number;
           margin_attention_tolerance?: number;
+          subscription_status?: SubscriptionStatus;
+          billing_mode?: BillingMode;
+          plan_tier?: string;
+          trial_ends_at?: string;
+          current_period_end?: string | null;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          manual_notes?: string | null;
+          max_users?: number | null;
         };
         Relationships: [];
       };

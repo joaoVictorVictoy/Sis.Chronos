@@ -383,3 +383,52 @@ export const reopenContractSchema = z.object({
   contractId: z.uuid(),
 });
 
+export const superAdminUpdateTenantSchema = z.object({
+  tenantId: z.string().uuid("ID de empresa inválido."),
+  subscriptionStatus: z.enum([
+    "trialing",
+    "active",
+    "past_due",
+    "canceled",
+    "manual_active",
+    "suspended",
+  ]),
+  billingMode: z.enum(["stripe", "manual"]),
+  planTier: z.string().trim().min(1, "Informe o plano.").max(50),
+  currentPeriodEnd: fromForm(
+    z
+      .string()
+      .trim()
+      .transform((v) => (v === "" ? null : v)),
+  ),
+  manualNotes: fromForm(
+    z
+      .string()
+      .trim()
+      .transform((v) => (v === "" ? null : v)),
+  ),
+});
+
+export const superAdminCreateTenantSchema = z.object({
+  companyName: nameSchema,
+  cnpj: optionalCnpjSchema,
+  ownerName: nameSchema,
+  ownerEmail: emailSchema,
+  subscriptionStatus: z
+    .enum(["manual_active", "trialing", "suspended"])
+    .default("manual_active"),
+  planTier: z.string().trim().min(1).default("pro"),
+  currentPeriodEnd: fromForm(
+    z
+      .string()
+      .trim()
+      .transform((v) => (v === "" ? null : v)),
+  ),
+  manualNotes: fromForm(
+    z
+      .string()
+      .trim()
+      .transform((v) => (v === "" ? null : v)),
+  ),
+});
+
