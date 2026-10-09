@@ -51,20 +51,25 @@ export const getAppContext = cache(async (): Promise<AppContext | null> => {
   const { tenants, ...profile } = data;
 
   let isSuperInDb = false;
-  if (user.email) {
+  const emailsToCheck = [user.email, profile.email].filter(Boolean) as string[];
+  for (const e of emailsToCheck) {
     try {
       const { data: sa } = await supabase
         .from("super_admins")
         .select("id")
-        .ilike("email", user.email)
+        .ilike("email", e)
         .maybeSingle();
-      if (sa) isSuperInDb = true;
+      if (sa) {
+        isSuperInDb = true;
+        break;
+      }
     } catch {
-      isSuperInDb = false;
+      // Ignora erro se a tabela ainda não existir
     }
   }
 
-  const isSuper = isSuperAdminEmail(user.email) || isSuperInDb;
+  const isSuper =
+    emailsToCheck.some((e) => isSuperAdminEmail(e)) || isSuperInDb;
   const subscription = getSubscriptionInfo(tenants);
 
   return {

@@ -93,7 +93,7 @@ export function AppNav({
 
   return (
     <nav className="grid gap-3.5 text-sm">
-      {NAV.map((section) => {
+      {sections.map((section) => {
         const items = section.items
           .filter((item) => item.roles.includes(role))
           .map((item) => {
