@@ -100,10 +100,36 @@ export async function requireRole(roles: AppRole[]): Promise<AppContext> {
   return ctx;
 }
 
-export async function requireSuperAdmin(): Promise<AppContext> {
-  const ctx = await requireContext();
-  if (!ctx.isSuperAdmin) redirect("/inicio");
-  return ctx;
+export type SuperAdminContext = {
+  user: User;
+  isSuperAdmin: true;
+};
+
+export async function requireSuperAdmin(): Promise<SuperAdminContext> {
+  const user = await getUser();
+  if (!user) redirect("/super-admin/login");
+
+  let isSuperInDb = false;
+  if (user.email) {
+    try {
+      const supabase = await createClient();
+      const { data: sa } = await supabase
+        .from("super_admins")
+        .select("id")
+        .ilike("email", user.email)
+        .maybeSingle();
+      if (sa) isSuperInDb = true;
+    } catch {
+      isSuperInDb = false;
+    }
+  }
+
+  const isSuper = isSuperAdminEmail(user.email) || isSuperInDb;
+  if (!isSuper) {
+    redirect("/super-admin/login?erro=" + encodeURIComponent("Acesso negado: este usuário não é um administrador do sistema."));
+  }
+
+  return { user, isSuperAdmin: true };
 }
 
 export { ROLE_LABELS, isManager } from "./session.shared";
