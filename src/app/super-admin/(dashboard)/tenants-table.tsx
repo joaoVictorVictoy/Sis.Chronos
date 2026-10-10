@@ -897,7 +897,7 @@ function TenantUsersDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-xl md:max-w-2xl max-h-[85vh] p-6 flex flex-col gap-4">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UsersIcon className="size-5 text-primary" />
@@ -909,7 +909,7 @@ function TenantUsersDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 pt-2 max-h-[55vh]">
+        <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 pt-1 max-h-[55vh]">
           {tenant.users.length === 0 ? (
             <p className="text-center py-8 text-sm text-muted-foreground">
               Nenhum usuário com login registrado nesta empresa.
@@ -918,14 +918,16 @@ function TenantUsersDialog({
             tenant.users.map((u) => (
               <div
                 key={u.id}
-                className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors"
+                className="flex items-center justify-between gap-4 p-3.5 rounded-xl border bg-card/60 hover:bg-muted/30 transition-colors"
               >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-sm text-foreground truncate">{u.fullName}</p>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-sm text-foreground truncate max-w-[200px]" title={u.fullName}>
+                      {u.fullName}
+                    </p>
                     <Badge
                       variant={u.role === "admin" ? "default" : "secondary"}
-                      className="text-[10px] capitalize px-1.5 py-0"
+                      className="text-[10px] capitalize px-2 py-0.5 shrink-0"
                     >
                       {u.role === "admin"
                         ? "Administrador"
@@ -934,22 +936,24 @@ function TenantUsersDialog({
                         : "Colaborador"}
                     </Badge>
                     {!u.active && (
-                      <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                      <Badge variant="destructive" className="text-[10px] px-2 py-0.5 shrink-0">
                         Inativo
                       </Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                    <span>{u.email}</span>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="truncate max-w-[240px] sm:max-w-sm" title={u.email}>
+                      {u.email}
+                    </span>
                     <button
                       onClick={() => copyEmail(u.email)}
-                      className="hover:text-foreground transition-colors p-0.5"
+                      className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted shrink-0 cursor-pointer"
                       title="Copiar e-mail"
                     >
                       {copiedEmail === u.email ? (
-                        <CheckIcon className="size-3 text-emerald-500" />
+                        <CheckIcon className="size-3.5 text-emerald-500" />
                       ) : (
-                        <CopyIcon className="size-3" />
+                        <CopyIcon className="size-3.5" />
                       )}
                     </button>
                   </div>
@@ -958,12 +962,12 @@ function TenantUsersDialog({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-8 gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-900/50 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 shrink-0 cursor-pointer"
+                  className="h-8 gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-900/50 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 shrink-0 cursor-pointer ml-2"
                   onClick={() => onGenerateAccessLink(u.email)}
                   title="Gerar link mágico de login sem necessidade de senha"
                 >
                   <KeyRoundIcon className="size-3.5" />
-                  <span>Link de Login</span>
+                  <span className="whitespace-nowrap">Link de Login</span>
                 </Button>
               </div>
             ))
@@ -1011,7 +1015,7 @@ function AccessLinkDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-lg p-6 flex flex-col gap-4">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <KeyRoundIcon className="size-5 text-indigo-500" />
@@ -1106,7 +1110,7 @@ function TenantHealthDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-xl md:max-w-2xl max-h-[90vh] p-6 overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <HeartPulseIcon className="size-5 text-emerald-500" />

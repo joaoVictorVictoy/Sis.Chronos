@@ -40,7 +40,7 @@ export function AuditLogsDialog({ logs }: { logs: AuditLogEntry[] }) {
         }
       />
 
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-xl md:max-w-2xl max-h-[85vh] p-6 flex flex-col gap-4">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <HistoryIcon className="size-5 text-primary" />
