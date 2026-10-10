@@ -36,42 +36,42 @@ export default async function UsersPage() {
 
       {maxUsers ? (
         <div
-          className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border text-sm ${
+          className={`flex items-center justify-between gap-3 px-3.5 py-2 rounded-lg border text-xs ${
             isLimitReached
-              ? "border-destructive/30 bg-destructive/5 text-foreground"
-              : "border-primary/20 bg-primary/5 text-foreground"
+              ? "border-destructive/30 bg-destructive/10 text-foreground"
+              : "border-border/60 bg-muted/40 text-muted-foreground"
           }`}
         >
-          <div className="flex items-center gap-3">
-            <div
-              className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${
-                isLimitReached ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"
+          <div className="flex items-center gap-2 min-w-0">
+            <UsersIcon
+              className={`size-3.5 shrink-0 ${
+                isLimitReached ? "text-destructive" : "text-primary"
               }`}
-            >
-              <UsersIcon className="size-5" />
-            </div>
-            <div>
-              <p className="font-semibold">
-                {isLimitReached
-                  ? "Limite de usuários atingido · Contrate um plano superior"
-                  : "Controle de Licenças de Usuários"}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {isLimitReached
-                  ? `Sua empresa atingiu o teto de ${totalInUse} de ${maxUsers} acessos liberados. Para cadastrar mais pessoas, contrate um plano superior.`
-                  : `Sua empresa está utilizando ${totalInUse} de ${maxUsers} usuários liberados (${maxUsers - totalInUse} vagas disponíveis).`}
-              </p>
-            </div>
+            />
+            <span className="truncate">
+              {isLimitReached ? (
+                <>
+                  <strong className="text-destructive font-semibold">Limite de usuários atingido:</strong>{" "}
+                  {totalInUse} de {maxUsers} acessos em uso. Contrate um plano superior para cadastrar mais membros.
+                </>
+              ) : (
+                <>
+                  <strong className="text-foreground font-medium">Licenças de usuários:</strong>{" "}
+                  {totalInUse} de {maxUsers} em uso ({maxUsers - totalInUse} vagas disponíveis).
+                </>
+              )}
+            </span>
           </div>
+
           {isLimitReached ? (
             <Link
               href="/configuracoes/assinatura"
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors shrink-0 self-start sm:self-auto inline-flex items-center gap-1.5 shadow-sm"
+              className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors shrink-0 inline-flex items-center gap-1 shadow-xs"
             >
-              Contratar plano superior &rarr;
+              Plano superior &rarr;
             </Link>
           ) : (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-md self-start sm:self-auto bg-primary/15 text-primary">
+            <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-primary/10 text-primary shrink-0">
               {totalInUse} / {maxUsers} usuários
             </span>
           )}
