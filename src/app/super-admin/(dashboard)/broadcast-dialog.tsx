@@ -49,13 +49,13 @@ export function BroadcastDialog({
           </Button>
         }
       />
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      <DialogContent className="sm:max-w-lg p-6 sm:p-7 gap-5 max-h-[92vh] overflow-y-auto">
+        <DialogHeader className="space-y-1.5 pb-1">
+          <DialogTitle className="flex items-center gap-2 text-lg">
             <MegaphoneIcon className="size-5 text-primary" />
             Comunicado Global do Sistema
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs text-muted-foreground leading-normal">
             Exiba um banner no topo da tela para todos os usuários do sistema (ex: manutenções,
             novidades ou avisos importantes).
           </DialogDescription>

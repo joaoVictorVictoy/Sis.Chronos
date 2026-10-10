@@ -540,13 +540,13 @@ Qualquer dúvida ou caso o pagamento já tenha sido realizado, pode nos enviar o
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      <DialogContent className="sm:max-w-lg p-6 sm:p-7 gap-5 max-h-[92vh] overflow-y-auto">
+        <DialogHeader className="space-y-1.5 pb-1">
+          <DialogTitle className="flex items-center gap-2 text-lg">
             <MessageCircleIcon className="size-5 text-emerald-600 dark:text-emerald-400" />
             Lembrete de Cobrança WhatsApp
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs text-muted-foreground leading-normal">
             Envie uma mensagem de cobrança ou renovação rápida diretamente para o responsável da
             empresa <strong>{tenant.name}</strong>.
           </DialogDescription>
@@ -635,15 +635,15 @@ function EditTenantDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Editar Assinatura · {tenant.name}</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="sm:max-w-lg p-6 sm:p-7 gap-5 max-h-[92vh] overflow-y-auto">
+        <DialogHeader className="space-y-1.5 pb-1">
+          <DialogTitle className="text-lg">Editar Assinatura · {tenant.name}</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground leading-normal">
             Ajuste o status, datas de vencimento e anotações do contrato manual.
           </DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="grid gap-4 py-2">
+        <form action={formAction} className="space-y-4 pt-1">
           <input type="hidden" name="tenantId" value={tenant.id} />
           <FormAlert state={state} />
 
@@ -666,7 +666,7 @@ function EditTenantDialog({
             </NativeSelect>
           </Field>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3.5 sm:grid-cols-2">
             <Field label="Modo de cobrança" htmlFor="billingMode" errors={state.fieldErrors?.billingMode}>
               <NativeSelect
                 id="billingMode"
@@ -710,17 +710,17 @@ function EditTenantDialog({
             <Textarea
               id="manualNotes"
               name="manualNotes"
-              rows={2}
+              rows={3}
               defaultValue={tenant.manual_notes ?? ""}
               placeholder="Ex: Mensalidade R$ 350 paga via Pix no dia 10."
             />
           </Field>
 
-          <div className="flex items-center justify-between gap-2 pt-2 border-t">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 pt-4 mt-3 border-t">
             <Button
               type="button"
               variant="outline"
-              className="text-destructive hover:bg-destructive/10 border-destructive/30 hover:border-destructive/60 text-xs h-9 gap-1.5 cursor-pointer"
+              className="text-destructive hover:bg-destructive/10 border-destructive/30 hover:border-destructive/60 text-xs h-9 gap-1.5 cursor-pointer w-full sm:w-auto"
               onClick={() => {
                 onClose();
                 onDelete();
@@ -730,11 +730,11 @@ function EditTenantDialog({
               Excluir Empresa
             </Button>
 
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" onClick={onClose}>
+            <div className="flex items-center justify-end gap-2.5 w-full sm:w-auto">
+              <Button type="button" variant="outline" className="h-9 text-xs" onClick={onClose}>
                 Cancelar
               </Button>
-              <SubmitButton>Salvar Alterações</SubmitButton>
+              <SubmitButton className="h-9 text-xs">Salvar Alterações</SubmitButton>
             </div>
           </div>
         </form>

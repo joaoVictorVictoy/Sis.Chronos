@@ -37,10 +37,10 @@ export function CreateTenantDialog() {
         }
       />
 
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Cadastrar Nova Empresa</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="sm:max-w-xl p-6 sm:p-7 gap-5 max-h-[92vh] overflow-y-auto">
+        <DialogHeader className="space-y-1.5 pb-1">
+          <DialogTitle className="text-lg">Cadastrar Nova Empresa</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground leading-normal">
             Crie a empresa cliente manualmente e defina o status inicial da assinatura.
           </DialogDescription>
         </DialogHeader>
