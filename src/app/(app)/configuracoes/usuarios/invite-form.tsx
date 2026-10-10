@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { NativeCheckbox, NativeSelect } from "@/components/native-select";
@@ -21,12 +22,22 @@ export function InviteForm({ isLimitReached = false }: { isLimitReached?: boolea
 
   if (isLimitReached) {
     return (
-      <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm text-foreground">
-        <p className="font-semibold text-destructive">Limite de usuários contratados atingido</p>
-        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-          Sua empresa já atingiu a cota máxima de usuários liberados. Para convidar novos colaboradores ou gestores,
-          entre em contato com o suporte/administração da plataforma para expandir o plano ou remova acessos inativos.
-        </p>
+      <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm text-foreground space-y-3">
+        <div>
+          <p className="font-semibold text-destructive">Limite de usuários contratados atingido</p>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+            Sua empresa atingiu a cota máxima de usuários liberados. Para cadastrar novos administradores, gestores ou colaboradores,{" "}
+            <strong>contrate um plano superior</strong> ou remova acessos inativos.
+          </p>
+        </div>
+        <div>
+          <Link
+            href="/configuracoes/assinatura"
+            className="inline-flex h-8 items-center justify-center rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            Contratar Plano Superior
+          </Link>
+        </div>
       </div>
     );
   }

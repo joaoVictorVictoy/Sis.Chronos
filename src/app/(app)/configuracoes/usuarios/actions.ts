@@ -32,7 +32,7 @@ export async function inviteMemberAction(_prev: ActionState, formData: FormData)
     const totalInUse = (membersCount ?? 0) + (pendingInvitesCount ?? 0);
     if (totalInUse >= tenant.max_users) {
       return {
-        error: `Limite de usuários atingido (${totalInUse}/${tenant.max_users}). Sua empresa já atingiu o total de acessos liberados. Entre em contato com a administração para expandir seu plano.`,
+        error: `Limite de usuários atingido (${totalInUse}/${tenant.max_users}). Sua empresa já atingiu o máximo de usuários permitidos. Para cadastrar mais usuários, é necessário contratar um plano superior. Entre em contato com a administração para realizar o upgrade.`,
       };
     }
   }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { UsersIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth/session";
@@ -52,25 +53,28 @@ export default async function UsersPage() {
             <div>
               <p className="font-semibold">
                 {isLimitReached
-                  ? "Limite de usuários atingido"
+                  ? "Limite de usuários atingido · Contrate um plano superior"
                   : "Controle de Licenças de Usuários"}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {isLimitReached
-                  ? `Sua empresa atingiu o teto de ${totalInUse} de ${maxUsers} acessos liberados pelo administrador.`
+                  ? `Sua empresa atingiu o teto de ${totalInUse} de ${maxUsers} acessos liberados. Para cadastrar mais pessoas, contrate um plano superior.`
                   : `Sua empresa está utilizando ${totalInUse} de ${maxUsers} usuários liberados (${maxUsers - totalInUse} vagas disponíveis).`}
               </p>
             </div>
           </div>
-          <span
-            className={`text-xs font-semibold px-2.5 py-1 rounded-md self-start sm:self-auto ${
-              isLimitReached
-                ? "bg-destructive text-destructive-foreground"
-                : "bg-primary/15 text-primary"
-            }`}
-          >
-            {totalInUse} / {maxUsers} usuários
-          </span>
+          {isLimitReached ? (
+            <Link
+              href="/configuracoes/assinatura"
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors shrink-0 self-start sm:self-auto inline-flex items-center gap-1.5 shadow-sm"
+            >
+              Contratar plano superior &rarr;
+            </Link>
+          ) : (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-md self-start sm:self-auto bg-primary/15 text-primary">
+              {totalInUse} / {maxUsers} usuários
+            </span>
+          )}
         </div>
       ) : null}
 

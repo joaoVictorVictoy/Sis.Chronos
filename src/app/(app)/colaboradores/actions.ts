@@ -201,7 +201,7 @@ export async function grantAccessAction(_prev: ActionState, formData: FormData):
     const totalInUse = (membersCount ?? 0) + (pendingInvitesCount ?? 0);
     if (totalInUse >= tenant.max_users) {
       return {
-        error: `Limite de usuários atingido (${totalInUse}/${tenant.max_users}). Para liberar o acesso deste colaborador, solicite ao administrador da plataforma a expansão de usuários.`,
+        error: `Limite de usuários atingido (${totalInUse}/${tenant.max_users}). Sua empresa já atingiu o máximo de usuários permitidos. Para liberar o acesso deste colaborador, é necessário contratar um plano superior. Entre em contato com a administração para realizar o upgrade.`,
       };
     }
   }
