@@ -186,6 +186,26 @@ export async function grantAccessAction(_prev: ActionState, formData: FormData):
   if (!parsed.ok) return parsed.state;
 
   const supabase = await createClient();
+
+  // Valida o limite de usuários caso a empresa tenha cota configurada pelo Super Admin
+  if (tenant.max_users !== null && tenant.max_users !== undefined && tenant.max_users > 0) {
+    const [{ count: membersCount }, { count: pendingInvitesCount }] = await Promise.all([
+      supabase.from("profiles").select("*", { count: "exact", head: true }).eq("tenant_id", tenant.id),
+      supabase
+        .from("invitations")
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", tenant.id)
+        .is("accepted_at", null),
+    ]);
+
+    const totalInUse = (membersCount ?? 0) + (pendingInvitesCount ?? 0);
+    if (totalInUse >= tenant.max_users) {
+      return {
+        error: `Limite de usuários atingido (${totalInUse}/${tenant.max_users}). Para liberar o acesso deste colaborador, solicite ao administrador da plataforma a expansão de usuários.`,
+      };
+    }
+  }
+
   const { error } = await supabase.from("invitations").insert({
     tenant_id: tenant.id,
     email: parsed.data.email,

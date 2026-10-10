@@ -45,7 +45,7 @@ export default async function AssinaturaPage() {
           </Badge>
         </CardHeader>
 
-        <CardContent className="grid gap-4 sm:grid-cols-3 pt-2">
+        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 pt-2">
           <div className="rounded-lg border bg-muted/40 p-4">
             <span className="text-xs text-muted-foreground block mb-1">Plano Atual</span>
             <span className="text-lg font-bold capitalize">{tenant.plan_tier || "Plano Pro"}</span>
@@ -64,6 +64,13 @@ export default async function AssinaturaPage() {
             </span>
             <span className="text-lg font-semibold">
               {subscription.formattedExpiration || "Sem data limite"}
+            </span>
+          </div>
+
+          <div className="rounded-lg border bg-muted/40 p-4">
+            <span className="text-xs text-muted-foreground block mb-1">Limite de Usuários</span>
+            <span className="text-lg font-semibold">
+              {tenant.max_users ? `${tenant.max_users} usuários` : "Ilimitado"}
             </span>
           </div>
         </CardContent>

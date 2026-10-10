@@ -14,6 +14,7 @@ import {
   PlayIcon,
   SparklesIcon,
   Trash2Icon,
+  UsersIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ import {
   extendTrialAction,
   impersonateTenantAction,
   toggleTenantStatusAction,
+  updateTenantMaxUsersAction,
   updateTenantSubscriptionAction,
 } from "./actions";
 
@@ -156,6 +158,30 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
 
     startTransition(async () => {
       await extendTrialAction(tenant.id, days);
+    });
+  };
+
+  const handleQuickSetMaxUsers = (tenant: TenantRowData) => {
+    const current = tenant.max_users ? String(tenant.max_users) : "";
+    const input = prompt(
+      `Defina a quantidade máxima de usuários para a empresa "${tenant.name}":\n\n(Deixe vazio ou digite 0 para permitir usuários ilimitados)`,
+      current
+    );
+    if (input === null) return;
+    const trimmed = input.trim();
+    const val = trimmed === "" || trimmed === "0" ? null : parseInt(trimmed, 10);
+    if (val !== null && (isNaN(val) || val < 1)) {
+      alert("Por favor, informe um número inteiro positivo (ex: 5, 10) ou deixe vazio para ilimitado.");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        await updateTenantMaxUsersAction(tenant.id, val);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Erro ao atualizar limite.";
+        alert(msg);
+      }
     });
   };
 
@@ -337,8 +363,26 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
                         )}
                       </td>
 
-                      <td className="p-3.5 text-center text-xs font-semibold">
-                        {t.membersCount}
+                      <td className="p-3.5 text-center text-xs">
+                        <div className="flex flex-col items-center justify-center gap-0.5">
+                          <span className="font-semibold text-foreground">
+                            {t.membersCount}
+                            {t.max_users ? ` / ${t.max_users}` : ""}
+                          </span>
+                          {t.max_users ? (
+                            t.membersCount >= t.max_users ? (
+                              <span className="text-[10px] text-destructive font-medium bg-destructive/10 px-1.5 py-0.2 rounded">
+                                Limite atingido
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground">
+                                {t.max_users - t.membersCount} {t.max_users - t.membersCount === 1 ? "vaga" : "vagas"}
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">ilimitado</span>
+                          )}
+                        </div>
                       </td>
 
                       <td
@@ -433,6 +477,14 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
                               >
                                 <Edit3Icon className="mr-2 size-4" />
                                 Editar Assinatura
+                              </DropdownMenuItem>
+
+                              <DropdownMenuItem
+                                onClick={() => handleQuickSetMaxUsers(t)}
+                                className="cursor-pointer font-medium text-primary"
+                              >
+                                <UsersIcon className="mr-2 size-4 text-primary" />
+                                Limite de Usuários ({t.max_users ? `${t.max_users} máx` : "Ilimitado"})
                               </DropdownMenuItem>
 
                               <DropdownMenuSeparator />
@@ -687,19 +739,37 @@ function EditTenantDialog({
             </Field>
           </div>
 
-          <Field
-            label="Vencimento da mensalidade"
-            htmlFor="currentPeriodEnd"
-            hint="Deixe vazio para manter sem vencimento fixo."
-            errors={state.fieldErrors?.currentPeriodEnd}
-          >
-            <Input
-              id="currentPeriodEnd"
-              name="currentPeriodEnd"
-              type="date"
-              defaultValue={defaultDate}
-            />
-          </Field>
+          <div className="grid gap-3.5 sm:grid-cols-2">
+            <Field
+              label="Vencimento da mensalidade"
+              htmlFor="currentPeriodEnd"
+              hint="Deixe vazio para sem vencimento fixo."
+              errors={state.fieldErrors?.currentPeriodEnd}
+            >
+              <Input
+                id="currentPeriodEnd"
+                name="currentPeriodEnd"
+                type="date"
+                defaultValue={defaultDate}
+              />
+            </Field>
+
+            <Field
+              label="Limite de usuários"
+              htmlFor="maxUsers"
+              hint="Vazio ou 0 = ilimitado."
+              errors={state.fieldErrors?.maxUsers}
+            >
+              <Input
+                id="maxUsers"
+                name="maxUsers"
+                type="number"
+                min="1"
+                placeholder="Ex: 10 (vazio = ilimitado)"
+                defaultValue={tenant.max_users ?? ""}
+              />
+            </Field>
+          </div>
 
           <Field
             label="Observações internas"

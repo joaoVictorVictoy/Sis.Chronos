@@ -15,9 +15,21 @@ const ROLE_HINTS: Record<AppRole, string> = {
   colaborador: "Apenas próprios apontamentos.",
 };
 
-export function InviteForm() {
+export function InviteForm({ isLimitReached = false }: { isLimitReached?: boolean }) {
   const [state, formAction] = useActionState(inviteMemberAction, initialActionState);
   const [role, setRole] = useState<AppRole>("colaborador");
+
+  if (isLimitReached) {
+    return (
+      <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm text-foreground">
+        <p className="font-semibold text-destructive">Limite de usuários contratados atingido</p>
+        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+          Sua empresa já atingiu a cota máxima de usuários liberados. Para convidar novos colaboradores ou gestores,
+          entre em contato com o suporte/administração da plataforma para expandir o plano ou remova acessos inativos.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form action={formAction} className="grid gap-4">

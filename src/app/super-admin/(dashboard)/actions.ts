@@ -106,6 +106,7 @@ export async function updateTenantSubscriptionAction(
       billing_mode: parsed.data.billingMode,
       plan_tier: parsed.data.planTier,
       current_period_end: parsed.data.currentPeriodEnd,
+      max_users: parsed.data.maxUsers,
       manual_notes: parsed.data.manualNotes,
     })
     .eq("id", parsed.data.tenantId);
@@ -115,6 +116,23 @@ export async function updateTenantSubscriptionAction(
   revalidatePath("/super-admin");
   revalidatePath("/", "layout");
   return { success: "Assinatura da empresa atualizada com sucesso." };
+}
+
+export async function updateTenantMaxUsersAction(tenantId: string, maxUsers: number | null) {
+  await requireSuperAdmin();
+  const admin = createAdminClient();
+
+  const { error } = await admin
+    .from("tenants")
+    .update({ max_users: maxUsers })
+    .eq("id", tenantId);
+
+  if (error) {
+    throw new Error(translateError(error));
+  }
+
+  revalidatePath("/super-admin");
+  revalidatePath("/", "layout");
 }
 
 export type CreateTenantResultState = ActionState & {
@@ -143,6 +161,7 @@ export async function createTenantByAdminAction(
       billing_mode: "manual",
       plan_tier: parsed.data.planTier,
       current_period_end: parsed.data.currentPeriodEnd,
+      max_users: parsed.data.maxUsers,
       manual_notes: parsed.data.manualNotes,
     })
     .select("id")

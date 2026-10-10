@@ -383,6 +383,21 @@ export const reopenContractSchema = z.object({
   contractId: z.uuid(),
 });
 
+export const optionalMaxUsersSchema = fromForm(
+  z
+    .string()
+    .trim()
+    .transform((v, ctx) => {
+      if (v === "" || v === "0") return null;
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 1) {
+        ctx.addIssue({ code: "custom", message: "O limite de usuários deve ser um número inteiro positivo ou vazio." });
+        return z.NEVER;
+      }
+      return n;
+    }),
+);
+
 export const superAdminUpdateTenantSchema = z.object({
   tenantId: z.string().uuid("ID de empresa inválido."),
   subscriptionStatus: z.enum([
@@ -401,6 +416,7 @@ export const superAdminUpdateTenantSchema = z.object({
       .trim()
       .transform((v) => (v === "" ? null : v)),
   ),
+  maxUsers: optionalMaxUsersSchema,
   manualNotes: fromForm(
     z
       .string()
@@ -424,6 +440,7 @@ export const superAdminCreateTenantSchema = z.object({
       .trim()
       .transform((v) => (v === "" ? null : v)),
   ),
+  maxUsers: optionalMaxUsersSchema,
   manualNotes: fromForm(
     z
       .string()

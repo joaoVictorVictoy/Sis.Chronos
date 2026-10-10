@@ -136,14 +136,31 @@ export function CreateTenantDialog() {
               </Field>
             </div>
 
-            <Field
-              label="Vencimento da mensalidade (opcional)"
-              htmlFor="currentPeriodEnd"
-              hint="Se preenchido, o acesso vence nesta data."
-              errors={state.fieldErrors?.currentPeriodEnd}
-            >
-              <Input id="currentPeriodEnd" name="currentPeriodEnd" type="date" />
-            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field
+                label="Vencimento da mensalidade (opcional)"
+                htmlFor="currentPeriodEnd"
+                hint="Vazio = sem vencimento fixo."
+                errors={state.fieldErrors?.currentPeriodEnd}
+              >
+                <Input id="currentPeriodEnd" name="currentPeriodEnd" type="date" />
+              </Field>
+
+              <Field
+                label="Limite de usuários (opcional)"
+                htmlFor="maxUsers"
+                hint="Vazio = ilimitado."
+                errors={state.fieldErrors?.maxUsers}
+              >
+                <Input
+                  id="maxUsers"
+                  name="maxUsers"
+                  type="number"
+                  min="1"
+                  placeholder="Ex: 5"
+                />
+              </Field>
+            </div>
 
             <Field
               label="Observações internas (opcional)"
