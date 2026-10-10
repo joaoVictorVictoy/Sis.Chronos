@@ -387,6 +387,19 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
                             )}
                           </Button>
 
+                          {/* Botão direto e visível para Excluir Empresa */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1 text-xs text-destructive hover:bg-destructive/10 border-destructive/30 hover:border-destructive/60 cursor-pointer"
+                            onClick={() => handleDeleteTenant(t)}
+                            disabled={isPending}
+                            title="Excluir empresa definitivamente"
+                          >
+                            <Trash2Icon className="size-3.5 text-destructive" />
+                            <span className="hidden sm:inline">Excluir</span>
+                          </Button>
+
                           <DropdownMenu>
                             <DropdownMenuTrigger
                               render={
@@ -473,6 +486,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
         <EditTenantDialog
           tenant={selectedTenant}
           onClose={() => setSelectedTenant(null)}
+          onDelete={() => handleDeleteTenant(selectedTenant)}
         />
       )}
 
@@ -607,9 +621,11 @@ Qualquer dúvida ou caso o pagamento já tenha sido realizado, pode nos enviar o
 function EditTenantDialog({
   tenant,
   onClose,
+  onDelete,
 }: {
   tenant: TenantRowData;
   onClose: () => void;
+  onDelete: () => void;
 }) {
   const [state, formAction] = useActionState(updateTenantSubscriptionAction, initialActionState);
 
@@ -700,11 +716,26 @@ function EditTenantDialog({
             />
           </Field>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
+          <div className="flex items-center justify-between gap-2 pt-2 border-t">
+            <Button
+              type="button"
+              variant="outline"
+              className="text-destructive hover:bg-destructive/10 border-destructive/30 hover:border-destructive/60 text-xs h-9 gap-1.5 cursor-pointer"
+              onClick={() => {
+                onClose();
+                onDelete();
+              }}
+            >
+              <Trash2Icon className="size-3.5 text-destructive" />
+              Excluir Empresa
             </Button>
-            <SubmitButton>Salvar Alterações</SubmitButton>
+
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
+              <SubmitButton>Salvar Alterações</SubmitButton>
+            </div>
           </div>
         </form>
       </DialogContent>
