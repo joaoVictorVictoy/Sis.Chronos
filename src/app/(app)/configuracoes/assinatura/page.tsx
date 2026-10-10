@@ -2,12 +2,11 @@ import { CheckCircle2Icon, CreditCardIcon, MessageCircleIcon, SparklesIcon } fro
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth/session";
-import { DangerZoneCard } from "./danger-zone-card";
 
 export const metadata = { title: "Assinatura e Plano | Apontamento" };
 
 export default async function AssinaturaPage() {
-  const { tenant, subscription, isSuperAdmin } = await requireRole(["admin"]);
+  const { tenant, subscription } = await requireRole(["admin"]);
 
   const whatsappNumber = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? "";
   const whatsappMsg = encodeURIComponent(
@@ -149,14 +148,6 @@ export default async function AssinaturaPage() {
           </ul>
         </CardContent>
       </Card>
-
-      {/* Zona de Perigo / Exclusão e Cancelamento */}
-      <DangerZoneCard
-        tenantName={tenant.name}
-        tenantId={tenant.id}
-        isSuperAdmin={isSuperAdmin}
-        supportWhatsappUrl={whatsappUrl}
-      />
     </div>
   );
 }
