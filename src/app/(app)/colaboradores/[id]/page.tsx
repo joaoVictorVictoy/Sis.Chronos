@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeftIcon, Trash2Icon } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { todayISO } from "@/lib/format";
 import type { Tables } from "@/lib/database.types";
 import { CostHistory, EmployeeAreasForm, EmployeeDetailsForm, GrantAccessForm, NewCostForm } from "./employee-detail";
+import { DeleteEmployeeButton } from "../delete-employee-button";
 import { EmployeeLeavesManager } from "../employee-leaves-manager";
 import type { LeaveRecord } from "../../minhas-analises/leaves-dialog";
 
@@ -57,8 +58,16 @@ export default async function EmployeePage({ params }: PageProps<"/colaboradores
       </Link>
 
       <PageHeader title={employee.full_name} description={employee.job_title ?? "Sem cargo definido"}>
-        {employee.profile_id ? <Badge variant="secondary">com acesso ao sistema</Badge> : null}
-        {!employee.active ? <Badge variant="secondary">inativo</Badge> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {employee.profile_id ? <Badge variant="secondary">com acesso ao sistema</Badge> : null}
+          {!employee.active ? <Badge variant="secondary">inativo</Badge> : null}
+          <DeleteEmployeeButton
+            employeeId={employee.id}
+            employeeName={employee.full_name}
+            variant="outline"
+            className="text-destructive hover:bg-destructive/10 border-destructive/30 hover:border-destructive/60 h-8 text-xs cursor-pointer gap-1.5"
+          />
+        </div>
       </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -140,6 +149,33 @@ export default async function EmployeePage({ params }: PageProps<"/colaboradores
           </CardContent>
         </Card>
       ) : null}
+
+      <Card className="border-destructive/20 bg-destructive/5">
+        <CardHeader>
+          <CardTitle className="text-base text-destructive flex items-center gap-2">
+            <Trash2Icon className="size-4" />
+            Zona de Perigo
+          </CardTitle>
+          <CardDescription>
+            Exclusão definitiva do cadastro deste colaborador.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-foreground">Excluir este colaborador</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Esta ação removerá definitivamente o colaborador <strong>{employee.full_name}</strong>, seu histórico de custos e permissões associadas.
+            </p>
+          </div>
+          <DeleteEmployeeButton
+            employeeId={employee.id}
+            employeeName={employee.full_name}
+            variant="destructive"
+            label="Excluir Colaborador"
+            iconOnly={false}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -286,3 +286,106 @@ export async function toggleEmployeeActiveAction(_prev: ActionState, formData: F
       : `Colaborador "${employee?.full_name}" desativado. Novos lançamentos e acessos foram bloqueados.`,
   };
 }
+
+export async function deleteEmployeeAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const { tenant, profile } = await requireRole(["admin", "gestor"]);
+  const parsed = parseForm(z.object({ id: z.uuid() }), formData);
+  if (!parsed.ok) return parsed.state;
+
+  const supabase = await createClient();
+
+  // 1. Busca o colaborador
+  const { data: employee, error: fetchErr } = await supabase
+    .from("employees")
+    .select("id, full_name, email, profile_id, tenant_id")
+    .eq("id", parsed.data.id)
+    .eq("tenant_id", tenant.id)
+    .maybeSingle();
+
+  if (fetchErr || !employee) {
+    return { error: "Colaborador não encontrado." };
+  }
+
+  // 2. Não permite que o usuário exclua a si mesmo
+  if (employee.profile_id === profile.id) {
+    return { error: "Você não pode excluir o seu próprio cadastro de colaborador." };
+  }
+
+  // 3. Validações de segurança para perfis vinculados
+  if (employee.profile_id) {
+    const { data: targetProfile } = await supabase
+      .from("profiles")
+      .select("id, role, active")
+      .eq("id", employee.profile_id)
+      .eq("tenant_id", tenant.id)
+      .maybeSingle();
+
+    if (targetProfile) {
+      if (profile.role !== "admin" && targetProfile.role === "admin") {
+        return { error: "Apenas administradores podem excluir outro administrador." };
+      }
+
+      if (targetProfile.role === "admin" && targetProfile.active) {
+        const { count: adminCount } = await supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenant.id)
+          .eq("role", "admin")
+          .eq("active", true);
+
+        if ((adminCount ?? 0) <= 1) {
+          return { error: "Não é possível excluir o único administrador ativo da empresa." };
+        }
+      }
+    }
+  }
+
+  // 4. Exclui o colaborador da tabela employees (as FKs possuem ON DELETE CASCADE)
+  const { error: delErr } = await supabase
+    .from("employees")
+    .delete()
+    .eq("id", employee.id)
+    .eq("tenant_id", tenant.id);
+
+  if (delErr) {
+    return { error: translateError(delErr) };
+  }
+
+  // 5. Remove convites pendentes e limpa perfil/acesso se houver
+  await supabase
+    .from("invitations")
+    .delete()
+    .eq("tenant_id", tenant.id)
+    .eq("employee_id", employee.id);
+
+  if (employee.profile_id) {
+    let admin = null;
+    try {
+      admin = createAdminClient();
+    } catch {
+      admin = null;
+    }
+
+    if (admin) {
+      try {
+        await admin
+          .from("profiles")
+          .delete()
+          .eq("id", employee.profile_id)
+          .eq("tenant_id", tenant.id);
+
+        await admin.auth.admin.deleteUser(employee.profile_id);
+      } catch {
+        // Silencia erro se usuário auth já não existir
+      }
+    }
+  }
+
+  revalidatePath("/colaboradores");
+  revalidatePath("/configuracoes/usuarios");
+  revalidatePath("/dashboard");
+  revalidatePath("/apontamentos");
+  revalidatePath("/minhas-analises");
+
+  redirect("/colaboradores");
+}

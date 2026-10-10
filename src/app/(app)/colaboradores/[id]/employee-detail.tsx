@@ -18,6 +18,7 @@ import {
   setEmployeeCostAction,
   updateEmployeeAction,
 } from "../actions";
+import { DeleteEmployeeButton } from "../delete-employee-button";
 
 export function EmployeeDetailsForm({
   employee,
@@ -60,8 +61,15 @@ export function EmployeeDetailsForm({
         <NativeCheckbox name="active" defaultChecked={employee.active} />
         Colaborador ativo
       </label>
-      <div>
+      <div className="flex items-center justify-between gap-2 pt-2 border-t mt-1">
         <SubmitButton>Salvar dados</SubmitButton>
+        <DeleteEmployeeButton
+          employeeId={employee.id}
+          employeeName={employee.full_name}
+          variant="outline"
+          label="Excluir"
+          className="text-destructive hover:bg-destructive/10 border-destructive/30 hover:border-destructive/60 text-xs h-8 cursor-pointer"
+        />
       </div>
     </form>
   );
