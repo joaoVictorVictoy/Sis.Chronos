@@ -142,7 +142,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
     const isSuspended = tenant.subscription_status === "suspended";
     const confirmMsg = isSuspended
       ? `Deseja reativar o acesso da empresa "${tenant.name}"?`
-      : `Deseja suspender o acesso da empresa "${tenant.name}"? Os usuários não conseguirão acessar as funções até a reativação.`;
+      : `Deseja suspender o acesso da empresa "${tenant.name}"?\n\nOs usuários da empresa verão uma mensagem orientando a contatar o administrador para resolução.`;
 
     if (!confirm(confirmMsg)) return;
 
