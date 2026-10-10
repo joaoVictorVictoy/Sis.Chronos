@@ -76,7 +76,7 @@ export default async function SuperAdminPage() {
     const { count } = await admin
       .from("time_entries")
       .select("id", { count: "exact", head: true })
-      .gte("date", thirtyDaysAgo);
+      .gte("entry_date", thirtyDaysAgo);
     recentEntries = count ?? 0;
   } catch {
     recentEntries = 0;
