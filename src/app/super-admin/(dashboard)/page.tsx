@@ -3,10 +3,15 @@ import { requireSuperAdmin } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Tables } from "@/lib/database.types";
 import { getSubscriptionInfo } from "@/lib/subscription/status";
+import { calculateTenantMrr } from "@/lib/subscription/mrr";
 import { StatsCards, type TenantStats } from "./stats-cards";
-import { TenantsTable, type TenantRowData } from "./tenants-table";
+import { TenantsTable, type TenantRowData, type TenantMember } from "./tenants-table";
 import { CreateTenantDialog } from "./create-tenant-dialog";
 import { BroadcastDialog } from "./broadcast-dialog";
+import { PlatformSettingsDialog } from "./platform-settings-dialog";
+import { AuditLogsDialog } from "./audit-logs-dialog";
+import { getPlatformSettings } from "./platform-settings";
+import { getAuditLogs } from "./audit";
 
 export const metadata = { title: "Administração Geral | Apontamento" };
 
@@ -24,21 +29,44 @@ export default async function SuperAdminPage() {
     throw new Error(`Falha ao carregar empresas: ${tenantsError.message}`);
   }
 
-  // 2. Busca contagem de membros por empresa
-  const { data: profilesData } = await admin.from("profiles").select("tenant_id");
+  // 2. Busca todos os perfis com detalhes de cargo e e-mail
+  const { data: profilesData } = await admin
+    .from("profiles")
+    .select("id, tenant_id, full_name, email, role, active, created_at")
+    .order("created_at", { ascending: true });
 
-  const membersCountByTenant = new Map<string, number>();
+  const membersByTenant = new Map<string, TenantMember[]>();
   (profilesData ?? []).forEach((p) => {
-    const current = membersCountByTenant.get(p.tenant_id) ?? 0;
-    membersCountByTenant.set(p.tenant_id, current + 1);
+    const list = membersByTenant.get(p.tenant_id) ?? [];
+    list.push({
+      id: p.id,
+      fullName: p.full_name,
+      email: p.email,
+      role: p.role,
+      active: p.active,
+      createdAt: p.created_at,
+    });
+    membersByTenant.set(p.tenant_id, list);
   });
 
-  const tenants: TenantRowData[] = (tenantsData ?? []).map((t) => ({
-    ...(t as Tables<"tenants">),
-    membersCount: membersCountByTenant.get(t.id) ?? 0,
-  }));
+  const tenants: TenantRowData[] = (tenantsData ?? []).map((t) => {
+    const users = membersByTenant.get(t.id) ?? [];
+    // Identifica o administrador principal (prioriza admin ativo)
+    const primaryAdmin =
+      users.find((u) => u.role === "admin" && u.active) ||
+      users.find((u) => u.role === "admin") ||
+      users[0] ||
+      null;
 
-  // 3. Calcula indicadores gerais e financeiros
+    return {
+      ...(t as Tables<"tenants">),
+      membersCount: users.length,
+      users,
+      primaryAdmin,
+    };
+  });
+
+  // 3. Calcula indicadores gerais e financeiros com MRR real/customizado
   let mrr = 0;
   let expiringSoon = 0;
 
@@ -55,16 +83,8 @@ export default async function SuperAdminPage() {
       expiringSoon++;
     }
 
-    // MRR para empresas ativas
-    if (t.subscription_status === "manual_active" || t.subscription_status === "active") {
-      if (t.plan_tier === "enterprise") {
-        mrr += 397;
-      } else if (t.plan_tier === "pro") {
-        mrr += 197;
-      } else {
-        mrr += 97;
-      }
-    }
+    // Soma MRR (suporta valores padrão do plano e [MRR: X] customizado)
+    mrr += calculateTenantMrr(t);
   });
 
   const arr = mrr * 12;
@@ -82,12 +102,14 @@ export default async function SuperAdminPage() {
     recentEntries = 0;
   }
 
-  // 5. Busca comunicado existente
+  // 5. Busca comunicado do sistema (ignora registros de configurações internas)
   let announcement = null;
   try {
     const { data: ann } = await (admin as any)
       .from("system_announcements")
       .select("id, title, message, type, is_active")
+      .neq("title", "[SYS_AUDIT_LOGS]")
+      .neq("title", "[SYS_PLATFORM_SETTINGS]")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -97,6 +119,12 @@ export default async function SuperAdminPage() {
   } catch {
     announcement = null;
   }
+
+  // 6. Carrega configurações e logs de auditoria
+  const [platformSettings, auditLogs] = await Promise.all([
+    getPlatformSettings(),
+    getAuditLogs(),
+  ]);
 
   const stats: TenantStats = {
     total: tenants.length,
@@ -127,11 +155,13 @@ export default async function SuperAdminPage() {
             <h1 className="text-2xl font-semibold tracking-tight">Administração SaaS</h1>
           </div>
           <p className="text-muted-foreground text-sm">
-            Painel executivo: métricas de receita (MRR/ARR), gestão de empresas, suporte e comunicados.
+            Painel executivo: métricas de receita (MRR/ARR), gestão de empresas, saúde do cliente e suporte.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
+          <AuditLogsDialog logs={auditLogs} />
+          <PlatformSettingsDialog initialSettings={platformSettings} />
           <BroadcastDialog initialAnnouncement={announcement} />
           <CreateTenantDialog />
         </div>

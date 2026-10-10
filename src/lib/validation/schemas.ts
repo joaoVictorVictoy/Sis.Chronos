@@ -417,6 +417,10 @@ export const superAdminUpdateTenantSchema = z.object({
       .transform((v) => (v === "" ? null : v)),
   ),
   maxUsers: optionalMaxUsersSchema,
+  customMrr: optionalDecimalSchema.refine(
+    (v) => v === null || v >= 0,
+    "O valor do MRR não pode ser negativo.",
+  ),
   manualNotes: fromForm(
     z
       .string()
@@ -441,6 +445,10 @@ export const superAdminCreateTenantSchema = z.object({
       .transform((v) => (v === "" ? null : v)),
   ),
   maxUsers: optionalMaxUsersSchema,
+  customMrr: optionalDecimalSchema.refine(
+    (v) => v === null || v >= 0,
+    "O valor do MRR não pode ser negativo.",
+  ),
   manualNotes: fromForm(
     z
       .string()

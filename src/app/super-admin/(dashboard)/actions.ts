@@ -14,12 +14,22 @@ import {
   superAdminCreateTenantSchema,
   superAdminUpdateTenantSchema,
 } from "@/lib/validation/schemas";
+import { logAuditEvent } from "./audit";
+import { savePlatformSettings } from "./platform-settings";
+import { setCustomMrrInNotes } from "@/lib/subscription/mrr";
 
 export async function toggleTenantStatusAction(tenantId: string, currentStatus: string) {
-  await requireSuperAdmin();
+  const { user } = await requireSuperAdmin();
   const admin = createAdminClient();
 
   const nextStatus = currentStatus === "suspended" ? "manual_active" : "suspended";
+
+  // Busca nome para o log
+  const { data: tenant } = await admin
+    .from("tenants")
+    .select("name")
+    .eq("id", tenantId)
+    .single();
 
   const { error } = await admin
     .from("tenants")
@@ -30,13 +40,27 @@ export async function toggleTenantStatusAction(tenantId: string, currentStatus: 
     throw new Error(translateError(error));
   }
 
+  await logAuditEvent({
+    action: nextStatus === "suspended" ? "Suspensão de Empresa" : "Reativação de Empresa",
+    tenantId,
+    tenantName: tenant?.name ?? "Empresa",
+    superAdminEmail: user.email!,
+    details: `Status alterado de ${currentStatus} para ${nextStatus}.`,
+  });
+
   revalidatePath("/super-admin");
   revalidatePath("/", "layout");
 }
 
 export async function extendTrialAction(tenantId: string, daysToAdd: number) {
-  await requireSuperAdmin();
+  const { user } = await requireSuperAdmin();
   const admin = createAdminClient();
+
+  const { data: tenant } = await admin
+    .from("tenants")
+    .select("name")
+    .eq("id", tenantId)
+    .single();
 
   const newTrialEnd = new Date(Date.now() + daysToAdd * 24 * 60 * 60 * 1000).toISOString();
 
@@ -52,6 +76,14 @@ export async function extendTrialAction(tenantId: string, daysToAdd: number) {
     throw new Error(translateError(error));
   }
 
+  await logAuditEvent({
+    action: "Prorrogação de Teste (Trial)",
+    tenantId,
+    tenantName: tenant?.name ?? "Empresa",
+    superAdminEmail: user.email!,
+    details: `Teste estendido por mais ${daysToAdd} dias (até ${new Date(newTrialEnd).toLocaleDateString("pt-BR")}).`,
+  });
+
   revalidatePath("/super-admin");
   revalidatePath("/", "layout");
 }
@@ -59,6 +91,14 @@ export async function extendTrialAction(tenantId: string, daysToAdd: number) {
 export async function deleteTenantAction(tenantId: string) {
   const { user } = await requireSuperAdmin();
   const admin = createAdminClient();
+
+  const { data: tenant } = await admin
+    .from("tenants")
+    .select("name")
+    .eq("id", tenantId)
+    .single();
+
+  const tenantName = tenant?.name ?? "Empresa";
 
   // 1. Busca perfis da empresa para limpar usuários do Auth se necessário
   const { data: profiles } = await admin
@@ -85,6 +125,14 @@ export async function deleteTenantAction(tenantId: string) {
     }
   }
 
+  await logAuditEvent({
+    action: "Exclusão Definitiva de Empresa",
+    tenantId,
+    tenantName,
+    superAdminEmail: user.email!,
+    details: `Empresa ${tenantName} e todos os seus registros foram excluídos permanentemente.`,
+  });
+
   revalidatePath("/super-admin");
   revalidatePath("/", "layout");
 }
@@ -93,11 +141,20 @@ export async function updateTenantSubscriptionAction(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  await requireSuperAdmin();
+  const { user } = await requireSuperAdmin();
   const parsed = parseForm(superAdminUpdateTenantSchema, formData);
   if (!parsed.ok) return parsed.state;
 
   const admin = createAdminClient();
+
+  // Se veio customMrr, atualiza dentro de manualNotes
+  const finalNotes = setCustomMrrInNotes(parsed.data.manualNotes, parsed.data.customMrr);
+
+  const { data: tenant } = await admin
+    .from("tenants")
+    .select("name")
+    .eq("id", parsed.data.tenantId)
+    .single();
 
   const { error } = await admin
     .from("tenants")
@@ -107,11 +164,19 @@ export async function updateTenantSubscriptionAction(
       plan_tier: parsed.data.planTier,
       current_period_end: parsed.data.currentPeriodEnd,
       max_users: parsed.data.maxUsers,
-      manual_notes: parsed.data.manualNotes,
+      manual_notes: finalNotes,
     })
     .eq("id", parsed.data.tenantId);
 
   if (error) return { error: translateError(error) };
+
+  await logAuditEvent({
+    action: "Atualização de Plano / Assinatura",
+    tenantId: parsed.data.tenantId,
+    tenantName: tenant?.name ?? "Empresa",
+    superAdminEmail: user.email!,
+    details: `Plano: ${parsed.data.planTier}, Status: ${parsed.data.subscriptionStatus}, Vagas: ${parsed.data.maxUsers ?? "Ilimitado"}, MRR Custom: ${parsed.data.customMrr ? `R$ ${parsed.data.customMrr}` : "Padrão"}`,
+  });
 
   revalidatePath("/super-admin");
   revalidatePath("/", "layout");
@@ -119,8 +184,14 @@ export async function updateTenantSubscriptionAction(
 }
 
 export async function updateTenantMaxUsersAction(tenantId: string, maxUsers: number | null) {
-  await requireSuperAdmin();
+  const { user } = await requireSuperAdmin();
   const admin = createAdminClient();
+
+  const { data: tenant } = await admin
+    .from("tenants")
+    .select("name")
+    .eq("id", tenantId)
+    .single();
 
   const { error } = await admin
     .from("tenants")
@@ -130,6 +201,14 @@ export async function updateTenantMaxUsersAction(tenantId: string, maxUsers: num
   if (error) {
     throw new Error(translateError(error));
   }
+
+  await logAuditEvent({
+    action: "Alteração de Limite de Vagas",
+    tenantId,
+    tenantName: tenant?.name ?? "Empresa",
+    superAdminEmail: user.email!,
+    details: maxUsers ? `Limite alterado para ${maxUsers} usuário(s).` : "Limite liberado (Ilimitado).",
+  });
 
   revalidatePath("/super-admin");
   revalidatePath("/", "layout");
@@ -143,12 +222,14 @@ export async function createTenantByAdminAction(
   _prev: CreateTenantResultState,
   formData: FormData
 ): Promise<CreateTenantResultState> {
-  await requireSuperAdmin();
+  const { user } = await requireSuperAdmin();
   const parsed = parseForm(superAdminCreateTenantSchema, formData);
   if (!parsed.ok) return parsed.state;
 
   const admin = createAdminClient();
   const domain = emailDomain(parsed.data.ownerEmail);
+
+  const finalNotes = setCustomMrrInNotes(parsed.data.manualNotes, parsed.data.customMrr);
 
   // 1. Cria a empresa
   const { data: newTenant, error: tenantErr } = await admin
@@ -162,7 +243,7 @@ export async function createTenantByAdminAction(
       plan_tier: parsed.data.planTier,
       current_period_end: parsed.data.currentPeriodEnd,
       max_users: parsed.data.maxUsers,
-      manual_notes: parsed.data.manualNotes,
+      manual_notes: finalNotes,
     })
     .select("id")
     .single();
@@ -196,6 +277,14 @@ export async function createTenantByAdminAction(
   const origin = await getOrigin();
   const accessResult = await createAccessLink(parsed.data.ownerEmail, origin);
 
+  await logAuditEvent({
+    action: "Criação de Nova Empresa",
+    tenantId: newTenant.id,
+    tenantName: parsed.data.companyName,
+    superAdminEmail: user.email!,
+    details: `Responsável: ${parsed.data.ownerName} (${parsed.data.ownerEmail}), Plano: ${parsed.data.planTier}`,
+  });
+
   revalidatePath("/super-admin");
 
   if ("link" in accessResult) {
@@ -208,6 +297,151 @@ export async function createTenantByAdminAction(
   return {
     success: `Empresa ${parsed.data.companyName} criada com sucesso. Convite enviado para ${parsed.data.ownerEmail}.`,
   };
+}
+
+export async function generateAdminAccessLinkAction(
+  email: string,
+  tenantName?: string,
+  tenantId?: string
+): Promise<{ ok: true; link: string } | { ok: false; error: string }> {
+  const { user } = await requireSuperAdmin();
+  const origin = await getOrigin();
+  const accessResult = await createAccessLink(email, origin);
+
+  if ("link" in accessResult) {
+    await logAuditEvent({
+      action: "Link Mágico de Acesso Gerado",
+      tenantId,
+      tenantName: tenantName || "Empresa",
+      superAdminEmail: user.email!,
+      details: `Link de login temporário gerado para ${email}`,
+    });
+    return { ok: true, link: accessResult.link };
+  }
+
+  return { ok: false, error: accessResult.error };
+}
+
+export type TenantHealthData = {
+  clientsCount: number;
+  contractsCount: number;
+  employeesCount: number;
+  activeEmployeesCount: number;
+  recentEntriesCount: number;
+  recentHoursTotal: number;
+  lastEntryDate: string | null;
+  status: "engaged" | "low_activity" | "inactive";
+};
+
+export async function getTenantHealthAction(tenantId: string): Promise<TenantHealthData> {
+  await requireSuperAdmin();
+  const admin = createAdminClient();
+
+  // 1. Clientes
+  const { count: clientsCount } = await admin
+    .from("clients")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId);
+
+  // 2. Contratos
+  const { count: contractsCount } = await admin
+    .from("contracts")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId);
+
+  // 3. Colaboradores
+  const { data: employees } = await admin
+    .from("employees")
+    .select("id, active")
+    .eq("tenant_id", tenantId);
+
+  const employeesCount = employees?.length ?? 0;
+  const activeEmployeesCount = employees?.filter((e) => e.active).length ?? 0;
+
+  // 4. Apontamentos nos últimos 30 dias
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const { data: recentEntries } = await admin
+    .from("time_entries")
+    .select("id, minutes, entry_date")
+    .eq("tenant_id", tenantId)
+    .gte("entry_date", thirtyDaysAgo)
+    .order("entry_date", { ascending: false });
+
+  const recentEntriesCount = recentEntries?.length ?? 0;
+  const recentMinutesTotal = (recentEntries ?? []).reduce(
+    (acc, curr) => acc + (Number(curr.minutes) || 0),
+    0
+  );
+  const recentHoursTotal = Math.round((recentMinutesTotal / 60) * 10) / 10;
+
+  // 5. Último apontamento histórico
+  let lastEntryDate: string | null = null;
+  if (recentEntries && recentEntries.length > 0) {
+    lastEntryDate = recentEntries[0].entry_date;
+  } else {
+    const { data: lastEntry } = await admin
+      .from("time_entries")
+      .select("entry_date")
+      .eq("tenant_id", tenantId)
+      .order("entry_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    lastEntryDate = lastEntry?.entry_date ?? null;
+  }
+
+  let status: "engaged" | "low_activity" | "inactive" = "inactive";
+  if (lastEntryDate) {
+    const lastDate = new Date(lastEntryDate);
+    const diffDays = Math.floor((Date.now() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays <= 7) {
+      status = "engaged";
+    } else if (diffDays <= 30) {
+      status = "low_activity";
+    } else {
+      status = "inactive";
+    }
+  }
+
+  return {
+    clientsCount: clientsCount ?? 0,
+    contractsCount: contractsCount ?? 0,
+    employeesCount,
+    activeEmployeesCount,
+    recentEntriesCount,
+    recentHoursTotal: Math.round(recentHoursTotal * 10) / 10,
+    lastEntryDate,
+    status,
+  };
+}
+
+export async function updatePlatformSettingsAction(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const { user } = await requireSuperAdmin();
+  const supportWhatsapp = String(formData.get("supportWhatsapp") ?? "").trim();
+  const supportEmail = String(formData.get("supportEmail") ?? "").trim();
+  const defaultTrialDays = parseInt(String(formData.get("defaultTrialDays") ?? "14"), 10) || 14;
+  const allowPublicSignup =
+    formData.get("allowPublicSignup") === "true" || formData.get("allowPublicSignup") === "on";
+
+  await savePlatformSettings({
+    supportWhatsapp,
+    supportEmail,
+    defaultTrialDays,
+    allowPublicSignup,
+  });
+
+  await logAuditEvent({
+    action: "Configurações Globais Atualizadas",
+    tenantName: "Sistema Geral",
+    superAdminEmail: user.email!,
+    details: `WhatsApp: ${supportWhatsapp || "padrão"}, E-mail: ${supportEmail}, Trial Padrão: ${defaultTrialDays} dias`,
+  });
+
+  revalidatePath("/super-admin");
+  revalidatePath("/", "layout");
+  return { success: "Configurações da plataforma atualizadas com sucesso!" };
 }
 
 export async function impersonateTenantAction(tenantId: string) {
@@ -259,8 +493,20 @@ export async function impersonateTenantAction(tenantId: string) {
   }
 
   cookieStore.set("sa_impersonate_active", "true", { path: "/", maxAge: 60 * 60 * 24 });
-  cookieStore.set("sa_impersonate_tenant_name", encodeURIComponent(tenant.name), { path: "/", maxAge: 60 * 60 * 24 });
+  cookieStore.set(
+    "sa_impersonate_tenant_name",
+    encodeURIComponent(tenant.name),
+    { path: "/", maxAge: 60 * 60 * 24 }
+  );
   cookieStore.set("sa_impersonate_tenant_id", tenant.id, { path: "/", maxAge: 60 * 60 * 24 });
+
+  await logAuditEvent({
+    action: "Sessão de Suporte (Impersonate)",
+    tenantId: tenant.id,
+    tenantName: tenant.name,
+    superAdminEmail: user.email!,
+    details: `Super Admin acessou o ambiente de trabalho da empresa "${tenant.name}" no modo suporte.`,
+  });
 
   revalidatePath("/", "layout");
   redirect("/inicio");
@@ -293,7 +539,7 @@ export async function saveAnnouncementAction(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  await requireSuperAdmin();
+  const { user } = await requireSuperAdmin();
   const admin = createAdminClient();
 
   const title = String(formData.get("title") ?? "").trim();
@@ -309,6 +555,8 @@ export async function saveAnnouncementAction(
     const announcementsTable = (admin as any).from("system_announcements");
     const { data: existing } = await announcementsTable
       .select("id")
+      .neq("title", "[SYS_AUDIT_LOGS]")
+      .neq("title", "[SYS_PLATFORM_SETTINGS]")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -336,12 +584,22 @@ export async function saveAnnouncementAction(
       if (insErr) return { error: `Erro ao criar comunicado: ${translateError(insErr)}` };
     }
 
+    await logAuditEvent({
+      action: isActive ? "Publicação de Comunicado Global" : "Desativação de Comunicado",
+      tenantName: "Global",
+      superAdminEmail: user.email!,
+      details: isActive ? `Título: ${title}` : "Comunicado desativado.",
+    });
+
     revalidatePath("/", "layout");
     revalidatePath("/super-admin");
-    return { success: isActive ? "Comunicado publicado com sucesso para todos os usuários!" : "Comunicado desativado com sucesso." };
+    return {
+      success: isActive
+        ? "Comunicado publicado com sucesso para todos os usuários!"
+        : "Comunicado desativado com sucesso.",
+    };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro desconhecido";
     return { error: `Erro ao salvar comunicado: ${msg}` };
   }
 }
-

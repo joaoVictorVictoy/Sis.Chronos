@@ -136,18 +136,18 @@ export function CreateTenantDialog() {
               </Field>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <Field
-                label="Vencimento da mensalidade (opcional)"
+                label="Vencimento da mensalidade"
                 htmlFor="currentPeriodEnd"
-                hint="Vazio = sem vencimento fixo."
+                hint="Vazio = sem data fixa."
                 errors={state.fieldErrors?.currentPeriodEnd}
               >
                 <Input id="currentPeriodEnd" name="currentPeriodEnd" type="date" />
               </Field>
 
               <Field
-                label="Limite de usuários (opcional)"
+                label="Limite de usuários"
                 htmlFor="maxUsers"
                 hint="Vazio = ilimitado."
                 errors={state.fieldErrors?.maxUsers}
@@ -158,6 +158,20 @@ export function CreateTenantDialog() {
                   type="number"
                   min="1"
                   placeholder="Ex: 5"
+                />
+              </Field>
+
+              <Field
+                label="Mensalidade R$ (MRR)"
+                htmlFor="customMrr"
+                hint="Vazio = valor do plano."
+                errors={state.fieldErrors?.customMrr}
+              >
+                <Input
+                  id="customMrr"
+                  name="customMrr"
+                  type="text"
+                  placeholder="Ex: 250,00"
                 />
               </Field>
             </div>
