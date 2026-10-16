@@ -495,7 +495,7 @@ export function WeekEntries({
             {totalMinutes > 0 ? Math.round((billableMinutes / totalMinutes) * 100) : 0}% faturável
             {leaveWeekHours > 0 && !isAllEmployees ? (
               <span className="block sm:inline sm:ml-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                · {weekLeaveDaysCount} {weekLeaveDaysCount === 1 ? "dia" : "dias"} com afastamento (-{formatHours(leaveWeekHours)} de horas diárias dispensadas)
+                · {weekLeaveDaysCount} {weekLeaveDaysCount === 1 ? "afastamento" : "afastamentos"} (-{formatHours(leaveWeekHours)})
               </span>
             ) : null}
           </CardDescription>

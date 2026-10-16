@@ -45,7 +45,7 @@ export async function updateEmployeeAction(_prev: ActionState, formData: FormDat
   if (!parsed.ok) return parsed.state;
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data: employee, error } = await supabase
     .from("employees")
     .update({
       full_name: parsed.data.fullName,
@@ -54,14 +54,34 @@ export async function updateEmployeeAction(_prev: ActionState, formData: FormDat
       monthly_hours: parsed.data.monthlyHours,
       active: parsed.data.active,
     })
-    .eq("id", parsed.data.id);
+    .eq("id", parsed.data.id)
+    .select("profile_id")
+    .single();
+
   if (error) {
     if (error.code === "23505") return { error: "Já existe um colaborador com esse e-mail." };
     return { error: translateError(error) };
   }
 
+  if (employee?.profile_id) {
+    let adminClient;
+    try {
+      adminClient = createAdminClient();
+    } catch {
+      adminClient = null;
+    }
+    const client = adminClient ?? supabase;
+    await client
+      .from("profiles")
+      .update({
+        full_name: parsed.data.fullName,
+      })
+      .eq("id", employee.profile_id);
+  }
+
   revalidatePath(`/colaboradores/${parsed.data.id}`);
   revalidatePath("/colaboradores");
+  revalidatePath("/configuracoes/usuarios");
   revalidatePath("/inicio");
   revalidatePath("/minhas-analises");
   revalidatePath("/apontamentos");
