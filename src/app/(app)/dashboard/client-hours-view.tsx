@@ -926,7 +926,6 @@ export function ClientHoursView({
                                   >
                                     <span className="font-medium text-foreground">{emp.name}</span>
                                     <span className="text-muted-foreground">· {formatHours(emp.hours)}</span>
-                                    <span className="text-[10px] opacity-75">({emp.percentageInArea.toFixed(0)}%)</span>
                                   </span>
                                 ))}
                               </div>
