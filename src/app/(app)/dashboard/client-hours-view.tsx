@@ -591,136 +591,6 @@ export function ClientHoursView({
         </Card>
       ) : (
         <>
-          {/* Barra de Filtros Cruzados Dinâmicos */}
-          <Card className="border-dashed bg-muted/20">
-            <CardHeader className="py-3 px-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <ListFilterIcon className="size-4 text-primary" />
-                  <span className="text-sm font-semibold">Filtros Cruzados do Cliente</span>
-                  {isAnyFilterActive && (
-                    <Badge variant="secondary" className="text-[11px] font-normal">
-                      Filtro ativo · dados consolidados recalculados
-                    </Badge>
-                  )}
-                </div>
-
-                {isAnyFilterActive && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={resetFilters}
-                    className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    <RotateCcwIcon className="size-3.5" />
-                    Limpar filtros
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-4 pt-0 grid gap-3">
-              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
-                {/* 1. Filtro por Colaborador */}
-                <div className="grid gap-1">
-                  <label htmlFor="filter-employee" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                    <UsersIcon className="size-3" /> Colaborador
-                  </label>
-                  <select
-                    id="filter-employee"
-                    value={employeeFilter}
-                    onChange={(e) => setEmployeeFilter(e.target.value)}
-                    className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="todos">Todos os colaboradores ({filterOptions.employees.length})</option>
-                    {filterOptions.employees.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 2. Filtro por Área de Atuação */}
-                <div className="grid gap-1">
-                  <label htmlFor="filter-area" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                    <LayersIcon className="size-3" /> Área de Atuação
-                  </label>
-                  <select
-                    id="filter-area"
-                    value={areaFilter}
-                    onChange={(e) => setAreaFilter(e.target.value)}
-                    className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="todas">Todas as áreas ({filterOptions.areas.length})</option>
-                    {filterOptions.areas.map((area) => (
-                      <option key={area} value={area}>
-                        {area}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 3. Filtro por Atividade */}
-                <div className="grid gap-1">
-                  <label htmlFor="filter-activity" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                    <TagIcon className="size-3" /> Atividade
-                  </label>
-                  <select
-                    id="filter-activity"
-                    value={activityFilter}
-                    onChange={(e) => setActivityFilter(e.target.value)}
-                    className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="todas">Todas as atividades ({filterOptions.activities.length})</option>
-                    {filterOptions.activities
-                      .filter((act) => areaFilter === "todas" || act.areaName === areaFilter)
-                      .map((act) => (
-                        <option key={act.id} value={act.id}>
-                          {act.name} ({act.areaName})
-                        </option>
-                      ))}
-                  </select>
-                </div>
-
-                {/* 4. Filtro por Faturabilidade */}
-                <div className="grid gap-1">
-                  <label htmlFor="filter-billable" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                    <CheckCircle2Icon className="size-3" /> Tipo
-                  </label>
-                  <select
-                    id="filter-billable"
-                    value={billableFilter}
-                    onChange={(e) => setBillableFilter(e.target.value as "todos" | "sim" | "nao")}
-                    className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="todos">Faturáveis e Internas</option>
-                    <option value="sim">Apenas faturáveis</option>
-                    <option value="nao">Apenas internas / não faturáveis</option>
-                  </select>
-                </div>
-
-                {/* 5. Busca Textual */}
-                <div className="grid gap-1">
-                  <label htmlFor="filter-search" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                    <SearchIcon className="size-3" /> Busca rápida
-                  </label>
-                  <div className="relative">
-                    <SearchIcon className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
-                    <Input
-                      id="filter-search"
-                      placeholder="Descrição, contrato..."
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="pl-8 text-xs h-9"
-                    />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Grade de KPIs Dinâmicos Recalculados */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card className="relative overflow-hidden">
@@ -878,6 +748,136 @@ export function ClientHoursView({
               </button>
             </div>
           </div>
+
+          {/* Barra de Filtros Cruzados Dinâmicos (Posicionada junto à visualização consolidada) */}
+          <Card className="border-dashed bg-muted/20">
+            <CardHeader className="py-3 px-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <ListFilterIcon className="size-4 text-primary" />
+                  <span className="text-sm font-semibold">Filtros Cruzados do Cliente</span>
+                  {isAnyFilterActive && (
+                    <Badge variant="secondary" className="text-[11px] font-normal">
+                      Filtro ativo · dados consolidados recalculados
+                    </Badge>
+                  )}
+                </div>
+
+                {isAnyFilterActive && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetFilters}
+                    className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <RotateCcwIcon className="size-3.5" />
+                    Limpar filtros
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-4 pt-0 grid gap-3">
+              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
+                {/* 1. Filtro por Colaborador */}
+                <div className="grid gap-1">
+                  <label htmlFor="filter-employee" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <UsersIcon className="size-3" /> Colaborador
+                  </label>
+                  <select
+                    id="filter-employee"
+                    value={employeeFilter}
+                    onChange={(e) => setEmployeeFilter(e.target.value)}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="todos">Todos os colaboradores ({filterOptions.employees.length})</option>
+                    {filterOptions.employees.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Filtro por Área de Atuação */}
+                <div className="grid gap-1">
+                  <label htmlFor="filter-area" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <LayersIcon className="size-3" /> Área de Atuação
+                  </label>
+                  <select
+                    id="filter-area"
+                    value={areaFilter}
+                    onChange={(e) => setAreaFilter(e.target.value)}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="todas">Todas as áreas ({filterOptions.areas.length})</option>
+                    {filterOptions.areas.map((area) => (
+                      <option key={area} value={area}>
+                        {area}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Filtro por Atividade */}
+                <div className="grid gap-1">
+                  <label htmlFor="filter-activity" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <TagIcon className="size-3" /> Atividade
+                  </label>
+                  <select
+                    id="filter-activity"
+                    value={activityFilter}
+                    onChange={(e) => setActivityFilter(e.target.value)}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="todas">Todas as atividades ({filterOptions.activities.length})</option>
+                    {filterOptions.activities
+                      .filter((act) => areaFilter === "todas" || act.areaName === areaFilter)
+                      .map((act) => (
+                        <option key={act.id} value={act.id}>
+                          {act.name} ({act.areaName})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                {/* 4. Filtro por Faturabilidade */}
+                <div className="grid gap-1">
+                  <label htmlFor="filter-billable" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <CheckCircle2Icon className="size-3" /> Tipo
+                  </label>
+                  <select
+                    id="filter-billable"
+                    value={billableFilter}
+                    onChange={(e) => setBillableFilter(e.target.value as "todos" | "sim" | "nao")}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="todos">Faturáveis e Internas</option>
+                    <option value="sim">Apenas faturáveis</option>
+                    <option value="nao">Apenas internas / não faturáveis</option>
+                  </select>
+                </div>
+
+                {/* 5. Busca Textual */}
+                <div className="grid gap-1">
+                  <label htmlFor="filter-search" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <SearchIcon className="size-3" /> Busca rápida
+                  </label>
+                  <div className="relative">
+                    <SearchIcon className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+                    <Input
+                      id="filter-search"
+                      placeholder="Descrição, contrato..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="pl-8 text-xs h-9"
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* 1. VISÃO CONSOLIDADA POR ÁREA DE ATUAÇÃO (Foco solicitado pelo usuário) */}
           {(viewMode === "areas" || viewMode === "todas") && (
