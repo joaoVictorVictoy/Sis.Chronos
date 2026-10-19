@@ -1032,7 +1032,7 @@ export function ClientHoursView({
                                     className="flex items-center gap-1.5 hover:text-primary transition-colors cursor-pointer text-left"
                                   >
                                     <UsersIcon className="size-3.5 text-primary" />
-                                    <span>Colaboradores atuantes em {area.name} ({area.employees.length})</span>
+                                    <span>Colaboradores atuantes ({area.employees.length})</span>
                                     <span className="text-[11px] font-normal text-muted-foreground underline">
                                       {isEmpVisible ? "(Esconder)" : "(Mostrar)"}
                                     </span>
@@ -1083,7 +1083,7 @@ export function ClientHoursView({
                                   <div className="flex items-center gap-2">
                                     <span className="flex items-center gap-1.5">
                                       <TagIcon className="size-3.5 text-primary" />
-                                      Atividades executadas em {area.name} ({area.activities.length}):
+                                      Atividades executadas ({area.activities.length}):
                                     </span>
                                     <button
                                       type="button"
