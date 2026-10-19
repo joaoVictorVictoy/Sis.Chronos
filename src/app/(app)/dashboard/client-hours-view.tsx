@@ -171,7 +171,7 @@ export function ClientHoursView({
         billableMinutes: number;
         entriesCount: number;
         activitiesMap: Map<string, { id: string; name: string; minutes: number; billable: boolean; cost: number }>;
-        employeesSet: Set<string>;
+        employeesMap: Map<string, { id: string; name: string; minutes: number; cost: number; entriesCount: number }>;
       }
     >();
 
@@ -186,7 +186,7 @@ export function ClientHoursView({
           billableMinutes: 0,
           entriesCount: 0,
           activitiesMap: new Map(),
-          employeesSet: new Set(),
+          employeesMap: new Map(),
         };
         map.set(areaKey, area);
       }
@@ -195,7 +195,18 @@ export function ClientHoursView({
       area.cost += e.costAmount;
       if (e.billable) area.billableMinutes += e.minutes;
       area.entriesCount += 1;
-      area.employeesSet.add(e.employeeName);
+
+      const emp = area.employeesMap.get(e.employeeId) ?? {
+        id: e.employeeId,
+        name: e.employeeName,
+        minutes: 0,
+        cost: 0,
+        entriesCount: 0,
+      };
+      emp.minutes += e.minutes;
+      emp.cost += e.costAmount;
+      emp.entriesCount += 1;
+      area.employeesMap.set(e.employeeId, emp);
 
       const act = area.activitiesMap.get(e.activityId) ?? {
         id: e.activityId,
@@ -221,6 +232,14 @@ export function ClientHoursView({
           }))
           .sort((x, y) => y.minutes - x.minutes);
 
+        const employees = Array.from(a.employeesMap.values())
+          .map((emp) => ({
+            ...emp,
+            hours: emp.minutes / 60,
+            percentageInArea: a.minutes > 0 ? (emp.minutes / a.minutes) * 100 : 0,
+          }))
+          .sort((x, y) => y.minutes - x.minutes);
+
         return {
           name: a.name,
           minutes: a.minutes,
@@ -233,7 +252,7 @@ export function ClientHoursView({
           entriesCount: a.entriesCount,
           activitiesCount: a.activitiesMap.size,
           activities,
-          employees: Array.from(a.employeesSet),
+          employees,
         };
       })
       .sort((a, b) => b.minutes - a.minutes);
@@ -870,9 +889,19 @@ export function ClientHoursView({
                                 </button>
                               ) : null}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              Equipe: {area.employees.join(", ") || "—"}
-                            </p>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                              <span className="font-medium text-foreground">Equipe:</span>
+                              {area.employees.map((emp) => (
+                                <span
+                                  key={emp.id}
+                                  className="inline-flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full text-[11px]"
+                                >
+                                  <span className="font-medium text-foreground">{emp.name}</span>
+                                  <span className="text-muted-foreground">· {formatHours(emp.hours)}</span>
+                                  <span className="text-[10px] opacity-75">({emp.percentageInArea.toFixed(0)}%)</span>
+                                </span>
+                              ))}
+                            </div>
                           </div>
 
                           <div className="flex items-center gap-3 shrink-0 tabular-nums">
@@ -902,7 +931,7 @@ export function ClientHoursView({
                               size="sm"
                               onClick={() => toggleAreaExpand(area.name)}
                               className="h-8 w-8 p-0 shrink-0 cursor-pointer"
-                              title={isExpanded ? "Ocultar detalhamento de atividades" : "Ver detalhamento de atividades"}
+                              title={isExpanded ? "Ocultar detalhamento da área" : "Ver detalhamento da área"}
                             >
                               {isExpanded ? <ChevronUpIcon className="size-4" /> : <ChevronDownIcon className="size-4" />}
                             </Button>
@@ -917,47 +946,97 @@ export function ClientHoursView({
                           />
                         </div>
 
-                        {/* Detalhamento das Atividades dentro desta Área (Expansível) */}
+                        {/* Detalhamento de Colaboradores e Atividades dentro desta Área (Expansível) */}
                         {isExpanded && (
-                          <div className="mt-1 rounded-lg border bg-muted/30 p-3 grid gap-2">
-                            <div className="flex items-center justify-between text-xs font-medium text-muted-foreground border-b pb-1.5">
-                              <span>Atividades executadas em {area.name}:</span>
-                              <div className="flex items-center gap-4 shrink-0 tabular-nums">
-                                <span className="w-14 text-right">Horas</span>
-                                <span className="w-14 text-right">Part. %</span>
-                                {canSeeCosts && <span className="w-20 text-right">Custo</span>}
+                          <div className="mt-2 grid gap-3.5 rounded-lg border bg-muted/20 p-3.5">
+                            {/* 1. Colaboradores na área com horas consolidadas */}
+                            <div className="grid gap-2">
+                              <div className="flex items-center justify-between text-xs font-semibold text-foreground border-b pb-1.5">
+                                <span className="flex items-center gap-1.5">
+                                  <UsersIcon className="size-3.5 text-primary" />
+                                  Colaboradores atuantes em {area.name} ({area.employees.length}):
+                                </span>
+                                <div className="flex items-center gap-4 shrink-0 tabular-nums text-muted-foreground text-[11px] font-medium">
+                                  <span className="w-14 text-right">Horas</span>
+                                  <span className="w-14 text-right">Part. %</span>
+                                  {canSeeCosts && <span className="w-20 text-right">Custo</span>}
+                                </div>
+                              </div>
+                              <div className="grid gap-1.5">
+                                {area.employees.map((emp) => (
+                                  <div
+                                    key={emp.id}
+                                    className="flex items-center justify-between text-xs py-1.5 px-2 rounded-md bg-card/60 border hover:bg-card transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0 pr-2">
+                                      <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
+                                        {emp.name.charAt(0).toUpperCase()}
+                                      </span>
+                                      <span className="font-medium truncate text-foreground">{emp.name}</span>
+                                      <span className="text-[11px] text-muted-foreground">({emp.entriesCount} apontamentos)</span>
+                                    </div>
+                                    <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                                      <span className="font-semibold text-foreground w-14 text-right">
+                                        {formatHours(emp.hours)}
+                                      </span>
+                                      <span className="text-muted-foreground text-[11px] w-14 text-right">
+                                        {emp.percentageInArea.toFixed(1)}%
+                                      </span>
+                                      {canSeeCosts && (
+                                        <span className="text-muted-foreground text-[11px] w-20 text-right">
+                                          {emp.cost > 0 ? formatCurrency(emp.cost) : "—"}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             </div>
-                            <div className="grid gap-1.5">
-                              {area.activities.map((act) => (
-                                <div
-                                  key={act.id}
-                                  className="flex items-center justify-between text-xs py-1 px-1.5 rounded hover:bg-background/80 transition-colors"
-                                >
-                                  <div className="flex items-center gap-2 min-w-0 pr-2">
-                                    <span className="font-medium truncate text-foreground">{act.name}</span>
-                                    <Badge
-                                      variant={act.billable ? "outline" : "secondary"}
-                                      className="text-[10px] py-0 px-1 shrink-0"
-                                    >
-                                      {act.billable ? "Faturável" : "Interna"}
-                                    </Badge>
-                                  </div>
-                                  <div className="flex items-center gap-4 shrink-0 tabular-nums">
-                                    <span className="font-semibold text-foreground w-14 text-right">
-                                      {formatHours(act.hours)}
-                                    </span>
-                                    <span className="text-muted-foreground text-[11px] w-14 text-right">
-                                      {act.percentageInArea.toFixed(1)}%
-                                    </span>
-                                    {canSeeCosts && (
-                                      <span className="text-muted-foreground text-[11px] w-20 text-right">
-                                        {act.cost > 0 ? formatCurrency(act.cost) : "—"}
-                                      </span>
-                                    )}
-                                  </div>
+
+                            {/* 2. Atividades executadas na área */}
+                            <div className="grid gap-2">
+                              <div className="flex items-center justify-between text-xs font-semibold text-foreground border-b pb-1.5">
+                                <span className="flex items-center gap-1.5">
+                                  <TagIcon className="size-3.5 text-primary" />
+                                  Atividades executadas em {area.name} ({area.activities.length}):
+                                </span>
+                                <div className="flex items-center gap-4 shrink-0 tabular-nums text-muted-foreground text-[11px] font-medium">
+                                  <span className="w-14 text-right">Horas</span>
+                                  <span className="w-14 text-right">Part. %</span>
+                                  {canSeeCosts && <span className="w-20 text-right">Custo</span>}
                                 </div>
-                              ))}
+                              </div>
+                              <div className="grid gap-1.5">
+                                {area.activities.map((act) => (
+                                  <div
+                                    key={act.id}
+                                    className="flex items-center justify-between text-xs py-1.5 px-2 rounded-md hover:bg-card/80 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0 pr-2">
+                                      <span className="font-medium truncate text-foreground">{act.name}</span>
+                                      <Badge
+                                        variant={act.billable ? "outline" : "secondary"}
+                                        className="text-[10px] py-0 px-1 shrink-0"
+                                      >
+                                        {act.billable ? "Faturável" : "Interna"}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                                      <span className="font-semibold text-foreground w-14 text-right">
+                                        {formatHours(act.hours)}
+                                      </span>
+                                      <span className="text-muted-foreground text-[11px] w-14 text-right">
+                                        {act.percentageInArea.toFixed(1)}%
+                                      </span>
+                                      {canSeeCosts && (
+                                        <span className="text-muted-foreground text-[11px] w-20 text-right">
+                                          {act.cost > 0 ? formatCurrency(act.cost) : "—"}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           </div>
                         )}
