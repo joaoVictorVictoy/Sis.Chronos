@@ -39,8 +39,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     ate: search.get("ate") ?? undefined,
   });
   const scope = search.get("escopo") === "meus" ? "meus" : undefined;
+  const clientId = search.get("cliente") ?? undefined;
 
-  const data = await buildDataset(dataset as ExportDataset, period, { scope });
+  const data = await buildDataset(dataset as ExportDataset, period, { scope, clientId });
   const { extension, contentType } = FORMATS[format];
   const filename = `${sanitizeFilename(data.filename)}.${extension}`;
 

@@ -11,9 +11,15 @@ import {
   type ContractMetricsRow,
 } from "@/lib/profitability";
 import type { Period } from "@/lib/periods";
-import type { ContractReport, MonthPoint } from "./metrics.types";
+import type {
+  ClientHoursEntry,
+  ClientHoursReport,
+  ClientHoursSummary,
+  ContractReport,
+  MonthPoint,
+} from "./metrics.types";
 
-export type { ContractReport } from "./metrics.types";
+export type { ClientHoursEntry, ClientHoursReport, ClientHoursSummary, ContractReport } from "./metrics.types";
 
 export type ProfitabilityReport = {
   period: Period;
@@ -408,5 +414,235 @@ export async function getTeamOperationalReport(period: Period): Promise<TeamOper
     totalLaborCost,
     topConsumingActivities,
     members,
+  };
+}
+
+/** Relatório consolidado de horas apontadas por cliente no período selecionado (admin/gestor). */
+export async function getClientHoursReport(period: Period): Promise<ClientHoursReport> {
+  await requireRole(["admin", "gestor"]);
+  const supabase = await createClient();
+
+  const [{ data: clientsData }, { data: entriesData }] = await Promise.all([
+    supabase.from("clients").select("id, legal_name, trade_name, active").order("trade_name"),
+    supabase
+      .from("time_entries")
+      .select(`
+        id,
+        employee_id,
+        entry_date,
+        start_time,
+        end_time,
+        minutes,
+        description,
+        billable,
+        status,
+        cost_amount,
+        activity_id,
+        client_id,
+        contract_id,
+        clients(id, legal_name, trade_name),
+        contracts(id, name, client_id, clients(id, legal_name, trade_name)),
+        activities(id, name, area_id, client_id, areas(name)),
+        employees(id, full_name)
+      `)
+      .gte("entry_date", period.from)
+      .lte("entry_date", period.to)
+      .neq("status", "rejeitado")
+      .order("entry_date", { ascending: false }),
+  ]);
+
+  const clients = clientsData ?? [];
+  const rawEntries = entriesData ?? [];
+
+  // Indexa clientes cadastrados por id
+  const clientMap = new Map<string, { id: string; name: string; legalName: string; active: boolean }>();
+  for (const c of clients) {
+    clientMap.set(c.id, {
+      id: c.id,
+      name: c.trade_name || c.legal_name,
+      legalName: c.legal_name,
+      active: c.active,
+    });
+  }
+
+  // Agrupamento de entradas por cliente
+  const entriesByClient = new Map<string, typeof rawEntries>();
+  let totalCompanyMinutes = 0;
+
+  for (const entry of rawEntries) {
+    totalCompanyMinutes += entry.minutes;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const anyE = entry as any;
+    const resolvedClientId =
+      anyE.client_id ||
+      anyE.contracts?.client_id ||
+      (anyE.clients?.id as string | undefined) ||
+      "sem-cliente";
+
+    // Se o cliente não estava na lista (ex: "sem-cliente" ou cliente não encontrado)
+    if (!clientMap.has(resolvedClientId)) {
+      const fallbackName =
+        anyE.clients?.trade_name ||
+        anyE.clients?.legal_name ||
+        anyE.contracts?.clients?.trade_name ||
+        anyE.contracts?.clients?.legal_name ||
+        (resolvedClientId === "sem-cliente" ? "Atividades Internas / Sem Cliente" : "Cliente");
+
+      clientMap.set(resolvedClientId, {
+        id: resolvedClientId,
+        name: fallbackName,
+        legalName: fallbackName,
+        active: true,
+      });
+    }
+
+    const list = entriesByClient.get(resolvedClientId) ?? [];
+    list.push(entry);
+    entriesByClient.set(resolvedClientId, list);
+  }
+
+  const clientSummaries: ClientHoursSummary[] = Array.from(clientMap.values()).map((c) => {
+    const entries = entriesByClient.get(c.id) ?? [];
+    let totalMinutes = 0;
+    let billableMinutes = 0;
+    let totalCost = 0;
+
+    const empMap = new Map<string, { id: string; name: string; minutes: number; cost: number }>();
+    const actMap = new Map<
+      string,
+      { id: string; name: string; areaName: string; minutes: number; billable: boolean }
+    >();
+    const conMap = new Map<string, { id: string; name: string; minutes: number }>();
+
+    const mappedEntries: ClientHoursEntry[] = [];
+
+    for (const entry of entries) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const anyE = entry as any;
+      const mins = entry.minutes;
+      const cost = Number(entry.cost_amount) || 0;
+      totalMinutes += mins;
+      if (entry.billable) billableMinutes += mins;
+      totalCost += cost;
+
+      const empId = entry.employee_id;
+      const empName = anyE.employees?.full_name || "Colaborador";
+      const existingEmp = empMap.get(empId) ?? { id: empId, name: empName, minutes: 0, cost: 0 };
+      existingEmp.minutes += mins;
+      existingEmp.cost += cost;
+      empMap.set(empId, existingEmp);
+
+      const actId = entry.activity_id;
+      const actName = anyE.activities?.name || "Atividade";
+      const areaName = anyE.activities?.areas?.name || "Sem área";
+      const existingAct = actMap.get(actId) ?? {
+        id: actId,
+        name: actName,
+        areaName,
+        minutes: 0,
+        billable: entry.billable,
+      };
+      existingAct.minutes += mins;
+      actMap.set(actId, existingAct);
+
+      const conId = entry.contract_id;
+      if (conId) {
+        const conName = anyE.contracts?.name || "Contrato";
+        const existingCon = conMap.get(conId) ?? { id: conId, name: conName, minutes: 0 };
+        existingCon.minutes += mins;
+        conMap.set(conId, existingCon);
+      }
+
+      mappedEntries.push({
+        id: entry.id,
+        entryDate: entry.entry_date,
+        startTime: entry.start_time,
+        endTime: entry.end_time,
+        minutes: mins,
+        hours: mins / 60,
+        description: entry.description,
+        billable: entry.billable,
+        status: entry.status,
+        costAmount: cost,
+        employeeId: empId,
+        employeeName: empName,
+        activityId: actId,
+        activityName: actName,
+        areaName,
+        contractId: conId,
+        contractName: conId ? anyE.contracts?.name || null : null,
+      });
+    }
+
+    const byEmployee = Array.from(empMap.values())
+      .map((e) => ({
+        id: e.id,
+        name: e.name,
+        minutes: e.minutes,
+        hours: e.minutes / 60,
+        cost: e.cost,
+        percentage: totalMinutes > 0 ? (e.minutes / totalMinutes) * 100 : 0,
+      }))
+      .sort((a, b) => b.minutes - a.minutes);
+
+    const byActivity = Array.from(actMap.values())
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        areaName: a.areaName,
+        minutes: a.minutes,
+        hours: a.minutes / 60,
+        billable: a.billable,
+        percentage: totalMinutes > 0 ? (a.minutes / totalMinutes) * 100 : 0,
+      }))
+      .sort((a, b) => b.minutes - a.minutes);
+
+    const byContract = Array.from(conMap.values())
+      .map((k) => ({
+        id: k.id,
+        name: k.name,
+        minutes: k.minutes,
+        hours: k.minutes / 60,
+        percentage: totalMinutes > 0 ? (k.minutes / totalMinutes) * 100 : 0,
+      }))
+      .sort((a, b) => b.minutes - a.minutes);
+
+    return {
+      id: c.id,
+      name: c.name,
+      legalName: c.legalName,
+      active: c.active,
+      totalMinutes,
+      totalHours: totalMinutes / 60,
+      billableMinutes,
+      billableHours: billableMinutes / 60,
+      nonBillableHours: (totalMinutes - billableMinutes) / 60,
+      billableShare: totalMinutes > 0 ? billableMinutes / totalMinutes : 0,
+      totalCost,
+      entriesCount: mappedEntries.length,
+      employeesCount: byEmployee.length,
+      byEmployee,
+      byActivity,
+      byContract,
+      entries: mappedEntries,
+    };
+  });
+
+  // Ordena os clientes: quem tem mais horas primeiro, depois alfabético
+  clientSummaries.sort((a, b) => {
+    if (a.totalMinutes !== b.totalMinutes) {
+      return b.totalMinutes - a.totalMinutes;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  return {
+    period: {
+      from: period.from,
+      to: period.to,
+      label: period.label,
+    },
+    clients: clientSummaries,
+    totalCompanyHours: totalCompanyMinutes / 60,
   };
 }

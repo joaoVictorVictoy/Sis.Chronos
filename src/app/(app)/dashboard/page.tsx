@@ -19,6 +19,7 @@ import { HEALTH_LABELS, type HealthStatus } from "@/lib/profitability";
 import {
   getActivityMetrics,
   getAreaReport,
+  getClientHoursReport,
   getEmployeeClientCost,
   getEmployeeMetrics,
   getMissingCosts,
@@ -33,6 +34,7 @@ import { ChurnAnalysisCard } from "./churn-analysis";
 import { ClientsPanel, type PanelItem } from "./clients-panel";
 import { PeriodFilter } from "./period-filter";
 import { TeamOperationalView } from "./team-operational-view";
+import { DashboardViewTabs } from "./dashboard-view-tabs";
 
 export const metadata = { title: "Rentabilidade | Apontamento" };
 
@@ -77,6 +79,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const isAdmin = profile.role === "admin";
   const canSeeCosts = isAdmin || profile.can_view_costs;
 
+  const rawAba = typeof params.aba === "string" ? params.aba : undefined;
+  const initialTab =
+    rawAba === "cliente" || rawAba === "horas-cliente" ? ("horas-cliente" as const) : ("rentabilidade" as const);
+  const initialClientId = typeof params.cliente === "string" ? params.cliente : undefined;
+
   const today = todayISO();
   const period = resolvePeriod(today, {
     periodo: typeof params.periodo === "string" ? params.periodo : undefined,
@@ -95,6 +102,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     evolution,
     teamOperationalReport,
     churnReport,
+    clientHoursReport,
   ] = await Promise.all([
     getEmployeeMetrics(period),
     getMissingCosts(),
@@ -105,6 +113,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     getMonthlyEvolution(monthsInRange(monthsBack(period.from, 5), period.to)),
     getTeamOperationalReport(period),
     getChurnReport(period),
+    getClientHoursReport(period),
   ]);
 
   const totals = report.totals;
@@ -132,6 +141,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
   const panelItems: PanelItem[] = report.contracts.map(({ row, profitability }) => ({
     contractId: row.contract_id,
+    clientId: row.client_id,
     clientName: row.client_name,
     contractName: row.contract_name,
     periodicity: row.periodicity,
@@ -194,7 +204,14 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
       <PeriodFilter preset={period.preset} from={period.from} to={period.to} />
 
-      {alerts.length > 0 ? (
+      <DashboardViewTabs
+        initialTab={initialTab}
+        initialClientId={initialClientId}
+        clientHoursReport={clientHoursReport}
+        canSeeCosts={canSeeCosts}
+        overviewContent={
+          <>
+            {alerts.length > 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>Alertas</CardTitle>
@@ -611,6 +628,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           </p>
         </>
       ) : null}
+          </>
+        }
+      />
     </div>
   );
 }

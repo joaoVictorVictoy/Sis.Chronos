@@ -81,7 +81,7 @@ function rentabilidade(contracts: ContractReport[], period: Period): Dataset<Con
 export async function buildDataset(
   dataset: ExportDataset,
   period: Period,
-  options: { scope?: "meus" | "todos" } = {},
+  options: { scope?: "meus" | "todos"; clientId?: string } = {},
 ): Promise<Dataset<never>> {
   const supabase = await createClient();
 
@@ -174,13 +174,28 @@ export async function buildDataset(
 
   if (scope === "meus" && employeeId) query = query.eq("employee_id", employeeId);
 
+  let clientNameTitle = "";
+  if (options.clientId) {
+    query = query.eq("client_id", options.clientId);
+    const { data: clientInfo } = await supabase
+      .from("clients")
+      .select("trade_name, legal_name")
+      .eq("id", options.clientId)
+      .maybeSingle();
+    if (clientInfo) {
+      clientNameTitle = ` — ${clientInfo.trade_name || clientInfo.legal_name}`;
+    }
+  }
+
   const { data } = await query;
   const rows = (data ?? []) as unknown as TimeEntryRow[];
   const canSeeCost = profile.role === "admin" || profile.can_view_costs;
 
   const ds: Dataset<TimeEntryRow> = {
-    filename: `apontamentos-${period.from}-a-${period.to}`,
-    title: scope === "meus" ? "Meus apontamentos" : "Apontamentos",
+    filename: options.clientId
+      ? `apontamentos-cliente-${period.from}-a-${period.to}`
+      : `apontamentos-${period.from}-a-${period.to}`,
+    title: (scope === "meus" ? "Meus apontamentos" : "Apontamentos") + clientNameTitle,
     subtitle: `${period.label} (${formatDate(period.from)} a ${formatDate(period.to)})`,
     rows,
     columns: [

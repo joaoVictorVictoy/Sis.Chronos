@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { LayoutGridIcon, TableIcon } from "lucide-react";
+import { ClockIcon, LayoutGridIcon, TableIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -14,6 +14,7 @@ import type { HealthStatus } from "@/lib/profitability";
 
 export type PanelItem = {
   contractId: string;
+  clientId?: string;
   clientName: string;
   contractName: string;
   periodicity: keyof typeof PERIODICITY_LABELS;
@@ -37,9 +38,26 @@ const SORT_LABELS: Record<SortKey, string> = {
   consumption: "Consumo de horas",
 };
 
-function ConsumptionBar({ consumption }: { consumption: number | null }) {
+function ConsumptionBar({
+  consumption,
+  revenue,
+  cost,
+  hours,
+}: {
+  consumption: number | null;
+  revenue: number;
+  cost: number;
+  hours: number;
+}) {
+  if (revenue <= 0 && (cost > 0 || hours > 0)) {
+    return (
+      <span className="text-xs font-medium text-[--viz-critical]">
+        limite zerado · sem receita contratual
+      </span>
+    );
+  }
   if (consumption === null) {
-    return <span className="text-xs text-muted-foreground">sem custo hora da equipe</span>;
+    return <span className="text-xs text-muted-foreground">sem limite de horas definido</span>;
   }
   const ratio = Math.min(consumption, 1);
   const color = consumption >= 1 ? "var(--viz-critical)" : consumption >= 0.8 ? "var(--viz-warning)" : "var(--viz-1)";
@@ -57,10 +75,12 @@ export function ClientsPanel({
   items,
   canSeeCosts = true,
   canManageContracts = false,
+  onViewClientHours,
 }: {
   items: PanelItem[];
   canSeeCosts?: boolean;
   canManageContracts?: boolean;
+  onViewClientHours?: (clientId: string) => void;
 }) {
   const [view, setView] = useState<"cards" | "tabela">("cards");
   const [sort, setSort] = useState<SortKey>(canSeeCosts ? "profit" : "consumption");
@@ -68,11 +88,11 @@ export function ClientsPanel({
   const sorted = [...items].sort((a, b) => {
     const pick = (item: PanelItem) =>
       sort === "margin"
-        ? (item.margin ?? -Infinity)
+        ? (item.margin ?? (item.cost > 0 ? -1 : -Infinity))
         : sort === "revenue"
           ? item.revenue
           : sort === "consumption"
-            ? (item.consumption ?? -Infinity)
+            ? (item.consumption ?? (item.cost > 0 && item.revenue <= 0 ? 999 : -Infinity))
             : item.profit;
     return pick(b) - pick(a);
   });
@@ -148,9 +168,30 @@ export function ClientsPanel({
                         </div>
                       </div>
 
-                      <p className="text-sm">
-                        Margem <span className="font-medium">{item.margin === null ? "—" : formatPercent(item.margin)}</span>
-                        <span className="text-muted-foreground"> · meta {formatPercent(item.desiredMargin)}</span>
+                      <p className="text-sm flex items-center flex-wrap gap-1">
+                        <span>Margem</span>
+                        {item.margin !== null ? (
+                          <span
+                            className={`font-medium tabular-nums ${
+                              item.margin < 0
+                                ? "text-[--viz-critical]"
+                                : item.margin >= item.desiredMargin
+                                  ? "text-[--viz-good]"
+                                  : "text-[--viz-warning]"
+                            }`}
+                          >
+                            {formatPercent(item.margin)}
+                          </span>
+                        ) : item.cost > 0 ? (
+                          <span className="font-semibold text-[--viz-critical]">
+                            Prejuízo (-100%)
+                          </span>
+                        ) : (
+                          <span className="font-medium text-muted-foreground">—</span>
+                        )}
+                        <span className="text-muted-foreground">
+                          · meta {formatPercent(item.desiredMargin)}
+                        </span>
                       </p>
                     </>
                   ) : (
@@ -168,7 +209,37 @@ export function ClientsPanel({
                     </div>
                   )}
 
-                  <ConsumptionBar consumption={item.consumption} />
+                  <ConsumptionBar
+                    consumption={item.consumption}
+                    revenue={item.revenue}
+                    cost={item.cost}
+                    hours={item.hours}
+                  />
+
+                  {item.clientId && (
+                    <div className="flex items-center justify-between border-t border-border/60 pt-2 text-xs">
+                      <span className="text-muted-foreground">Apontamentos</span>
+                      {onViewClientHours ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onViewClientHours(item.clientId!);
+                          }}
+                          className="inline-flex items-center gap-1 font-medium text-primary hover:underline cursor-pointer"
+                        >
+                          <ClockIcon className="size-3.5" />
+                          Ver horas do mês
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 font-medium text-primary">
+                          <ClockIcon className="size-3.5" />
+                          Ver horas do mês
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </>
               );
 
@@ -206,6 +277,7 @@ export function ClientsPanel({
                 <TableHead className="text-right">Horas</TableHead>
                 <TableHead className="text-right">Consumo</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-right w-24">Extrato</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -227,7 +299,25 @@ export function ClientsPanel({
                       <TableCell className="text-right tabular-nums">{formatCurrency(item.cost)}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatCurrency(item.profit)}</TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {item.margin === null ? "—" : formatPercent(item.margin)}
+                        {item.margin !== null ? (
+                          <span
+                            className={
+                              item.margin < 0
+                                ? "text-[--viz-critical] font-medium"
+                                : item.margin >= item.desiredMargin
+                                  ? "text-[--viz-good] font-medium"
+                                  : "text-[--viz-warning] font-medium"
+                            }
+                          >
+                            {formatPercent(item.margin)}
+                          </span>
+                        ) : item.cost > 0 ? (
+                          <span className="text-[--viz-critical] font-semibold text-xs">
+                            Prejuízo (-100%)
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums text-muted-foreground">
                         {formatPercent(item.desiredMargin)}
@@ -238,10 +328,44 @@ export function ClientsPanel({
                   )}
                   <TableCell className="text-right tabular-nums">{formatHours(item.hours)}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {item.consumption === null ? "—" : formatPercent(item.consumption)}
+                    {item.consumption !== null ? (
+                      formatPercent(item.consumption)
+                    ) : item.revenue <= 0 && (item.cost > 0 || item.hours > 0) ? (
+                      <span className="text-xs text-[--viz-critical] font-medium">Sem receita</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={item.status} />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {item.clientId ? (
+                      onViewClientHours ? (
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          onClick={() => onViewClientHours(item.clientId!)}
+                          title="Ver todas as horas deste cliente no mês"
+                          className="gap-1 text-xs"
+                        >
+                          <ClockIcon className="size-3.5" />
+                          Horas
+                        </Button>
+                      ) : (
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          nativeButton={false}
+                          render={<Link href={`/dashboard?aba=cliente&cliente=${item.clientId}`} />}
+                          title="Ver todas as horas deste cliente no mês"
+                          className="gap-1 text-xs"
+                        >
+                          <ClockIcon className="size-3.5" />
+                          Horas
+                        </Button>
+                      )
+                    ) : null}
                   </TableCell>
                 </TableRow>
               ))}

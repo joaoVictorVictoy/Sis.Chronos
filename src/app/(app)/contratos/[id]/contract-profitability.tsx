@@ -72,8 +72,13 @@ export async function ContractProfitability({ contractId, period }: { contractId
             <CardTitle>{canSeeCosts ? `Rentabilidade · ${period.label}` : `Horas e apontamentos · ${period.label}`}</CardTitle>
             {canSeeCosts ? (
               <CardDescription>
-                Margem real {p.realMargin === null ? "—" : formatPercent(p.realMargin)} contra meta de{" "}
-                {formatPercent(p.desiredMargin)}
+                Margem real{" "}
+                {p.realMargin === null
+                  ? p.totalCost > 0
+                    ? "Prejuízo (-100%)"
+                    : "—"
+                  : formatPercent(p.realMargin)}{" "}
+                contra meta de {formatPercent(p.desiredMargin)}
                 {p.marginGapPoints !== null
                   ? ` (${p.marginGapPoints >= 0 ? "+" : ""}${p.marginGapPoints.toFixed(1)} p.p.)`
                   : ""}
