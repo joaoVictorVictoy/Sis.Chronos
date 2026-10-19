@@ -67,6 +67,8 @@ export function ClientHoursView({
   const [expandedAreas, setExpandedAreas] = useState<Record<string, boolean>>({});
   const [showAreaEmployees, setShowAreaEmployees] = useState(true);
   const [individualAreaEmployees, setIndividualAreaEmployees] = useState<Record<string, boolean>>({});
+  const [showActivityEmployees, setShowActivityEmployees] = useState(true);
+  const [individualAreaActivityEmployees, setIndividualAreaActivityEmployees] = useState<Record<string, boolean>>({});
   const [isExtratoOpen, setIsExtratoOpen] = useState(false);
 
   const selectedClient = useMemo(() => {
@@ -402,6 +404,17 @@ export function ClientHoursView({
   const toggleAreaEmployees = (areaName: string) => {
     setIndividualAreaEmployees((prev) => {
       const current = prev[areaName] ?? showAreaEmployees;
+      return {
+        ...prev,
+        [areaName]: !current,
+      };
+    });
+  };
+
+  // Alterna exibição de colaboradores na frente das atividades dentro de uma área específica
+  const toggleAreaActivityEmployees = (areaName: string) => {
+    setIndividualAreaActivityEmployees((prev) => {
+      const current = prev[areaName] ?? showActivityEmployees;
       return {
         ...prev,
         [areaName]: !current,
@@ -919,6 +932,7 @@ export function ClientHoursView({
                   byAreaDynamic.map((area) => {
                     const isExpanded = expandedAreas[area.name] ?? (byAreaDynamic.length <= 3);
                     const isEmpVisible = individualAreaEmployees[area.name] ?? showAreaEmployees;
+                    const isActEmpVisible = individualAreaActivityEmployees[area.name] ?? showActivityEmployees;
 
                     return (
                       <div
@@ -1066,10 +1080,19 @@ export function ClientHoursView({
                               {/* 2. Atividades executadas na área */}
                               <div className="grid gap-2">
                                 <div className="flex items-center justify-between text-xs font-semibold text-foreground border-b pb-1.5">
-                                  <span className="flex items-center gap-1.5">
-                                    <TagIcon className="size-3.5 text-primary" />
-                                    Atividades executadas em {area.name} ({area.activities.length}):
-                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="flex items-center gap-1.5">
+                                      <TagIcon className="size-3.5 text-primary" />
+                                      Atividades executadas em {area.name} ({area.activities.length}):
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleAreaActivityEmployees(area.name)}
+                                      className="text-[11px] font-normal text-muted-foreground hover:text-primary underline cursor-pointer"
+                                    >
+                                      {isActEmpVisible ? "(Esconder colaboradores)" : "(Mostrar colaboradores)"}
+                                    </button>
+                                  </div>
                                   <div className="flex items-center gap-4 shrink-0 tabular-nums text-muted-foreground text-[11px] font-medium">
                                     <span className="w-14 text-right">Horas</span>
                                     <span className="w-14 text-right">Part. %</span>
@@ -1090,7 +1113,7 @@ export function ClientHoursView({
                                         >
                                           {act.billable ? "Faturável" : "Interna"}
                                         </Badge>
-                                        {act.employees.map((emp) => (
+                                        {isActEmpVisible && act.employees.map((emp) => (
                                           <span
                                             key={emp.id}
                                             className="inline-flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full text-[11px] shrink-0"
@@ -1131,7 +1154,7 @@ export function ClientHoursView({
           {(viewMode === "atividades" || viewMode === "todas") && (
             <Card>
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="grid gap-1">
                     <div className="flex items-center gap-2">
                       <TagIcon className="size-4 text-primary" />
@@ -1144,6 +1167,20 @@ export function ClientHoursView({
                       Tempo dedicado por tipo de tarefa/atividade individual.
                     </CardDescription>
                   </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowActivityEmployees((prev) => !prev);
+                      setIndividualAreaActivityEmployees({});
+                    }}
+                    className="h-7 text-xs gap-1 shadow-xs cursor-pointer self-start sm:self-auto"
+                  >
+                    <UsersIcon className="size-3.5" />
+                    {showActivityEmployees ? "Esconder colaboradores" : "Mostrar colaboradores"}
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent className="grid gap-3 pt-0">
@@ -1163,7 +1200,7 @@ export function ClientHoursView({
                           >
                             {act.billable ? "Faturável" : "Interna"}
                           </Badge>
-                          {act.employees.map((emp) => (
+                          {showActivityEmployees && act.employees.map((emp) => (
                             <span
                               key={emp.id}
                               className="inline-flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full text-[11px] shrink-0"
