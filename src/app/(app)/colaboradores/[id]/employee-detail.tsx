@@ -133,10 +133,10 @@ export function NewCostForm({
   // Calcula jornada diária padrão (base: 21 dias úteis)
   const initialDailyHours = defaultMonthlyHours > 0 ? Number((defaultMonthlyHours / 21).toFixed(2)) : 8;
 
-  const [salary, setSalary] = useState<string>("8.000,00");
-  const [chargesPercent, setChargesPercent] = useState<string>("80");
-  const [chargesAmount, setChargesAmount] = useState<string>("0,00");
-  const [benefits, setBenefits] = useState<string>("600,00");
+  const [salary, setSalary] = useState<string>("");
+  const [chargesPercent, setChargesPercent] = useState<string>("");
+  const [chargesAmount, setChargesAmount] = useState<string>("");
+  const [benefits, setBenefits] = useState<string>("");
   const [dailyHours, setDailyHours] = useState<string>(
     initialDailyHours.toLocaleString("pt-BR", { maximumFractionDigits: 2 })
   );
@@ -179,7 +179,7 @@ export function NewCostForm({
             inputMode="decimal"
             value={salary}
             onChange={(e) => setSalary(e.target.value)}
-            placeholder="8.000,00"
+            placeholder="0,00"
             required
           />
         </Field>
@@ -190,7 +190,7 @@ export function NewCostForm({
             inputMode="decimal"
             value={chargesPercent}
             onChange={(e) => setChargesPercent(e.target.value)}
-            placeholder="80"
+            placeholder="0"
           />
         </Field>
         <Field label="Encargos (R$)" htmlFor="chargesAmount" errors={state.fieldErrors?.chargesAmount}>
@@ -210,7 +210,7 @@ export function NewCostForm({
             inputMode="decimal"
             value={benefits}
             onChange={(e) => setBenefits(e.target.value)}
-            placeholder="600,00"
+            placeholder="0,00"
           />
         </Field>
 

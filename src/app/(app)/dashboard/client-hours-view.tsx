@@ -9,9 +9,15 @@ import {
   DownloadIcon,
   FileSpreadsheetIcon,
   FileTextIcon,
+  LayersIcon,
+  ListFilterIcon,
+  RotateCcwIcon,
   SearchIcon,
   SheetIcon,
+  TagIcon,
   UsersIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,17 +60,54 @@ export function ClientHoursView({
   const [selectedClientId, setSelectedClientId] = useState<string>(defaultClient?.id ?? "");
   const [search, setSearch] = useState("");
   const [employeeFilter, setEmployeeFilter] = useState<string>("todos");
+  const [areaFilter, setAreaFilter] = useState<string>("todas");
+  const [activityFilter, setActivityFilter] = useState<string>("todas");
   const [billableFilter, setBillableFilter] = useState<"todos" | "sim" | "nao">("todos");
+  const [viewMode, setViewMode] = useState<"areas" | "atividades" | "colaboradores" | "todas">("areas");
+  const [expandedAreas, setExpandedAreas] = useState<Record<string, boolean>>({});
 
   const selectedClient = useMemo(() => {
     return clients.find((c) => c.id === selectedClientId) ?? defaultClient;
   }, [clients, selectedClientId, defaultClient]);
+
+  // Opções de filtros dinâmicos extraídas dos lançamentos do cliente
+  const filterOptions = useMemo(() => {
+    if (!selectedClient) {
+      return { employees: [], areas: [], activities: [] };
+    }
+
+    const empMap = new Map<string, string>();
+    const areaSet = new Set<string>();
+    const actMap = new Map<string, { id: string; name: string; areaName: string }>();
+
+    for (const e of selectedClient.entries) {
+      empMap.set(e.employeeId, e.employeeName);
+      if (e.areaName) areaSet.add(e.areaName);
+      actMap.set(e.activityId, { id: e.activityId, name: e.activityName, areaName: e.areaName });
+    }
+
+    const employees = Array.from(empMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const areas = Array.from(areaSet).sort((a, b) => a.localeCompare(b));
+
+    const activities = Array.from(actMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+    return { employees, areas, activities };
+  }, [selectedClient]);
 
   // Filtra as entradas do extrato em tempo real
   const filteredEntries = useMemo(() => {
     if (!selectedClient) return [];
     return selectedClient.entries.filter((entry) => {
       if (employeeFilter !== "todos" && entry.employeeId !== employeeFilter) {
+        return false;
+      }
+      if (areaFilter !== "todas" && entry.areaName !== areaFilter) {
+        return false;
+      }
+      if (activityFilter !== "todas" && entry.activityId !== activityFilter) {
         return false;
       }
       if (billableFilter === "sim" && !entry.billable) return false;
@@ -82,15 +125,239 @@ export function ClientHoursView({
 
       return true;
     });
-  }, [selectedClient, employeeFilter, billableFilter, search]);
+  }, [selectedClient, employeeFilter, areaFilter, activityFilter, billableFilter, search]);
 
-  const filteredMinutes = useMemo(() => {
-    return filteredEntries.reduce((sum, e) => sum + e.minutes, 0);
+  // Métricas dinâmicas recalculadas sobre o filtro
+  const metrics = useMemo(() => {
+    let minutes = 0;
+    let billableMins = 0;
+    let cost = 0;
+    const empSet = new Set<string>();
+
+    for (const e of filteredEntries) {
+      minutes += e.minutes;
+      if (e.billable) billableMins += e.minutes;
+      cost += e.costAmount;
+      empSet.add(e.employeeId);
+    }
+
+    const hours = minutes / 60;
+    const billableHours = billableMins / 60;
+    const nonBillableHours = (minutes - billableMins) / 60;
+    const billableShare = minutes > 0 ? billableMins / minutes : 0;
+
+    return {
+      minutes,
+      hours,
+      billableHours,
+      nonBillableHours,
+      billableShare,
+      cost,
+      employeesCount: empSet.size,
+    };
   }, [filteredEntries]);
 
-  const filteredCost = useMemo(() => {
-    return filteredEntries.reduce((sum, e) => sum + e.costAmount, 0);
-  }, [filteredEntries]);
+  // Agrupamento consolidado dinâmico por Área de Atuação
+  const byAreaDynamic = useMemo(() => {
+    if (!filteredEntries.length) return [];
+
+    const map = new Map<
+      string,
+      {
+        name: string;
+        minutes: number;
+        cost: number;
+        billableMinutes: number;
+        entriesCount: number;
+        activitiesMap: Map<string, { id: string; name: string; minutes: number; billable: boolean; cost: number }>;
+        employeesSet: Set<string>;
+      }
+    >();
+
+    for (const e of filteredEntries) {
+      const areaKey = e.areaName || "Sem área";
+      let area = map.get(areaKey);
+      if (!area) {
+        area = {
+          name: areaKey,
+          minutes: 0,
+          cost: 0,
+          billableMinutes: 0,
+          entriesCount: 0,
+          activitiesMap: new Map(),
+          employeesSet: new Set(),
+        };
+        map.set(areaKey, area);
+      }
+
+      area.minutes += e.minutes;
+      area.cost += e.costAmount;
+      if (e.billable) area.billableMinutes += e.minutes;
+      area.entriesCount += 1;
+      area.employeesSet.add(e.employeeName);
+
+      const act = area.activitiesMap.get(e.activityId) ?? {
+        id: e.activityId,
+        name: e.activityName,
+        minutes: 0,
+        billable: e.billable,
+        cost: 0,
+      };
+      act.minutes += e.minutes;
+      act.cost += e.costAmount;
+      area.activitiesMap.set(e.activityId, act);
+    }
+
+    const totalFilteredMins = metrics.minutes || 1;
+
+    return Array.from(map.values())
+      .map((a) => {
+        const activities = Array.from(a.activitiesMap.values())
+          .map((act) => ({
+            ...act,
+            hours: act.minutes / 60,
+            percentageInArea: a.minutes > 0 ? (act.minutes / a.minutes) * 100 : 0,
+          }))
+          .sort((x, y) => y.minutes - x.minutes);
+
+        return {
+          name: a.name,
+          minutes: a.minutes,
+          hours: a.minutes / 60,
+          cost: a.cost,
+          billableMinutes: a.billableMinutes,
+          billableHours: a.billableMinutes / 60,
+          billableShare: a.minutes > 0 ? (a.billableMinutes / a.minutes) * 100 : 0,
+          percentage: (a.minutes / totalFilteredMins) * 100,
+          entriesCount: a.entriesCount,
+          activitiesCount: a.activitiesMap.size,
+          activities,
+          employees: Array.from(a.employeesSet),
+        };
+      })
+      .sort((a, b) => b.minutes - a.minutes);
+  }, [filteredEntries, metrics.minutes]);
+
+  // Agrupamento consolidado dinâmico por Atividade
+  const byActivityDynamic = useMemo(() => {
+    if (!filteredEntries.length) return [];
+
+    const map = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        areaName: string;
+        minutes: number;
+        cost: number;
+        billable: boolean;
+        entriesCount: number;
+        employeesSet: Set<string>;
+      }
+    >();
+
+    for (const e of filteredEntries) {
+      let act = map.get(e.activityId);
+      if (!act) {
+        act = {
+          id: e.activityId,
+          name: e.activityName,
+          areaName: e.areaName,
+          minutes: 0,
+          cost: 0,
+          billable: e.billable,
+          entriesCount: 0,
+          employeesSet: new Set(),
+        };
+        map.set(e.activityId, act);
+      }
+      act.minutes += e.minutes;
+      act.cost += e.costAmount;
+      act.entriesCount += 1;
+      act.employeesSet.add(e.employeeName);
+    }
+
+    const totalFilteredMins = metrics.minutes || 1;
+
+    return Array.from(map.values())
+      .map((a) => ({
+        ...a,
+        hours: a.minutes / 60,
+        percentage: (a.minutes / totalFilteredMins) * 100,
+        employees: Array.from(a.employeesSet),
+      }))
+      .sort((a, b) => b.minutes - a.minutes);
+  }, [filteredEntries, metrics.minutes]);
+
+  // Agrupamento consolidado dinâmico por Colaborador
+  const byEmployeeDynamic = useMemo(() => {
+    if (!filteredEntries.length) return [];
+
+    const map = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        minutes: number;
+        cost: number;
+        entriesCount: number;
+        areasSet: Set<string>;
+      }
+    >();
+
+    for (const e of filteredEntries) {
+      let emp = map.get(e.employeeId);
+      if (!emp) {
+        emp = {
+          id: e.employeeId,
+          name: e.employeeName,
+          minutes: 0,
+          cost: 0,
+          entriesCount: 0,
+          areasSet: new Set(),
+        };
+        map.set(e.employeeId, emp);
+      }
+      emp.minutes += e.minutes;
+      emp.cost += e.costAmount;
+      emp.entriesCount += 1;
+      if (e.areaName) emp.areasSet.add(e.areaName);
+    }
+
+    const totalFilteredMins = metrics.minutes || 1;
+
+    return Array.from(map.values())
+      .map((e) => ({
+        ...e,
+        hours: e.minutes / 60,
+        percentage: (e.minutes / totalFilteredMins) * 100,
+        areas: Array.from(e.areasSet),
+      }))
+      .sort((a, b) => b.minutes - a.minutes);
+  }, [filteredEntries, metrics.minutes]);
+
+  // Alterna expansão de uma área para exibir suas atividades
+  const toggleAreaExpand = (areaName: string) => {
+    setExpandedAreas((prev) => ({
+      ...prev,
+      [areaName]: !prev[areaName],
+    }));
+  };
+
+  const isAnyFilterActive =
+    employeeFilter !== "todos" ||
+    areaFilter !== "todas" ||
+    activityFilter !== "todas" ||
+    billableFilter !== "todos" ||
+    search.trim() !== "";
+
+  const resetFilters = () => {
+    setEmployeeFilter("todos");
+    setAreaFilter("todas");
+    setActivityFilter("todas");
+    setBillableFilter("todos");
+    setSearch("");
+  };
 
   // Clientes com mais horas no período para atalhos rápidos
   const topClients = useMemo(() => {
@@ -133,7 +400,7 @@ export function ClientHoursView({
                 </Badge>
               </div>
               <CardDescription>
-                Consolidação de todos os apontamentos, colaboradores alocados e extrato detalhado do mês.
+                Consolidação dinâmica de apontamentos por cliente com visão por Área de Atuação, Atividade e Colaborador.
               </CardDescription>
             </div>
 
@@ -189,9 +456,7 @@ export function ClientHoursView({
                 value={selectedClientId}
                 onChange={(e) => {
                   setSelectedClientId(e.target.value);
-                  setSearch("");
-                  setEmployeeFilter("todos");
-                  setBillableFilter("todos");
+                  resetFilters();
                 }}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs transition-colors focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
               >
@@ -213,11 +478,9 @@ export function ClientHoursView({
                     type="button"
                     onClick={() => {
                       setSelectedClientId(c.id);
-                      setSearch("");
-                      setEmployeeFilter("todos");
-                      setBillableFilter("todos");
+                      resetFilters();
                     }}
-                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
                       selectedClientId === c.id
                         ? "bg-primary text-primary-foreground shadow-xs"
                         : "bg-muted/70 text-foreground hover:bg-muted"
@@ -250,21 +513,159 @@ export function ClientHoursView({
         </Card>
       ) : (
         <>
-          {/* Grade de KPIs do Cliente */}
+          {/* Barra de Filtros Cruzados Dinâmicos */}
+          <Card className="border-dashed bg-muted/20">
+            <CardHeader className="py-3 px-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <ListFilterIcon className="size-4 text-primary" />
+                  <span className="text-sm font-semibold">Filtros Cruzados do Cliente</span>
+                  {isAnyFilterActive && (
+                    <Badge variant="secondary" className="text-[11px] font-normal">
+                      Filtro ativo · dados consolidados recalculados
+                    </Badge>
+                  )}
+                </div>
+
+                {isAnyFilterActive && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetFilters}
+                    className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <RotateCcwIcon className="size-3.5" />
+                    Limpar filtros
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-4 pt-0 grid gap-3">
+              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
+                {/* 1. Filtro por Colaborador */}
+                <div className="grid gap-1">
+                  <label htmlFor="filter-employee" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <UsersIcon className="size-3" /> Colaborador
+                  </label>
+                  <select
+                    id="filter-employee"
+                    value={employeeFilter}
+                    onChange={(e) => setEmployeeFilter(e.target.value)}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="todos">Todos os colaboradores ({filterOptions.employees.length})</option>
+                    {filterOptions.employees.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Filtro por Área de Atuação */}
+                <div className="grid gap-1">
+                  <label htmlFor="filter-area" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <LayersIcon className="size-3" /> Área de Atuação
+                  </label>
+                  <select
+                    id="filter-area"
+                    value={areaFilter}
+                    onChange={(e) => setAreaFilter(e.target.value)}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="todas">Todas as áreas ({filterOptions.areas.length})</option>
+                    {filterOptions.areas.map((area) => (
+                      <option key={area} value={area}>
+                        {area}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Filtro por Atividade */}
+                <div className="grid gap-1">
+                  <label htmlFor="filter-activity" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <TagIcon className="size-3" /> Atividade
+                  </label>
+                  <select
+                    id="filter-activity"
+                    value={activityFilter}
+                    onChange={(e) => setActivityFilter(e.target.value)}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="todas">Todas as atividades ({filterOptions.activities.length})</option>
+                    {filterOptions.activities
+                      .filter((act) => areaFilter === "todas" || act.areaName === areaFilter)
+                      .map((act) => (
+                        <option key={act.id} value={act.id}>
+                          {act.name} ({act.areaName})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                {/* 4. Filtro por Faturabilidade */}
+                <div className="grid gap-1">
+                  <label htmlFor="filter-billable" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <CheckCircle2Icon className="size-3" /> Tipo
+                  </label>
+                  <select
+                    id="filter-billable"
+                    value={billableFilter}
+                    onChange={(e) => setBillableFilter(e.target.value as "todos" | "sim" | "nao")}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="todos">Faturáveis e Internas</option>
+                    <option value="sim">Apenas faturáveis</option>
+                    <option value="nao">Apenas internas / não faturáveis</option>
+                  </select>
+                </div>
+
+                {/* 5. Busca Textual */}
+                <div className="grid gap-1">
+                  <label htmlFor="filter-search" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <SearchIcon className="size-3" /> Busca rápida
+                  </label>
+                  <div className="relative">
+                    <SearchIcon className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+                    <Input
+                      id="filter-search"
+                      placeholder="Descrição, contrato..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="pl-8 text-xs h-9"
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Grade de KPIs Dinâmicos Recalculados */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card className="relative overflow-hidden">
               <div className="absolute top-0 right-0 h-16 w-16 translate-x-4 -translate-y-4 rounded-full bg-primary/10" />
               <CardHeader className="pb-2">
                 <CardDescription className="flex items-center gap-1 text-xs font-medium">
                   <ClockIcon className="size-3.5 text-primary" />
-                  Total de Horas no Mês
+                  Horas Consolidadas
+                  {isAnyFilterActive && (
+                    <span className="text-[10px] text-primary font-normal">(Filtrado)</span>
+                  )}
                 </CardDescription>
                 <CardTitle className="text-3xl font-bold tabular-nums">
-                  {formatHours(selectedClient.totalHours)}
+                  {formatHours(metrics.hours)}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="text-xs text-muted-foreground">
-                Equivalente a {selectedClient.totalHours.toFixed(1)}h decimais
+              <CardContent className="text-xs text-muted-foreground flex items-center justify-between">
+                <span>{metrics.hours.toFixed(1)}h decimais</span>
+                {isAnyFilterActive && (
+                  <span className="font-medium text-foreground">
+                    {formatPercent(selectedClient.totalMinutes > 0 ? metrics.minutes / selectedClient.totalMinutes : 0)} do cliente
+                  </span>
+                )}
               </CardContent>
             </Card>
 
@@ -275,11 +676,11 @@ export function ClientHoursView({
                   Horas Faturáveis
                 </CardDescription>
                 <CardTitle className="text-3xl font-bold tabular-nums text-[--viz-good]">
-                  {formatHours(selectedClient.billableHours)}
+                  {formatHours(metrics.billableHours)}
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-xs text-muted-foreground">
-                {formatPercent(selectedClient.billableShare)} de aproveitamento faturável
+                {formatPercent(metrics.billableShare)} de aproveitamento faturável
               </CardContent>
             </Card>
 
@@ -287,26 +688,24 @@ export function ClientHoursView({
               <CardHeader className="pb-2">
                 <CardDescription className="text-xs font-medium">Horas Não Faturáveis</CardDescription>
                 <CardTitle className="text-3xl font-bold tabular-nums text-muted-foreground">
-                  {formatHours(selectedClient.nonBillableHours)}
+                  {formatHours(metrics.nonBillableHours)}
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-xs text-muted-foreground">
-                {formatPercent(1 - selectedClient.billableShare)} internas / não cobradas
+                {formatPercent(1 - metrics.billableShare)} internas / não cobradas
               </CardContent>
             </Card>
 
             {canSeeCosts ? (
               <Card>
                 <CardHeader className="pb-2">
-                  <CardDescription className="text-xs font-medium">Custo Total da Equipe</CardDescription>
+                  <CardDescription className="text-xs font-medium">Custo da Equipe</CardDescription>
                   <CardTitle className="text-3xl font-bold tabular-nums">
-                    {formatCurrency(selectedClient.totalCost)}
+                    {formatCurrency(metrics.cost)}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="text-xs text-muted-foreground">
-                  {selectedClient.totalHours > 0
-                    ? `Custo médio ${formatCurrency(selectedClient.totalCost / selectedClient.totalHours)}/h`
-                    : "—"}
+                  {metrics.hours > 0 ? `Custo médio ${formatCurrency(metrics.cost / metrics.hours)}/h` : "—"}
                 </CardContent>
               </Card>
             ) : (
@@ -317,173 +716,403 @@ export function ClientHoursView({
                     Equipe e Lançamentos
                   </CardDescription>
                   <CardTitle className="text-3xl font-bold tabular-nums">
-                    {selectedClient.employeesCount}{" "}
+                    {metrics.employeesCount}{" "}
                     <span className="text-lg font-normal text-muted-foreground">
-                      {selectedClient.employeesCount === 1 ? "membro" : "membros"}
+                      {metrics.employeesCount === 1 ? "membro" : "membros"}
                     </span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="text-xs text-muted-foreground">
-                  {selectedClient.entriesCount} lançamentos registrados no mês
+                  {filteredEntries.length} lançamentos considerados
                 </CardContent>
               </Card>
             )}
           </div>
 
-          {/* Seção de Distribuição: Colaboradores e Atividades */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Horas por Colaborador */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base font-semibold">Equipe Alocada no Cliente</CardTitle>
-                    <CardDescription className="text-xs">
-                      Distribuição das {formatHours(selectedClient.totalHours)} entre os colaboradores no mês.
-                    </CardDescription>
-                  </div>
-                  <Badge variant="secondary" className="tabular-nums">
-                    {selectedClient.employeesCount} {selectedClient.employeesCount === 1 ? "pessoa" : "pessoas"}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="grid gap-3">
-                {selectedClient.byEmployee.map((emp) => (
-                  <div key={emp.id} className="grid gap-1.5 rounded-lg border p-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                          {emp.name.charAt(0).toUpperCase()}
-                        </span>
-                        <span className="font-medium truncate">{emp.name}</span>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0 tabular-nums">
-                        <span className="font-semibold">{formatHours(emp.hours)}</span>
-                        <span className="text-xs text-muted-foreground w-12 text-right">
-                          {emp.percentage.toFixed(1)}%
-                        </span>
-                        {canSeeCosts && emp.cost > 0 && (
-                          <span className="text-xs text-muted-foreground w-20 text-right">
-                            {formatCurrency(emp.cost)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {/* Barra de progresso */}
-                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all duration-300"
-                        style={{ width: `${Math.min(100, emp.percentage)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+          {/* Seletor de Modo de Visualização Consolidada */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b pb-3">
+            <div>
+              <h3 className="text-base font-semibold">Visualização Consolidada de Horas</h3>
+              <p className="text-xs text-muted-foreground">
+                Alterne a forma de consolidação para analisar por área técnica, por atividade ou pela equipe alocada.
+              </p>
+            </div>
 
-            {/* Horas por Atividade */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base font-semibold">Atividades Executadas</CardTitle>
-                    <CardDescription className="text-xs">
-                      Tempo dedicado por tipo de atividade e área de consultoria.
-                    </CardDescription>
-                  </div>
-                  <Badge variant="secondary" className="tabular-nums">
-                    {selectedClient.byActivity.length} atividades
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="grid gap-3">
-                {selectedClient.byActivity.map((act) => (
-                  <div key={act.id} className="grid gap-1.5 rounded-lg border p-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="min-w-0 flex items-center gap-2">
-                        <span className="font-medium truncate">{act.name}</span>
-                        <Badge
-                          variant={act.billable ? "outline" : "secondary"}
-                          className="text-[10px] py-0 px-1.5"
-                        >
-                          {act.billable ? "Faturável" : "Interna"}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0 tabular-nums">
-                        <span className="font-semibold">{formatHours(act.hours)}</span>
-                        <span className="text-xs text-muted-foreground w-12 text-right">
-                          {act.percentage.toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Área: {act.areaName}</span>
-                    </div>
-                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          act.billable ? "bg-[--viz-good]" : "bg-muted-foreground/60"
-                        }`}
-                        style={{ width: `${Math.min(100, act.percentage)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <div className="inline-flex rounded-lg border bg-muted/60 p-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setViewMode("areas")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-all cursor-pointer ${
+                  viewMode === "areas"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <LayersIcon className="size-3.5" />
+                Por Área de Atuação
+                <Badge variant="secondary" className="text-[10px] py-0 px-1 ml-0.5">
+                  {byAreaDynamic.length}
+                </Badge>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode("atividades")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-all cursor-pointer ${
+                  viewMode === "atividades"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <TagIcon className="size-3.5" />
+                Por Atividade
+                <Badge variant="secondary" className="text-[10px] py-0 px-1 ml-0.5">
+                  {byActivityDynamic.length}
+                </Badge>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode("colaboradores")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-all cursor-pointer ${
+                  viewMode === "colaboradores"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <UsersIcon className="size-3.5" />
+                Por Colaborador
+                <Badge variant="secondary" className="text-[10px] py-0 px-1 ml-0.5">
+                  {byEmployeeDynamic.length}
+                </Badge>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode("todas")}
+                className={`hidden md:inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-all cursor-pointer ${
+                  viewMode === "todas"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Visão Completa
+              </button>
+            </div>
           </div>
 
-          {/* Extrato Detalhado de Apontamentos (Tabela Completa) */}
+          {/* 1. VISÃO CONSOLIDADA POR ÁREA DE ATUAÇÃO (Foco solicitado pelo usuário) */}
+          {(viewMode === "areas" || viewMode === "todas") && (
+            <Card className="border-primary/20 shadow-xs">
+              <CardHeader className="pb-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="grid gap-1">
+                    <div className="flex items-center gap-2">
+                      <LayersIcon className="size-4 text-primary" />
+                      <CardTitle className="text-base font-semibold">
+                        Horas Consolidadas Por Área de Atuação
+                      </CardTitle>
+                      <Badge variant="secondary" className="tabular-nums text-xs">
+                        {byAreaDynamic.length} {byAreaDynamic.length === 1 ? "área ativa" : "áreas ativas"}
+                      </Badge>
+                    </div>
+                    <CardDescription className="text-xs">
+                      Distribuição do tempo e custo por especialidade jurídica/consultoria. Clique em cada área para detalhar as atividades executadas.
+                    </CardDescription>
+                  </div>
+
+                  {areaFilter !== "todas" && (
+                    <Badge variant="outline" className="text-xs self-start sm:self-auto gap-1">
+                      Filtrado pela área: <strong className="text-foreground">{areaFilter}</strong>
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+
+              <CardContent className="grid gap-3 pt-0">
+                {byAreaDynamic.length === 0 ? (
+                  <p className="py-6 text-center text-xs text-muted-foreground">
+                    Nenhuma área encontrada para os filtros selecionados.
+                  </p>
+                ) : (
+                  byAreaDynamic.map((area) => {
+                    const isExpanded = expandedAreas[area.name] ?? (byAreaDynamic.length <= 3);
+
+                    return (
+                      <div
+                        key={area.name}
+                        className={`grid gap-3 rounded-xl border p-4 transition-all ${
+                          areaFilter === area.name
+                            ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                            : "bg-card hover:border-primary/40"
+                        }`}
+                      >
+                        {/* Linha principal da Área */}
+                        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-semibold text-base text-foreground">{area.name}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {area.activitiesCount} {area.activitiesCount === 1 ? "atividade" : "atividades"}
+                              </Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                {area.entriesCount} lançamentos
+                              </Badge>
+                              {areaFilter === "todas" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setAreaFilter(area.name)}
+                                  className="text-[11px] text-primary hover:underline cursor-pointer"
+                                  title="Filtrar todo o relatório por esta área"
+                                >
+                                  (Filtrar só esta área)
+                                </button>
+                              ) : null}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Equipe: {area.employees.join(", ") || "—"}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                            <div className="text-right">
+                              <span className="text-base font-bold text-foreground block">
+                                {formatHours(area.hours)}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {area.percentage.toFixed(1)}% do tempo
+                              </span>
+                            </div>
+
+                            {canSeeCosts && area.cost > 0 && (
+                              <div className="text-right border-l pl-3 hidden sm:block">
+                                <span className="text-sm font-semibold text-foreground block">
+                                  {formatCurrency(area.cost)}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatPercent(area.billableShare / 100)} faturável
+                                </span>
+                              </div>
+                            )}
+
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleAreaExpand(area.name)}
+                              className="h-8 w-8 p-0"
+                              title={isExpanded ? "Ocultar detalhamento de atividades" : "Ver detalhamento de atividades"}
+                            >
+                              {isExpanded ? <ChevronUpIcon className="size-4" /> : <ChevronDownIcon className="size-4" />}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Barra de Progresso visual da área */}
+                        <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-primary transition-all duration-300"
+                            style={{ width: `${Math.min(100, area.percentage)}%` }}
+                          />
+                        </div>
+
+                        {/* Detalhamento das Atividades dentro desta Área (Expansível) */}
+                        {isExpanded && (
+                          <div className="mt-1 rounded-lg border bg-muted/30 p-3 grid gap-2">
+                            <div className="flex items-center justify-between text-xs font-medium text-muted-foreground border-b pb-1.5">
+                              <span>Atividades executadas em {area.name}:</span>
+                              <span>Horas / Participação</span>
+                            </div>
+                            <div className="grid gap-1.5">
+                              {area.activities.map((act) => (
+                                <div
+                                  key={act.id}
+                                  className="flex items-center justify-between text-xs py-1 px-1.5 rounded hover:bg-background/80 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="font-medium truncate text-foreground">{act.name}</span>
+                                    <Badge
+                                      variant={act.billable ? "outline" : "secondary"}
+                                      className="text-[10px] py-0 px-1"
+                                    >
+                                      {act.billable ? "Faturável" : "Interna"}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center gap-3 shrink-0 tabular-nums">
+                                    <span className="font-semibold">{formatHours(act.hours)}</span>
+                                    <span className="text-muted-foreground text-[11px] w-12 text-right">
+                                      {act.percentageInArea.toFixed(1)}%
+                                    </span>
+                                    {canSeeCosts && act.cost > 0 && (
+                                      <span className="text-muted-foreground text-[11px] w-16 text-right hidden sm:inline">
+                                        {formatCurrency(act.cost)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 2. VISÃO CONSOLIDADA POR ATIVIDADE */}
+          {(viewMode === "atividades" || viewMode === "todas") && (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="grid gap-1">
+                    <div className="flex items-center gap-2">
+                      <TagIcon className="size-4 text-primary" />
+                      <CardTitle className="text-base font-semibold">Atividades Executadas no Cliente</CardTitle>
+                      <Badge variant="secondary" className="tabular-nums text-xs">
+                        {byActivityDynamic.length} {byActivityDynamic.length === 1 ? "atividade" : "atividades"}
+                      </Badge>
+                    </div>
+                    <CardDescription className="text-xs">
+                      Tempo dedicado por tipo de tarefa/atividade individual.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="grid gap-3 pt-0">
+                {byActivityDynamic.length === 0 ? (
+                  <p className="py-6 text-center text-xs text-muted-foreground">
+                    Nenhuma atividade encontrada para os filtros selecionados.
+                  </p>
+                ) : (
+                  byActivityDynamic.map((act) => (
+                    <div key={act.id} className="grid gap-1.5 rounded-lg border p-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="min-w-0 flex items-center gap-2">
+                          <span className="font-medium truncate">{act.name}</span>
+                          <Badge
+                            variant={act.billable ? "outline" : "secondary"}
+                            className="text-[10px] py-0 px-1.5"
+                          >
+                            {act.billable ? "Faturável" : "Interna"}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0 tabular-nums">
+                          <span className="font-semibold">{formatHours(act.hours)}</span>
+                          <span className="text-xs text-muted-foreground w-12 text-right">
+                            {act.percentage.toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Área: <strong className="text-foreground font-normal">{act.areaName}</strong></span>
+                        <span>{act.entriesCount} lançamentos</span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${
+                            act.billable ? "bg-[--viz-good]" : "bg-muted-foreground/60"
+                          }`}
+                          style={{ width: `${Math.min(100, act.percentage)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 3. VISÃO CONSOLIDADA POR COLABORADOR */}
+          {(viewMode === "colaboradores" || viewMode === "todas") && (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="grid gap-1">
+                    <div className="flex items-center gap-2">
+                      <UsersIcon className="size-4 text-primary" />
+                      <CardTitle className="text-base font-semibold">Equipe Alocada no Cliente</CardTitle>
+                      <Badge variant="secondary" className="tabular-nums text-xs">
+                        {byEmployeeDynamic.length} {byEmployeeDynamic.length === 1 ? "pessoa" : "pessoas"}
+                      </Badge>
+                    </div>
+                    <CardDescription className="text-xs">
+                      Distribuição das horas apontadas entre cada colaborador da equipe.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="grid gap-3 pt-0">
+                {byEmployeeDynamic.length === 0 ? (
+                  <p className="py-6 text-center text-xs text-muted-foreground">
+                    Nenhum colaborador encontrado para os filtros selecionados.
+                  </p>
+                ) : (
+                  byEmployeeDynamic.map((emp) => (
+                    <div key={emp.id} className="grid gap-1.5 rounded-lg border p-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                            {emp.name.charAt(0).toUpperCase()}
+                          </span>
+                          <span className="font-medium truncate">{emp.name}</span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0 tabular-nums">
+                          <span className="font-semibold">{formatHours(emp.hours)}</span>
+                          <span className="text-xs text-muted-foreground w-12 text-right">
+                            {emp.percentage.toFixed(1)}%
+                          </span>
+                          {canSeeCosts && emp.cost > 0 && (
+                            <span className="text-xs text-muted-foreground w-20 text-right">
+                              {formatCurrency(emp.cost)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {emp.areas.length > 0 && (
+                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                          <span>Áreas:</span>
+                          <span className="truncate">{emp.areas.join(", ")}</span>
+                        </div>
+                      )}
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all duration-300"
+                          style={{ width: `${Math.min(100, emp.percentage)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Extrato Detalhado de Apontamentos (Tabela Completa com Filtros Aplicados) */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <CardTitle className="text-lg font-semibold">Extrato Completo de Lançamentos</CardTitle>
                   <CardDescription>
-                    Lista item a item de todas as horas apontadas em {selectedClient.name} no mês.
+                    Lista item a item de todas as horas apontadas em {selectedClient.name} no período.
                   </CardDescription>
                 </div>
 
-                {/* Filtros em linha */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* Busca textual */}
-                  <div className="relative w-full sm:w-60">
-                    <SearchIcon className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Buscar descrição ou colaborador..."
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="pl-8 text-xs h-9"
-                    />
-                  </div>
-
-                  {/* Filtro por colaborador */}
-                  <select
-                    value={employeeFilter}
-                    onChange={(e) => setEmployeeFilter(e.target.value)}
-                    className="h-9 rounded-md border border-input bg-background px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                    aria-label="Filtrar por colaborador"
+                {isAnyFilterActive && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={resetFilters}
+                    className="h-8 gap-1.5 text-xs self-start md:self-auto"
                   >
-                    <option value="todos">Todos colaboradores</option>
-                    {selectedClient.byEmployee.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name}
-                      </option>
-                    ))}
-                  </select>
-
-                  {/* Filtro por faturabilidade */}
-                  <select
-                    value={billableFilter}
-                    onChange={(e) => setBillableFilter(e.target.value as "todos" | "sim" | "nao")}
-                    className="h-9 rounded-md border border-input bg-background px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                    aria-label="Filtrar por tipo faturável"
-                  >
-                    <option value="todos">Todas (Faturáveis e não)</option>
-                    <option value="sim">Apenas faturáveis</option>
-                    <option value="nao">Apenas não faturáveis</option>
-                  </select>
-                </div>
+                    <RotateCcwIcon className="size-3.5" />
+                    Resetar filtros
+                  </Button>
+                )}
               </div>
 
               {/* Barra de resumo dos filtros */}
@@ -493,8 +1122,8 @@ export function ClientHoursView({
                   <strong>{selectedClient.entriesCount}</strong> apontamentos
                 </span>
                 <span className="tabular-nums">
-                  Total filtrado: <strong className="text-foreground">{formatHours(filteredMinutes / 60)}</strong>
-                  {canSeeCosts && filteredCost > 0 ? ` · ${formatCurrency(filteredCost)}` : ""}
+                  Total filtrado: <strong className="text-foreground">{formatHours(metrics.hours)}</strong>
+                  {canSeeCosts && metrics.cost > 0 ? ` · ${formatCurrency(metrics.cost)}` : ""}
                 </span>
               </div>
             </CardHeader>

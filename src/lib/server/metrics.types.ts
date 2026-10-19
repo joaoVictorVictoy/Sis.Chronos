@@ -60,6 +60,17 @@ export type ClientHoursSummary = {
     cost: number;
     percentage: number;
   }[];
+  byArea: {
+    name: string;
+    minutes: number;
+    hours: number;
+    cost: number;
+    billableMinutes: number;
+    billableHours: number;
+    percentage: number;
+    entriesCount: number;
+    activitiesCount: number;
+  }[];
   byActivity: {
     id: string;
     name: string;

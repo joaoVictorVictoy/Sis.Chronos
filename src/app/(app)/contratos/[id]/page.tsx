@@ -16,7 +16,7 @@ import { formatCurrency, formatDate, formatHours, todayISO } from "@/lib/format"
 import { CONTRACT_STATUS_LABELS, PERIODICITY_LABELS, PERIODICITY_MONTHS, monthsBetween } from "@/lib/contracts";
 import type { Tables } from "@/lib/database.types";
 import { ContractForm } from "../contract-form";
-import { ContractLinksForm, ExpensesCard } from "./contract-detail";
+import { ContractScopeCard, ExpensesCard } from "./contract-detail";
 import { TerminateContractDialog, TerminationBanner } from "./contract-termination";
 import { ContractPostMortemCard } from "./contract-post-mortem";
 import { DeleteContractButton } from "../delete-contract-button";
@@ -183,25 +183,15 @@ export default async function ContractPage({ params, searchParams }: PageProps<"
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Escopo e equipe</CardTitle>
-          <CardDescription>
-            Áreas, atividades e colaboradores alocados — usados nos filtros e no limite de horas da meta.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ContractLinksForm
-            contractId={contract.id}
-            areas={(areas ?? []) as Pick<Tables<"areas">, "id" | "name" | "active">[]}
-            activities={(activities ?? []) as Pick<Tables<"activities">, "id" | "name" | "active" | "area_id">[]}
-            employees={(employees ?? []) as Pick<Tables<"employees">, "id" | "full_name" | "active">[]}
-            selectedAreas={(linkedAreas ?? []).map((a) => a.area_id)}
-            selectedActivities={(linkedActivities ?? []).map((a) => a.activity_id)}
-            selectedEmployees={(members ?? []).map((m) => m.employee_id)}
-          />
-        </CardContent>
-      </Card>
+      <ContractScopeCard
+        contractId={contract.id}
+        areas={(areas ?? []) as Pick<Tables<"areas">, "id" | "name" | "active">[]}
+        activities={(activities ?? []) as Pick<Tables<"activities">, "id" | "name" | "active" | "area_id">[]}
+        employees={(employees ?? []) as Pick<Tables<"employees">, "id" | "full_name" | "active">[]}
+        selectedAreas={(linkedAreas ?? []).map((a) => a.area_id)}
+        selectedActivities={(linkedActivities ?? []).map((a) => a.activity_id)}
+        selectedEmployees={(members ?? []).map((m) => m.employee_id)}
+      />
 
       <ExpensesCard
         contractId={contract.id}

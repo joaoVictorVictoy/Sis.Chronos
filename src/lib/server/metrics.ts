@@ -508,6 +508,17 @@ export async function getClientHoursReport(period: Period): Promise<ClientHoursR
     let totalCost = 0;
 
     const empMap = new Map<string, { id: string; name: string; minutes: number; cost: number }>();
+    const areaMap = new Map<
+      string,
+      {
+        name: string;
+        minutes: number;
+        cost: number;
+        billableMinutes: number;
+        entriesCount: number;
+        activityIds: Set<string>;
+      }
+    >();
     const actMap = new Map<
       string,
       { id: string; name: string; areaName: string; minutes: number; billable: boolean }
@@ -544,6 +555,21 @@ export async function getClientHoursReport(period: Period): Promise<ClientHoursR
       };
       existingAct.minutes += mins;
       actMap.set(actId, existingAct);
+
+      const existingArea = areaMap.get(areaName) ?? {
+        name: areaName,
+        minutes: 0,
+        cost: 0,
+        billableMinutes: 0,
+        entriesCount: 0,
+        activityIds: new Set<string>(),
+      };
+      existingArea.minutes += mins;
+      existingArea.cost += cost;
+      if (entry.billable) existingArea.billableMinutes += mins;
+      existingArea.entriesCount += 1;
+      existingArea.activityIds.add(actId);
+      areaMap.set(areaName, existingArea);
 
       const conId = entry.contract_id;
       if (conId) {
@@ -585,6 +611,20 @@ export async function getClientHoursReport(period: Period): Promise<ClientHoursR
       }))
       .sort((a, b) => b.minutes - a.minutes);
 
+    const byArea = Array.from(areaMap.values())
+      .map((a) => ({
+        name: a.name,
+        minutes: a.minutes,
+        hours: a.minutes / 60,
+        cost: a.cost,
+        billableMinutes: a.billableMinutes,
+        billableHours: a.billableMinutes / 60,
+        percentage: totalMinutes > 0 ? (a.minutes / totalMinutes) * 100 : 0,
+        entriesCount: a.entriesCount,
+        activitiesCount: a.activityIds.size,
+      }))
+      .sort((a, b) => b.minutes - a.minutes);
+
     const byActivity = Array.from(actMap.values())
       .map((a) => ({
         id: a.id,
@@ -622,6 +662,7 @@ export async function getClientHoursReport(period: Period): Promise<ClientHoursR
       entriesCount: mappedEntries.length,
       employeesCount: byEmployee.length,
       byEmployee,
+      byArea,
       byActivity,
       byContract,
       entries: mappedEntries,
