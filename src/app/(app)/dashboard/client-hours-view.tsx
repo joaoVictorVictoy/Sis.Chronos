@@ -916,7 +916,7 @@ export function ClientHoursView({
                                 </button>
                               ) : null}
                             </div>
-                            {isEmpVisible && area.employees.length > 0 && (
+                            {area.employees.length > 0 && (
                               <div className="flex flex-wrap items-center gap-1.5 mt-1 text-xs text-muted-foreground">
                                 <span className="font-medium text-foreground">Equipe:</span>
                                 {area.employees.map((emp) => (
