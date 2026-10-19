@@ -1144,7 +1144,6 @@ export function ClientHoursView({
                         <TableHead>Contrato</TableHead>
                         <TableHead>Faturável</TableHead>
                         <TableHead className="text-right">Duração</TableHead>
-                        <TableHead className="min-w-64">Descrição</TableHead>
                         <TableHead>Situação</TableHead>
                         {canSeeCosts && <TableHead className="text-right">Custo</TableHead>}
                       </TableRow>
@@ -1159,7 +1158,9 @@ export function ClientHoursView({
                             {entry.employeeName}
                           </TableCell>
                           <TableCell>
-                            <p className="font-medium leading-tight">{entry.activityName}</p>
+                            <p className="font-medium leading-tight" title={entry.description ?? undefined}>
+                              {entry.activityName}
+                            </p>
                             <p className="text-xs text-muted-foreground leading-tight">{entry.areaName}</p>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
@@ -1184,11 +1185,6 @@ export function ClientHoursView({
                                 {entry.startTime} - {entry.endTime}
                               </p>
                             ) : null}
-                          </TableCell>
-                          <TableCell className="text-xs text-foreground/90 max-w-sm">
-                            <p className="line-clamp-2" title={entry.description ?? ""}>
-                              {entry.description || <span className="italic text-muted-foreground">Sem descrição</span>}
-                            </p>
                           </TableCell>
                           <TableCell>
                             <StatusBadge status={entry.status === "aprovado" ? "saudavel" : "atencao"} />
