@@ -172,7 +172,17 @@ export function ClientHoursView({
         cost: number;
         billableMinutes: number;
         entriesCount: number;
-        activitiesMap: Map<string, { id: string; name: string; minutes: number; billable: boolean; cost: number }>;
+        activitiesMap: Map<
+          string,
+          {
+            id: string;
+            name: string;
+            minutes: number;
+            billable: boolean;
+            cost: number;
+            employeesMap: Map<string, { id: string; name: string; minutes: number; hours: number }>;
+          }
+        >;
         employeesMap: Map<string, { id: string; name: string; minutes: number; cost: number; entriesCount: number }>;
       }
     >();
@@ -216,9 +226,21 @@ export function ClientHoursView({
         minutes: 0,
         billable: e.billable,
         cost: 0,
+        employeesMap: new Map(),
       };
       act.minutes += e.minutes;
       act.cost += e.costAmount;
+
+      const actEmp = act.employeesMap.get(e.employeeId) ?? {
+        id: e.employeeId,
+        name: e.employeeName,
+        minutes: 0,
+        hours: 0,
+      };
+      actEmp.minutes += e.minutes;
+      actEmp.hours = actEmp.minutes / 60;
+      act.employeesMap.set(e.employeeId, actEmp);
+
       area.activitiesMap.set(e.activityId, act);
     }
 
@@ -231,6 +253,7 @@ export function ClientHoursView({
             ...act,
             hours: act.minutes / 60,
             percentageInArea: a.minutes > 0 ? (act.minutes / a.minutes) * 100 : 0,
+            employees: Array.from(act.employeesMap.values()).sort((x, y) => y.minutes - x.minutes),
           }))
           .sort((x, y) => y.minutes - x.minutes);
 
@@ -274,7 +297,7 @@ export function ClientHoursView({
         cost: number;
         billable: boolean;
         entriesCount: number;
-        employeesSet: Set<string>;
+        employeesMap: Map<string, { id: string; name: string; minutes: number; hours: number }>;
       }
     >();
 
@@ -289,14 +312,23 @@ export function ClientHoursView({
           cost: 0,
           billable: e.billable,
           entriesCount: 0,
-          employeesSet: new Set(),
+          employeesMap: new Map(),
         };
         map.set(e.activityId, act);
       }
       act.minutes += e.minutes;
       act.cost += e.costAmount;
       act.entriesCount += 1;
-      act.employeesSet.add(e.employeeName);
+
+      const actEmp = act.employeesMap.get(e.employeeId) ?? {
+        id: e.employeeId,
+        name: e.employeeName,
+        minutes: 0,
+        hours: 0,
+      };
+      actEmp.minutes += e.minutes;
+      actEmp.hours = actEmp.minutes / 60;
+      act.employeesMap.set(e.employeeId, actEmp);
     }
 
     const totalFilteredMins = metrics.minutes || 1;
@@ -306,7 +338,7 @@ export function ClientHoursView({
         ...a,
         hours: a.minutes / 60,
         percentage: (a.minutes / totalFilteredMins) * 100,
-        employees: Array.from(a.employeesSet),
+        employees: Array.from(a.employeesMap.values()).sort((x, y) => y.minutes - x.minutes),
       }))
       .sort((a, b) => b.minutes - a.minutes);
   }, [filteredEntries, metrics.minutes]);
@@ -1050,7 +1082,7 @@ export function ClientHoursView({
                                       key={act.id}
                                       className="flex items-center justify-between text-xs py-1.5 px-2 rounded-md hover:bg-card/80 transition-colors"
                                     >
-                                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                                      <div className="flex flex-wrap items-center gap-2 min-w-0 pr-2">
                                         <span className="font-medium truncate text-foreground">{act.name}</span>
                                         <Badge
                                           variant={act.billable ? "outline" : "secondary"}
@@ -1058,6 +1090,15 @@ export function ClientHoursView({
                                         >
                                           {act.billable ? "Faturável" : "Interna"}
                                         </Badge>
+                                        {act.employees.map((emp) => (
+                                          <span
+                                            key={emp.id}
+                                            className="inline-flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full text-[11px] shrink-0"
+                                          >
+                                            <span className="font-medium text-foreground">{emp.name}</span>
+                                            <span className="text-muted-foreground">· {formatHours(emp.hours)}</span>
+                                          </span>
+                                        ))}
                                       </div>
                                       <div className="flex items-center gap-4 shrink-0 tabular-nums">
                                         <span className="font-semibold text-foreground w-14 text-right">
@@ -1114,14 +1155,23 @@ export function ClientHoursView({
                   byActivityDynamic.map((act) => (
                     <div key={act.id} className="grid gap-1.5 rounded-lg border p-3">
                       <div className="flex items-center justify-between text-sm">
-                        <div className="min-w-0 flex items-center gap-2">
+                        <div className="min-w-0 flex flex-wrap items-center gap-2">
                           <span className="font-medium truncate">{act.name}</span>
                           <Badge
                             variant={act.billable ? "outline" : "secondary"}
-                            className="text-[10px] py-0 px-1.5"
+                            className="text-[10px] py-0 px-1.5 shrink-0"
                           >
                             {act.billable ? "Faturável" : "Interna"}
                           </Badge>
+                          {act.employees.map((emp) => (
+                            <span
+                              key={emp.id}
+                              className="inline-flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full text-[11px] shrink-0"
+                            >
+                              <span className="font-medium text-foreground">{emp.name}</span>
+                              <span className="text-muted-foreground">· {formatHours(emp.hours)}</span>
+                            </span>
+                          ))}
                         </div>
                         <div className="flex items-center gap-4 shrink-0 tabular-nums">
                           <span className="font-semibold text-foreground w-14 text-right">{formatHours(act.hours)}</span>
