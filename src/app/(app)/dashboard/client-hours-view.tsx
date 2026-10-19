@@ -65,6 +65,7 @@ export function ClientHoursView({
   const [billableFilter, setBillableFilter] = useState<"todos" | "sim" | "nao">("todos");
   const [viewMode, setViewMode] = useState<"areas" | "atividades" | "colaboradores" | "todas">("areas");
   const [expandedAreas, setExpandedAreas] = useState<Record<string, boolean>>({});
+  const [isExtratoOpen, setIsExtratoOpen] = useState(true);
 
   const selectedClient = useMemo(() => {
     return clients.find((c) => c.id === selectedClientId) ?? defaultClient;
@@ -1101,18 +1102,40 @@ export function ClientHoursView({
                   </CardDescription>
                 </div>
 
-                {isAnyFilterActive && (
+                <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+                  {isAnyFilterActive && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={resetFilters}
+                      className="h-8 gap-1.5 text-xs"
+                    >
+                      <RotateCcwIcon className="size-3.5" />
+                      Resetar filtros
+                    </Button>
+                  )}
+
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={resetFilters}
-                    className="h-8 gap-1.5 text-xs self-start md:self-auto"
+                    onClick={() => setIsExtratoOpen((prev) => !prev)}
+                    className="h-8 gap-1.5 text-xs shadow-xs cursor-pointer"
                   >
-                    <RotateCcwIcon className="size-3.5" />
-                    Resetar filtros
+                    {isExtratoOpen ? (
+                      <>
+                        <ChevronUpIcon className="size-3.5" />
+                        Esconder extrato
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDownIcon className="size-3.5" />
+                        Ver extrato ({filteredEntries.length})
+                      </>
+                    )}
                   </Button>
-                )}
+                </div>
               </div>
 
               {/* Barra de resumo dos filtros */}
@@ -1128,7 +1151,8 @@ export function ClientHoursView({
               </div>
             </CardHeader>
 
-            <CardContent className="p-0">
+            {isExtratoOpen && (
+              <CardContent className="p-0">
               {filteredEntries.length === 0 ? (
                 <div className="py-12 text-center text-sm text-muted-foreground">
                   Nenhum apontamento corresponde aos filtros aplicados.
@@ -1201,7 +1225,8 @@ export function ClientHoursView({
                 </div>
               )}
             </CardContent>
-          </Card>
+          )}
+        </Card>
         </>
       )}
     </div>
