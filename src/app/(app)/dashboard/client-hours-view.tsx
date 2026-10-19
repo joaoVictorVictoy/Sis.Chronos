@@ -875,9 +875,6 @@ export function ClientHoursView({
                               <Badge variant="outline" className="text-xs">
                                 {area.activitiesCount} {area.activitiesCount === 1 ? "atividade" : "atividades"}
                               </Badge>
-                              <Badge variant="secondary" className="text-xs">
-                                {area.entriesCount} lançamentos
-                              </Badge>
                               {areaFilter === "todas" ? (
                                 <button
                                   type="button"
@@ -973,7 +970,6 @@ export function ClientHoursView({
                                         {emp.name.charAt(0).toUpperCase()}
                                       </span>
                                       <span className="font-medium truncate text-foreground">{emp.name}</span>
-                                      <span className="text-[11px] text-muted-foreground">({emp.entriesCount} apontamentos)</span>
                                     </div>
                                     <div className="flex items-center gap-4 shrink-0 tabular-nums">
                                       <span className="font-semibold text-foreground w-14 text-right">
@@ -1099,7 +1095,6 @@ export function ClientHoursView({
                       </div>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>Área: <strong className="text-foreground font-normal">{act.areaName}</strong></span>
-                        <span>{act.entriesCount} lançamentos</span>
                       </div>
                       <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
                         <div
