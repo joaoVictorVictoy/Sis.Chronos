@@ -67,7 +67,7 @@ export function ClientHoursView({
   const [expandedAreas, setExpandedAreas] = useState<Record<string, boolean>>({});
   const [showAreaEmployees, setShowAreaEmployees] = useState(true);
   const [individualAreaEmployees, setIndividualAreaEmployees] = useState<Record<string, boolean>>({});
-  const [isExtratoOpen, setIsExtratoOpen] = useState(true);
+  const [isExtratoOpen, setIsExtratoOpen] = useState(false);
 
   const selectedClient = useMemo(() => {
     return clients.find((c) => c.id === selectedClientId) ?? defaultClient;
