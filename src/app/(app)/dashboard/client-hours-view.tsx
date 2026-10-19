@@ -875,8 +875,8 @@ export function ClientHoursView({
                             </p>
                           </div>
 
-                          <div className="flex items-center gap-4 shrink-0 tabular-nums">
-                            <div className="text-right">
+                          <div className="flex items-center gap-3 shrink-0 tabular-nums">
+                            <div className="w-24 text-right">
                               <span className="text-base font-bold text-foreground block">
                                 {formatHours(area.hours)}
                               </span>
@@ -885,10 +885,10 @@ export function ClientHoursView({
                               </span>
                             </div>
 
-                            {canSeeCosts && area.cost > 0 && (
-                              <div className="text-right border-l pl-3 hidden sm:block">
+                            {canSeeCosts && (
+                              <div className="w-28 text-right border-l pl-3 hidden sm:block">
                                 <span className="text-sm font-semibold text-foreground block">
-                                  {formatCurrency(area.cost)}
+                                  {area.cost > 0 ? formatCurrency(area.cost) : "—"}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
                                   {formatPercent(area.billableShare / 100)} faturável
@@ -901,7 +901,7 @@ export function ClientHoursView({
                               variant="ghost"
                               size="sm"
                               onClick={() => toggleAreaExpand(area.name)}
-                              className="h-8 w-8 p-0"
+                              className="h-8 w-8 p-0 shrink-0 cursor-pointer"
                               title={isExpanded ? "Ocultar detalhamento de atividades" : "Ver detalhamento de atividades"}
                             >
                               {isExpanded ? <ChevronUpIcon className="size-4" /> : <ChevronDownIcon className="size-4" />}
@@ -922,7 +922,11 @@ export function ClientHoursView({
                           <div className="mt-1 rounded-lg border bg-muted/30 p-3 grid gap-2">
                             <div className="flex items-center justify-between text-xs font-medium text-muted-foreground border-b pb-1.5">
                               <span>Atividades executadas em {area.name}:</span>
-                              <span>Horas / Participação</span>
+                              <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                                <span className="w-14 text-right">Horas</span>
+                                <span className="w-14 text-right">Part. %</span>
+                                {canSeeCosts && <span className="w-20 text-right">Custo</span>}
+                              </div>
                             </div>
                             <div className="grid gap-1.5">
                               {area.activities.map((act) => (
@@ -930,23 +934,25 @@ export function ClientHoursView({
                                   key={act.id}
                                   className="flex items-center justify-between text-xs py-1 px-1.5 rounded hover:bg-background/80 transition-colors"
                                 >
-                                  <div className="flex items-center gap-2 min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0 pr-2">
                                     <span className="font-medium truncate text-foreground">{act.name}</span>
                                     <Badge
                                       variant={act.billable ? "outline" : "secondary"}
-                                      className="text-[10px] py-0 px-1"
+                                      className="text-[10px] py-0 px-1 shrink-0"
                                     >
                                       {act.billable ? "Faturável" : "Interna"}
                                     </Badge>
                                   </div>
-                                  <div className="flex items-center gap-3 shrink-0 tabular-nums">
-                                    <span className="font-semibold">{formatHours(act.hours)}</span>
-                                    <span className="text-muted-foreground text-[11px] w-12 text-right">
+                                  <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                                    <span className="font-semibold text-foreground w-14 text-right">
+                                      {formatHours(act.hours)}
+                                    </span>
+                                    <span className="text-muted-foreground text-[11px] w-14 text-right">
                                       {act.percentageInArea.toFixed(1)}%
                                     </span>
-                                    {canSeeCosts && act.cost > 0 && (
-                                      <span className="text-muted-foreground text-[11px] w-16 text-right hidden sm:inline">
-                                        {formatCurrency(act.cost)}
+                                    {canSeeCosts && (
+                                      <span className="text-muted-foreground text-[11px] w-20 text-right">
+                                        {act.cost > 0 ? formatCurrency(act.cost) : "—"}
                                       </span>
                                     )}
                                   </div>
@@ -1000,11 +1006,16 @@ export function ClientHoursView({
                             {act.billable ? "Faturável" : "Interna"}
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0 tabular-nums">
-                          <span className="font-semibold">{formatHours(act.hours)}</span>
-                          <span className="text-xs text-muted-foreground w-12 text-right">
+                        <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                          <span className="font-semibold text-foreground w-14 text-right">{formatHours(act.hours)}</span>
+                          <span className="text-xs text-muted-foreground w-14 text-right">
                             {act.percentage.toFixed(1)}%
                           </span>
+                          {canSeeCosts && (
+                            <span className="text-xs text-muted-foreground w-20 text-right">
+                              {act.cost > 0 ? formatCurrency(act.cost) : "—"}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -1060,14 +1071,14 @@ export function ClientHoursView({
                           </span>
                           <span className="font-medium truncate">{emp.name}</span>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0 tabular-nums">
-                          <span className="font-semibold">{formatHours(emp.hours)}</span>
-                          <span className="text-xs text-muted-foreground w-12 text-right">
+                        <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                          <span className="font-semibold text-foreground w-14 text-right">{formatHours(emp.hours)}</span>
+                          <span className="text-xs text-muted-foreground w-14 text-right">
                             {emp.percentage.toFixed(1)}%
                           </span>
-                          {canSeeCosts && emp.cost > 0 && (
+                          {canSeeCosts && (
                             <span className="text-xs text-muted-foreground w-20 text-right">
-                              {formatCurrency(emp.cost)}
+                              {emp.cost > 0 ? formatCurrency(emp.cost) : "—"}
                             </span>
                           )}
                         </div>
