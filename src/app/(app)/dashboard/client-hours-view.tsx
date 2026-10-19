@@ -65,9 +65,9 @@ export function ClientHoursView({
   const [billableFilter, setBillableFilter] = useState<"todos" | "sim" | "nao">("todos");
   const [viewMode, setViewMode] = useState<"areas" | "atividades" | "colaboradores" | "todas">("areas");
   const [expandedAreas, setExpandedAreas] = useState<Record<string, boolean>>({});
-  const [showAreaEmployees, setShowAreaEmployees] = useState(true);
+  const [showAreaEmployees, setShowAreaEmployees] = useState(false);
   const [individualAreaEmployees, setIndividualAreaEmployees] = useState<Record<string, boolean>>({});
-  const [showActivityEmployees, setShowActivityEmployees] = useState(true);
+  const [showActivityEmployees, setShowActivityEmployees] = useState(false);
   const [individualAreaActivityEmployees, setIndividualAreaActivityEmployees] = useState<Record<string, boolean>>({});
   const [isExtratoOpen, setIsExtratoOpen] = useState(false);
 
