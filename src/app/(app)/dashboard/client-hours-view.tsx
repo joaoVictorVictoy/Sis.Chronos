@@ -607,6 +607,92 @@ export function ClientHoursView({
 
   return (
     <div className="grid gap-6">
+      {/* Grade de KPIs Dinâmicos Recalculados */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="relative overflow-hidden">
+          <div className="absolute top-0 right-0 h-16 w-16 translate-x-4 -translate-y-4 rounded-full bg-primary/10" />
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-1 text-xs font-medium">
+              <ClockIcon className="size-3.5 text-primary" />
+              Horas Consolidadas
+              {isAnyFilterActive && (
+                <span className="text-[10px] text-primary font-normal">(Filtrado)</span>
+              )}
+            </CardDescription>
+            <CardTitle className="text-3xl font-bold tabular-nums">
+              {formatHours(metrics.hours)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground flex items-center justify-between">
+            <span>{metrics.hours.toFixed(1)}h decimais</span>
+            {isAnyFilterActive && (
+              <span className="font-medium text-foreground">
+                {formatPercent(selectedClient.totalMinutes > 0 ? metrics.minutes / selectedClient.totalMinutes : 0)} do cliente
+              </span>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-1 text-xs font-medium">
+              <CheckCircle2Icon className="size-3.5 text-[--viz-good]" />
+              Horas Faturáveis
+            </CardDescription>
+            <CardTitle className="text-3xl font-bold tabular-nums text-[--viz-good]">
+              {formatHours(metrics.billableHours)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">
+            {formatPercent(metrics.billableShare)} de aproveitamento faturável
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-medium">Horas Não Faturáveis</CardDescription>
+            <CardTitle className="text-3xl font-bold tabular-nums text-muted-foreground">
+              {formatHours(metrics.nonBillableHours)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">
+            {formatPercent(1 - metrics.billableShare)} internas / não cobradas
+          </CardContent>
+        </Card>
+
+        {canSeeCosts ? (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription className="text-xs font-medium">Custo da Equipe</CardDescription>
+              <CardTitle className="text-3xl font-bold tabular-nums">
+                {formatCurrency(metrics.cost)}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-muted-foreground">
+              {metrics.hours > 0 ? `Custo médio ${formatCurrency(metrics.cost / metrics.hours)}/h` : "—"}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1 text-xs font-medium">
+                <UsersIcon className="size-3.5 text-primary" />
+                Equipe e Lançamentos
+              </CardDescription>
+              <CardTitle className="text-3xl font-bold tabular-nums">
+                {metrics.employeesCount}{" "}
+                <span className="text-lg font-normal text-muted-foreground">
+                  {metrics.employeesCount === 1 ? "membro" : "membros"}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-muted-foreground">
+              {filteredEntries.length} lançamentos considerados
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
       {/* Barra de Seleção de Cliente e Ações */}
       <Card className="border-primary/20 bg-card/60 backdrop-blur-xs">
         <CardHeader className="pb-4">
@@ -733,92 +819,6 @@ export function ClientHoursView({
         </Card>
       ) : (
         <>
-          {/* Grade de KPIs Dinâmicos Recalculados */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card className="relative overflow-hidden">
-              <div className="absolute top-0 right-0 h-16 w-16 translate-x-4 -translate-y-4 rounded-full bg-primary/10" />
-              <CardHeader className="pb-2">
-                <CardDescription className="flex items-center gap-1 text-xs font-medium">
-                  <ClockIcon className="size-3.5 text-primary" />
-                  Horas Consolidadas
-                  {isAnyFilterActive && (
-                    <span className="text-[10px] text-primary font-normal">(Filtrado)</span>
-                  )}
-                </CardDescription>
-                <CardTitle className="text-3xl font-bold tabular-nums">
-                  {formatHours(metrics.hours)}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs text-muted-foreground flex items-center justify-between">
-                <span>{metrics.hours.toFixed(1)}h decimais</span>
-                {isAnyFilterActive && (
-                  <span className="font-medium text-foreground">
-                    {formatPercent(selectedClient.totalMinutes > 0 ? metrics.minutes / selectedClient.totalMinutes : 0)} do cliente
-                  </span>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription className="flex items-center gap-1 text-xs font-medium">
-                  <CheckCircle2Icon className="size-3.5 text-[--viz-good]" />
-                  Horas Faturáveis
-                </CardDescription>
-                <CardTitle className="text-3xl font-bold tabular-nums text-[--viz-good]">
-                  {formatHours(metrics.billableHours)}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs text-muted-foreground">
-                {formatPercent(metrics.billableShare)} de aproveitamento faturável
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription className="text-xs font-medium">Horas Não Faturáveis</CardDescription>
-                <CardTitle className="text-3xl font-bold tabular-nums text-muted-foreground">
-                  {formatHours(metrics.nonBillableHours)}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs text-muted-foreground">
-                {formatPercent(1 - metrics.billableShare)} internas / não cobradas
-              </CardContent>
-            </Card>
-
-            {canSeeCosts ? (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription className="text-xs font-medium">Custo da Equipe</CardDescription>
-                  <CardTitle className="text-3xl font-bold tabular-nums">
-                    {formatCurrency(metrics.cost)}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-xs text-muted-foreground">
-                  {metrics.hours > 0 ? `Custo médio ${formatCurrency(metrics.cost / metrics.hours)}/h` : "—"}
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription className="flex items-center gap-1 text-xs font-medium">
-                    <UsersIcon className="size-3.5 text-primary" />
-                    Equipe e Lançamentos
-                  </CardDescription>
-                  <CardTitle className="text-3xl font-bold tabular-nums">
-                    {metrics.employeesCount}{" "}
-                    <span className="text-lg font-normal text-muted-foreground">
-                      {metrics.employeesCount === 1 ? "membro" : "membros"}
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-xs text-muted-foreground">
-                  {filteredEntries.length} lançamentos considerados
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
           {/* Seletor de Modo de Visualização Consolidada */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b pb-3">
             <div>
