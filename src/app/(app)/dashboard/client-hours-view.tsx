@@ -1191,6 +1191,11 @@ export function ClientHoursView({
 
                   <div className="flex flex-col items-start sm:items-end gap-1.5 self-start sm:self-auto shrink-0">
                     <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1.5 rounded-lg border bg-muted/40 px-2.5 py-1 text-xs shadow-2xs">
+                        <BriefcaseIcon className="size-3.5 text-primary shrink-0" />
+                        <span className="font-semibold text-foreground truncate max-w-48">{selectedClient.name}</span>
+                      </div>
+
                       <Button
                         type="button"
                         variant="outline"
@@ -1210,14 +1215,6 @@ export function ClientHoursView({
                           </>
                         )}
                       </Button>
-
-                      <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-1.5 shadow-2xs">
-                        <BriefcaseIcon className="size-4 text-primary shrink-0" />
-                        <div className="text-left sm:text-right">
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground block font-medium">Empresa</span>
-                          <span className="text-xs font-bold text-foreground block max-w-xs truncate">{selectedClient.name}</span>
-                        </div>
-                      </div>
                     </div>
 
                     {areaFilter !== "todas" && (
@@ -1709,6 +1706,11 @@ export function ClientHoursView({
                       </button>
                     </div>
 
+                    <div className="flex items-center gap-1.5 rounded-lg border bg-muted/40 px-2.5 py-1 text-xs shadow-2xs">
+                      <BriefcaseIcon className="size-3.5 text-primary shrink-0" />
+                      <span className="font-semibold text-foreground truncate max-w-48">{selectedClient.name}</span>
+                    </div>
+
                     <Button
                       type="button"
                       variant="outline"
@@ -1722,11 +1724,6 @@ export function ClientHoursView({
                       <UsersIcon className="size-3.5" />
                       {showActivityEmployees ? "Esconder colaboradores" : "Mostrar colaboradores"}
                     </Button>
-
-                    <div className="hidden sm:flex items-center gap-1.5 rounded-lg border bg-muted/40 px-2.5 py-1 text-xs">
-                      <BriefcaseIcon className="size-3.5 text-primary shrink-0" />
-                      <span className="font-semibold text-foreground truncate max-w-48">{selectedClient.name}</span>
-                    </div>
                   </div>
                 </div>
               </CardHeader>
@@ -1897,7 +1894,7 @@ export function ClientHoursView({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-                    <div className="hidden sm:flex items-center gap-1.5 rounded-lg border bg-muted/40 px-2.5 py-1 text-xs">
+                    <div className="flex items-center gap-1.5 rounded-lg border bg-muted/40 px-2.5 py-1 text-xs shadow-2xs">
                       <BriefcaseIcon className="size-3.5 text-primary shrink-0" />
                       <span className="font-semibold text-foreground truncate max-w-48">{selectedClient.name}</span>
                     </div>
