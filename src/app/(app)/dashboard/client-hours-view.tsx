@@ -70,6 +70,7 @@ export function ClientHoursView({
   const [isSlimView, setIsSlimView] = useState(true);
   const [expandedAreas, setExpandedAreas] = useState<Record<string, boolean>>({});
   const [expandedActivities, setExpandedActivities] = useState<Record<string, boolean>>({});
+  const [expandedEmployees, setExpandedEmployees] = useState<Record<string, boolean>>({});
   const [showAreaEmployees, setShowAreaEmployees] = useState(false);
   const [individualAreaEmployees, setIndividualAreaEmployees] = useState<Record<string, boolean>>({});
   const [showActivityEmployees, setShowActivityEmployees] = useState(false);
@@ -370,6 +371,18 @@ export function ClientHoursView({
         cost: number;
         entriesCount: number;
         areasSet: Set<string>;
+        activitiesMap: Map<
+          string,
+          {
+            id: string;
+            name: string;
+            areaName: string;
+            minutes: number;
+            hours: number;
+            cost: number;
+            billable: boolean;
+          }
+        >;
       }
     >();
 
@@ -383,6 +396,7 @@ export function ClientHoursView({
           cost: 0,
           entriesCount: 0,
           areasSet: new Set(),
+          activitiesMap: new Map(),
         };
         map.set(e.employeeId, emp);
       }
@@ -390,17 +404,41 @@ export function ClientHoursView({
       emp.cost += e.costAmount;
       emp.entriesCount += 1;
       if (e.areaName) emp.areasSet.add(e.areaName);
+
+      const act = emp.activitiesMap.get(e.activityId) ?? {
+        id: e.activityId,
+        name: e.activityName,
+        areaName: e.areaName,
+        minutes: 0,
+        hours: 0,
+        cost: 0,
+        billable: e.billable,
+      };
+      act.minutes += e.minutes;
+      act.hours = act.minutes / 60;
+      act.cost += e.costAmount;
+      emp.activitiesMap.set(e.activityId, act);
     }
 
     const totalFilteredMins = metrics.minutes || 1;
 
     return Array.from(map.values())
-      .map((e) => ({
-        ...e,
-        hours: e.minutes / 60,
-        percentage: (e.minutes / totalFilteredMins) * 100,
-        areas: Array.from(e.areasSet),
-      }))
+      .map((e) => {
+        const activities = Array.from(e.activitiesMap.values())
+          .map((act) => ({
+            ...act,
+            percentageInEmployee: e.minutes > 0 ? (act.minutes / e.minutes) * 100 : 0,
+          }))
+          .sort((x, y) => y.minutes - x.minutes);
+
+        return {
+          ...e,
+          hours: e.minutes / 60,
+          percentage: (e.minutes / totalFilteredMins) * 100,
+          areas: Array.from(e.areasSet),
+          activities,
+        };
+      })
       .sort((a, b) => b.minutes - a.minutes);
   }, [filteredEntries, metrics.minutes]);
 
@@ -459,6 +497,32 @@ export function ClientHoursView({
   const areAllAreaActivitiesExpanded = (areaName: string, activities: { id: string }[]) => {
     if (activities.length === 0) return false;
     return activities.every((act) => expandedActivities[`${areaName}-${act.id}`]);
+  };
+
+  // Alterna expansão de um colaborador para exibir suas atividades
+  const toggleEmployeeExpand = (empId: string) => {
+    setExpandedEmployees((prev) => ({
+      ...prev,
+      [empId]: !(prev[empId] ?? true),
+    }));
+  };
+
+  // Alterna expansão de todos os colaboradores
+  const toggleAllEmployeesExpand = (employees: { id: string }[]) => {
+    const allExpanded = employees.every((e) => expandedEmployees[e.id] ?? true);
+    setExpandedEmployees((prev) => {
+      const next = { ...prev };
+      for (const e of employees) {
+        next[e.id] = !allExpanded;
+      }
+      return next;
+    });
+  };
+
+  // Verifica se todos os colaboradores estão expandidos
+  const areAllEmployeesExpanded = (employees: { id: string }[]) => {
+    if (employees.length === 0) return false;
+    return employees.every((e) => expandedEmployees[e.id] ?? true);
   };
 
   const isAnyFilterActive =
@@ -1320,7 +1384,7 @@ export function ClientHoursView({
           {(viewMode === "colaboradores" || viewMode === "todas") && (
             <Card>
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="grid gap-1">
                     <div className="flex items-center gap-2">
                       <UsersIcon className="size-4 text-primary" />
@@ -1330,8 +1394,30 @@ export function ClientHoursView({
                       </Badge>
                     </div>
                     <CardDescription className="text-xs">
-                      Distribuição das horas apontadas entre cada colaborador da equipe.
+                      Distribuição das horas e atividades executadas por cada colaborador da equipe.
                     </CardDescription>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleAllEmployeesExpand(byEmployeeDynamic)}
+                      className="h-7 text-xs gap-1 shadow-xs cursor-pointer"
+                    >
+                      {areAllEmployeesExpanded(byEmployeeDynamic) ? (
+                        <>
+                          <ChevronUpIcon className="size-3.5" />
+                          Recolher atividades
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDownIcon className="size-3.5" />
+                          Expandir atividades
+                        </>
+                      )}
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -1341,41 +1427,116 @@ export function ClientHoursView({
                     Nenhum colaborador encontrado para os filtros selecionados.
                   </p>
                 ) : (
-                  byEmployeeDynamic.map((emp) => (
-                    <div key={emp.id} className="grid gap-1.5 rounded-lg border p-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                            {emp.name.charAt(0).toUpperCase()}
-                          </span>
-                          <span className="font-medium truncate">{emp.name}</span>
-                        </div>
-                        <div className="flex items-center gap-4 shrink-0 tabular-nums">
-                          <span className="font-semibold text-foreground w-14 text-right">{formatHours(emp.hours)}</span>
-                          <span className="text-xs text-muted-foreground w-14 text-right">
-                            {emp.percentage.toFixed(1)}%
-                          </span>
-                          {canSeeCosts && (
-                            <span className="text-xs text-muted-foreground w-20 text-right">
-                              {emp.cost > 0 ? formatCurrency(emp.cost) : "—"}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {emp.areas.length > 0 && (
-                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                          <span>Áreas:</span>
-                          <span className="truncate">{emp.areas.join(", ")}</span>
-                        </div>
-                      )}
-                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  byEmployeeDynamic.map((emp) => {
+                    const isEmpExpanded = expandedEmployees[emp.id] ?? true;
+
+                    return (
+                      <div key={emp.id} className="grid gap-2 rounded-xl border bg-card p-3.5 hover:border-primary/40 transition-colors">
+                        {/* Linha principal do colaborador (clicável para expandir/recolher) */}
                         <div
-                          className="h-full rounded-full bg-primary transition-all duration-300"
-                          style={{ width: `${Math.min(100, emp.percentage)}%` }}
-                        />
+                          className="flex items-center justify-between text-sm cursor-pointer select-none"
+                          onClick={() => toggleEmployeeExpand(emp.id)}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                            <span className="p-0.5 text-muted-foreground hover:text-primary shrink-0 transition-transform">
+                              {isEmpExpanded ? (
+                                <ChevronDownIcon className="size-3.5 text-primary" />
+                              ) : (
+                                <ChevronRightIcon className="size-3.5" />
+                              )}
+                            </span>
+                            <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                              {emp.name.charAt(0).toUpperCase()}
+                            </span>
+                            <div className="min-w-0">
+                              <span className="font-semibold text-foreground text-sm block truncate">{emp.name}</span>
+                              {emp.areas.length > 0 && (
+                                <span className="text-[11px] text-muted-foreground block truncate">
+                                  Áreas: <strong className="font-normal text-foreground">{emp.areas.join(", ")}</strong>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                            <span className="font-bold text-foreground text-sm w-16 text-right">
+                              {formatHours(emp.hours)}
+                            </span>
+                            {!isSlimView && (
+                              <span className="text-xs text-muted-foreground w-14 text-right">
+                                {emp.percentage.toFixed(1)}%
+                              </span>
+                            )}
+                            {!isSlimView && canSeeCosts && (
+                              <span className="text-xs text-muted-foreground w-20 text-right">
+                                {emp.cost > 0 ? formatCurrency(emp.cost) : "—"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Barra de Progresso do Colaborador */}
+                        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-primary transition-all duration-300"
+                            style={{ width: `${Math.min(100, emp.percentage)}%` }}
+                          />
+                        </div>
+
+                        {/* Lista de Atividades executadas pelo Colaborador (Drill-Down) */}
+                        {isEmpExpanded && emp.activities.length > 0 && (
+                          <div className="mt-1 ml-5 border-l-2 border-primary/30 pl-3 grid gap-1">
+                            <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-2 py-0.5 border-b border-border/40">
+                              <span>Atividades realizadas ({emp.activities.length})</span>
+                              <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                                <span className="w-16 text-right">Horas</span>
+                                {!isSlimView && <span className="w-14 text-right">Part. %</span>}
+                                {!isSlimView && canSeeCosts && <span className="w-20 text-right">Custo</span>}
+                              </div>
+                            </div>
+
+                            {emp.activities.map((act) => (
+                              <div
+                                key={act.id}
+                                className="flex items-center justify-between text-xs py-1.5 px-2 rounded-md bg-muted/30 hover:bg-muted/60 transition-colors"
+                              >
+                                <div className="flex items-center gap-2 min-w-0 pr-2">
+                                  <span className="font-medium truncate text-foreground text-[11px]">{act.name}</span>
+                                  {act.areaName && (
+                                    <Badge variant="outline" className="text-[9px] py-0 px-1 shrink-0">
+                                      {act.areaName}
+                                    </Badge>
+                                  )}
+                                  <Badge
+                                    variant={act.billable ? "outline" : "secondary"}
+                                    className="text-[9px] py-0 px-1 shrink-0"
+                                  >
+                                    {act.billable ? "Faturável" : "Interna"}
+                                  </Badge>
+                                </div>
+
+                                <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                                  <span className="font-medium text-foreground w-16 text-right text-[11px]">
+                                    {formatHours(act.hours)}
+                                  </span>
+                                  {!isSlimView && (
+                                    <span className="text-muted-foreground text-[11px] w-14 text-right">
+                                      {act.percentageInEmployee.toFixed(1)}%
+                                    </span>
+                                  )}
+                                  {!isSlimView && canSeeCosts && (
+                                    <span className="text-muted-foreground text-[11px] w-20 text-right">
+                                      {act.cost > 0 ? formatCurrency(act.cost) : "—"}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </CardContent>
             </Card>
