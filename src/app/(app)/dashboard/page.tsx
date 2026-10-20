@@ -35,20 +35,9 @@ import { ClientsPanel, type PanelItem } from "./clients-panel";
 import { PeriodFilter } from "./period-filter";
 import { TeamOperationalView } from "./team-operational-view";
 import { DashboardViewTabs } from "./dashboard-view-tabs";
+import { DashboardAlerts } from "./dashboard-alerts";
 
 export const metadata = { title: "Rentabilidade | Apontamento" };
-
-const ALERT_ICON: Record<AlertLevel, React.ComponentType<{ className?: string }>> = {
-  critico: OctagonAlertIcon,
-  atencao: AlertTriangleIcon,
-  info: InfoIcon,
-};
-
-const ALERT_COLOR: Record<AlertLevel, string> = {
-  critico: "text-[--viz-critical]",
-  atencao: "text-[#8a6200] dark:text-[--viz-warning]",
-  info: "text-muted-foreground",
-};
 
 function Kpi({
   label,
@@ -211,35 +200,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         canSeeCosts={canSeeCosts}
         overviewContent={
           <>
-            {alerts.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Alertas</CardTitle>
-            <CardDescription>O que precisa de atenção agora.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-2">
-            {alerts.slice(0, 8).map((alert) => {
-              const Icon = ALERT_ICON[alert.level];
-              const content = (
-                <div className="flex items-start gap-2 rounded-lg border px-3 py-2">
-                  <Icon className={`mt-0.5 size-4 shrink-0 ${ALERT_COLOR[alert.level]}`} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{alert.title}</p>
-                    <p className="text-xs text-muted-foreground">{alert.detail}</p>
-                  </div>
-                </div>
-              );
-              return alert.href ? (
-                <Link key={alert.id} href={alert.href} className="block transition-colors hover:bg-muted/40">
-                  {content}
-                </Link>
-              ) : (
-                <div key={alert.id}>{content}</div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      ) : null}
+            <DashboardAlerts alerts={alerts} />
 
       {canSeeCosts ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
