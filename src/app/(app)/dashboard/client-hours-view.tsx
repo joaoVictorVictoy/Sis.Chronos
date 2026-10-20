@@ -1002,28 +1002,13 @@ export function ClientHoursView({
                     </CardDescription>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-                    {areaFilter !== "todas" && (
+                  {areaFilter !== "todas" && (
+                    <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
                       <Badge variant="outline" className="text-xs gap-1">
                         Filtrado pela área: <strong className="text-foreground">{areaFilter}</strong>
                       </Badge>
-                    )}
-
-                    {/* Botão de alternância do Modo Slim (Oculta Part. % e Custo) */}
-                    <Button
-                      type="button"
-                      variant={isSlimView ? "secondary" : "outline"}
-                      size="sm"
-                      onClick={() => setIsSlimView((prev) => !prev)}
-                      className={`h-7 text-xs gap-1.5 shadow-xs cursor-pointer transition-colors ${
-                        isSlimView ? "border-primary/50 bg-primary/10 text-primary font-medium" : ""
-                      }`}
-                      title={isSlimView ? "Expandir colunas de % e Custo" : "Recolher / ocultar colunas de % e Custo"}
-                    >
-                      {isSlimView ? <EyeOffIcon className="size-3.5 text-primary" /> : <EyeIcon className="size-3.5" />}
-                      <span>{isSlimView ? "Mostrar % e Custo" : "Ocultar % e Custo (Slim)"}</span>
-                    </Button>
-                  </div>
+                    </div>
+                  )}
                 </div>
               </CardHeader>
 
