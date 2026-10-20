@@ -39,7 +39,9 @@ import {
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/page-header";
 import { formatCurrency, formatDate, formatHours, formatPercent } from "@/lib/format";
-import type { ClientHoursReport, ClientHoursSummary } from "@/lib/server/metrics.types";
+import type { ClientHoursReport, ClientHoursSummary, ClientHoursEntry } from "@/lib/server/metrics.types";
+
+export const ALL_CLIENTS_ID = "__todos__";
 
 export function ClientHoursView({
   report,
@@ -52,15 +54,65 @@ export function ClientHoursView({
 }) {
   const clients = report.clients;
 
+  // Síntese consolidada de todos os clientes (Visão Geral da Empresa)
+  const allClientsSummary = useMemo<ClientHoursSummary>(() => {
+    let totalMinutes = 0;
+    let billableMinutes = 0;
+    let totalCost = 0;
+    const allEntries: (ClientHoursEntry & { clientName?: string; clientId?: string })[] = [];
+    const empIds = new Set<string>();
+
+    for (const c of clients) {
+      totalMinutes += c.totalMinutes;
+      billableMinutes += c.billableMinutes;
+      totalCost += c.totalCost;
+      for (const e of c.entries) {
+        allEntries.push({
+          ...e,
+          clientName: c.name,
+          clientId: c.id,
+        });
+        empIds.add(e.employeeId);
+      }
+    }
+
+    const totalHours = totalMinutes / 60;
+    const billableHours = billableMinutes / 60;
+    const nonBillableHours = (totalMinutes - billableMinutes) / 60;
+    const billableShare = totalMinutes > 0 ? billableMinutes / totalMinutes : 0;
+
+    return {
+      id: ALL_CLIENTS_ID,
+      name: "Geral (Todos os Clientes)",
+      legalName: "Todos os Clientes Consolidados",
+      active: true,
+      totalMinutes,
+      totalHours,
+      billableMinutes,
+      billableHours,
+      nonBillableHours,
+      billableShare,
+      totalCost,
+      entriesCount: allEntries.length,
+      employeesCount: empIds.size,
+      byEmployee: [],
+      byArea: [],
+      byActivity: [],
+      byContract: [],
+      entries: allEntries,
+    };
+  }, [clients]);
+
   // Encontra o cliente inicial: passado por param, ou o primeiro com horas, ou o primeiro da lista
   const defaultClient = useMemo(() => {
     if (initialClientId) {
+      if (initialClientId === ALL_CLIENTS_ID) return allClientsSummary;
       const found = clients.find((c) => c.id === initialClientId);
       if (found) return found;
     }
     const withHours = clients.find((c) => c.totalMinutes > 0);
-    return withHours ?? clients[0];
-  }, [clients, initialClientId]);
+    return withHours ?? clients[0] ?? allClientsSummary;
+  }, [clients, initialClientId, allClientsSummary]);
 
   const [selectedClientId, setSelectedClientId] = useState<string>(defaultClient?.id ?? "");
   const [search, setSearch] = useState("");
@@ -81,8 +133,11 @@ export function ClientHoursView({
   const [isExtratoOpen, setIsExtratoOpen] = useState(false);
 
   const selectedClient = useMemo(() => {
+    if (selectedClientId === ALL_CLIENTS_ID) {
+      return allClientsSummary;
+    }
     return clients.find((c) => c.id === selectedClientId) ?? defaultClient;
-  }, [clients, selectedClientId, defaultClient]);
+  }, [clients, selectedClientId, allClientsSummary, defaultClient]);
 
   // Opções de filtros dinâmicos extraídas dos lançamentos do cliente
   const filterOptions = useMemo(() => {
@@ -134,7 +189,8 @@ export function ClientHoursView({
         const inAct = entry.activityName.toLowerCase().includes(q);
         const inArea = entry.areaName.toLowerCase().includes(q);
         const inContract = entry.contractName?.toLowerCase().includes(q) ?? false;
-        if (!inDesc && !inEmp && !inAct && !inArea && !inContract) return false;
+        const inClient = (entry as { clientName?: string }).clientName?.toLowerCase().includes(q) ?? false;
+        if (!inDesc && !inEmp && !inAct && !inArea && !inContract && !inClient) return false;
       }
 
       return true;
@@ -587,14 +643,16 @@ export function ClientHoursView({
     return clients.filter((c) => c.totalMinutes > 0).slice(0, 5);
   }, [clients]);
 
-  // URL de exportação para este cliente
+  // URL de exportação para este cliente ou geral
   const exportUrl = (format: "csv" | "xlsx" | "pdf") => {
     const params = new URLSearchParams({
       formato: format,
       de: report.period.from,
       ate: report.period.to,
-      cliente: selectedClient?.id ?? "",
     });
+    if (selectedClient?.id && selectedClient.id !== ALL_CLIENTS_ID) {
+      params.set("cliente", selectedClient.id);
+    }
     return `/exportar/apontamentos?${params.toString()}`;
   };
 
@@ -630,7 +688,8 @@ export function ClientHoursView({
             <span>{metrics.hours.toFixed(1)}h decimais</span>
             {isAnyFilterActive && (
               <span className="font-medium text-foreground">
-                {formatPercent(selectedClient.totalMinutes > 0 ? metrics.minutes / selectedClient.totalMinutes : 0)} do cliente
+                {formatPercent(selectedClient.totalMinutes > 0 ? metrics.minutes / selectedClient.totalMinutes : 0)}{" "}
+                {selectedClient.id === ALL_CLIENTS_ID ? "do total geral" : "do cliente"}
               </span>
             )}
           </CardContent>
@@ -703,29 +762,41 @@ export function ClientHoursView({
             <div className="grid gap-1.5">
               <div className="flex items-center gap-2">
                 <BriefcaseIcon className="size-5 text-primary" />
-                <CardTitle className="text-xl">Horas Apontadas por Cliente</CardTitle>
+                <CardTitle className="text-xl">
+                  {selectedClient.id === ALL_CLIENTS_ID
+                    ? "Horas Apontadas - Geral (Todos os Clientes)"
+                    : `Horas Apontadas - ${selectedClient.name}`}
+                </CardTitle>
                 <Badge variant="outline" className="ml-1 text-xs font-normal">
                   {report.period.label}
                 </Badge>
               </div>
               <CardDescription>
-                Consolidação dinâmica de apontamentos por cliente com visão por Área de Atuação, Atividade e Colaborador.
+                {selectedClient.id === ALL_CLIENTS_ID
+                  ? "Consolidação geral de apontamentos de toda a empresa com visão por Área de Atuação, Atividade e Colaborador."
+                  : "Consolidação dinâmica de apontamentos por cliente com visão por Área de Atuação, Atividade e Colaborador."}
               </CardDescription>
             </div>
 
-            {/* Exportação individual do cliente */}
+            {/* Exportação e atalho de cadastro */}
             <div className="flex flex-wrap items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
                     <Button variant="outline" size="sm" className="gap-1.5 shadow-xs">
                       <DownloadIcon className="size-4" />
-                      Exportar Extrato do Cliente
+                      {selectedClient.id === ALL_CLIENTS_ID
+                        ? "Exportar Extrato Geral"
+                        : "Exportar Extrato do Cliente"}
                     </Button>
                   }
                 />
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Extrato de {selectedClient.name}</DropdownMenuLabel>
+                  <DropdownMenuLabel>
+                    {selectedClient.id === ALL_CLIENTS_ID
+                      ? "Extrato Geral (Todos os Clientes)"
+                      : `Extrato de ${selectedClient.name}`}
+                  </DropdownMenuLabel>
                   <DropdownMenuItem render={<a href={exportUrl("xlsx")} download />}>
                     <FileSpreadsheetIcon className="size-4" />
                     Excel (.xlsx)
@@ -741,14 +812,25 @@ export function ClientHoursView({
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                nativeButton={false}
-                render={<Link href={`/clientes/${selectedClient.id}`} />}
-              >
-                Ver cadastro do cliente
-              </Button>
+              {selectedClient.id === ALL_CLIENTS_ID ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  nativeButton={false}
+                  render={<Link href="/clientes" />}
+                >
+                  Ver todos os clientes
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  nativeButton={false}
+                  render={<Link href={`/clientes/${selectedClient.id}`} />}
+                >
+                  Ver cadastro do cliente
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -767,40 +849,58 @@ export function ClientHoursView({
                   setSelectedClientId(e.target.value);
                   resetFilters();
                 }}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs transition-colors focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs transition-colors focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring font-medium"
               >
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.totalHours > 0 ? `(${formatHours(c.totalHours)})` : "(sem horas no mês)"}
-                  </option>
-                ))}
+                <option value={ALL_CLIENTS_ID}>
+                  🌐 Geral (Todos os Clientes) ({formatHours(allClientsSummary.totalHours)})
+                </option>
+                <optgroup label="Clientes Individuais">
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.totalHours > 0 ? `(${formatHours(c.totalHours)})` : "(sem horas no mês)"}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </div>
 
-            {/* Chips de clientes com maior volume no mês */}
-            {topClients.length > 1 && (
-              <div className="flex flex-wrap items-center gap-1.5 sm:pt-4">
-                <span className="text-xs text-muted-foreground">Mais apontados:</span>
-                {topClients.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedClientId(c.id);
-                      resetFilters();
-                    }}
-                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
-                      selectedClientId === c.id
-                        ? "bg-primary text-primary-foreground shadow-xs"
-                        : "bg-muted/70 text-foreground hover:bg-muted"
-                    }`}
-                  >
-                    <span>{c.name}</span>
-                    <span className="opacity-80">· {formatHours(c.totalHours)}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Chips de atalhos rápidos com Geral e maiores volumes */}
+            <div className="flex flex-wrap items-center gap-1.5 sm:pt-4">
+              <span className="text-xs text-muted-foreground">Atalhos:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedClientId(ALL_CLIENTS_ID);
+                  resetFilters();
+                }}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
+                  selectedClientId === ALL_CLIENTS_ID
+                    ? "bg-primary text-primary-foreground shadow-xs font-semibold"
+                    : "bg-muted/70 text-foreground hover:bg-muted"
+                }`}
+              >
+                <span>🌐 Geral (Todos)</span>
+                <span className="opacity-80">· {formatHours(allClientsSummary.totalHours)}</span>
+              </button>
+              {topClients.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedClientId(c.id);
+                    resetFilters();
+                  }}
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
+                    selectedClientId === c.id
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "bg-muted/70 text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <span>{c.name}</span>
+                  <span className="opacity-80">· {formatHours(c.totalHours)}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -1856,7 +1956,9 @@ export function ClientHoursView({
                 <div>
                   <CardTitle className="text-lg font-semibold">Extrato Completo de Lançamentos</CardTitle>
                   <CardDescription>
-                    Lista item a item de todas as horas apontadas em {selectedClient.name} no período.
+                    {selectedClient.id === ALL_CLIENTS_ID
+                      ? "Lista item a item de todas as horas apontadas na empresa no período."
+                      : `Lista item a item de todas as horas apontadas em ${selectedClient.name} no período.`}
                   </CardDescription>
                 </div>
 
@@ -1921,6 +2023,7 @@ export function ClientHoursView({
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="w-24">Data</TableHead>
+                        {selectedClient.id === ALL_CLIENTS_ID && <TableHead>Cliente</TableHead>}
                         <TableHead>Colaborador</TableHead>
                         <TableHead>Atividade / Área</TableHead>
                         <TableHead>Contrato</TableHead>
@@ -1936,6 +2039,11 @@ export function ClientHoursView({
                           <TableCell className="font-medium whitespace-nowrap text-muted-foreground">
                             {formatDate(entry.entryDate)}
                           </TableCell>
+                          {selectedClient.id === ALL_CLIENTS_ID && (
+                            <TableCell className="font-medium whitespace-nowrap text-foreground text-xs">
+                              {(entry as { clientName?: string }).clientName || "—"}
+                            </TableCell>
+                          )}
                           <TableCell className="font-medium whitespace-nowrap">
                             {entry.employeeName}
                           </TableCell>
