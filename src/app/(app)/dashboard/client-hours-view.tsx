@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BriefcaseIcon,
   CheckCircle2Icon,
@@ -132,6 +132,13 @@ export function ClientHoursView({
   const [showActivityEmployees, setShowActivityEmployees] = useState(false);
   const [individualAreaActivityEmployees, setIndividualAreaActivityEmployees] = useState<Record<string, boolean>>({});
   const [isExtratoOpen, setIsExtratoOpen] = useState(false);
+
+  // Sempre que selecionar outro cliente, manter áreas e colaboradores recolhidos/ocultos por padrão
+  useEffect(() => {
+    setExpandedAreas({});
+    setExpandedEmployees({});
+    setExpandedActivities({});
+  }, [selectedClientId]);
 
   const selectedClient = useMemo(() => {
     if (selectedClientId === ALL_CLIENTS_ID) {
@@ -613,17 +620,35 @@ export function ClientHoursView({
     return activities.every((act) => expandedActivities[`${areaName}-${act.id}`]);
   };
 
+  // Alterna expansão de todas as áreas
+  const toggleAllAreasExpand = (areas: { name: string }[]) => {
+    const allExpanded = areas.length > 0 && areas.every((a) => !!expandedAreas[a.name]);
+    setExpandedAreas((prev) => {
+      const next = { ...prev };
+      for (const a of areas) {
+        next[a.name] = !allExpanded;
+      }
+      return next;
+    });
+  };
+
+  // Verifica se todas as áreas estão expandidas
+  const areAllAreasExpanded = (areas: { name: string }[]) => {
+    if (areas.length === 0) return false;
+    return areas.every((a) => !!expandedAreas[a.name]);
+  };
+
   // Alterna expansão de um colaborador para exibir suas atividades
   const toggleEmployeeExpand = (empId: string) => {
     setExpandedEmployees((prev) => ({
       ...prev,
-      [empId]: !(prev[empId] ?? true),
+      [empId]: !prev[empId],
     }));
   };
 
   // Alterna expansão de todos os colaboradores
   const toggleAllEmployeesExpand = (employees: { id: string }[]) => {
-    const allExpanded = employees.every((e) => expandedEmployees[e.id] ?? true);
+    const allExpanded = employees.length > 0 && employees.every((e) => !!expandedEmployees[e.id]);
     setExpandedEmployees((prev) => {
       const next = { ...prev };
       for (const e of employees) {
@@ -636,7 +661,7 @@ export function ClientHoursView({
   // Verifica se todos os colaboradores estão expandidos
   const areAllEmployeesExpanded = (employees: { id: string }[]) => {
     if (employees.length === 0) return false;
-    return employees.every((e) => expandedEmployees[e.id] ?? true);
+    return employees.every((e) => !!expandedEmployees[e.id]);
   };
 
   const isAnyFilterActive =
@@ -1165,11 +1190,33 @@ export function ClientHoursView({
                   </div>
 
                   <div className="flex flex-col items-start sm:items-end gap-1.5 self-start sm:self-auto shrink-0">
-                    <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-1.5 shadow-2xs">
-                      <BriefcaseIcon className="size-4 text-primary shrink-0" />
-                      <div className="text-left sm:text-right">
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground block font-medium">Empresa</span>
-                        <span className="text-xs font-bold text-foreground block max-w-xs truncate">{selectedClient.name}</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleAllAreasExpand(byAreaDynamic)}
+                        className="h-7 text-xs gap-1 shadow-xs cursor-pointer"
+                      >
+                        {areAllAreasExpanded(byAreaDynamic) ? (
+                          <>
+                            <ChevronUpIcon className="size-3.5" />
+                            Recolher áreas
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDownIcon className="size-3.5" />
+                            Expandir áreas
+                          </>
+                        )}
+                      </Button>
+
+                      <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-1.5 shadow-2xs">
+                        <BriefcaseIcon className="size-4 text-primary shrink-0" />
+                        <div className="text-left sm:text-right">
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground block font-medium">Empresa</span>
+                          <span className="text-xs font-bold text-foreground block max-w-xs truncate">{selectedClient.name}</span>
+                        </div>
                       </div>
                     </div>
 
@@ -1200,7 +1247,7 @@ export function ClientHoursView({
                   </p>
                 ) : (
                   byAreaDynamic.map((area) => {
-                    const isExpanded = expandedAreas[area.name] ?? (byAreaDynamic.length <= 3);
+                    const isExpanded = !!expandedAreas[area.name];
 
                     return (
                       <div
@@ -1884,7 +1931,7 @@ export function ClientHoursView({
                   </p>
                 ) : (
                   byEmployeeDynamic.map((emp) => {
-                    const isEmpExpanded = expandedEmployees[emp.id] ?? true;
+                    const isEmpExpanded = !!expandedEmployees[emp.id];
 
                     return (
                       <div key={emp.id} className="grid gap-2 rounded-xl border bg-card p-3.5 hover:border-primary/40 transition-colors">
