@@ -69,13 +69,11 @@ export function AppNav({
   role,
   isSuperAdmin = false,
   pendingApprovalsCount = 0,
-  missingDaysCount = 0,
   onNavigate,
 }: {
   role: AppRole;
   isSuperAdmin?: boolean;
   pendingApprovalsCount?: number;
-  missingDaysCount?: number;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
@@ -128,9 +126,7 @@ export function AppNav({
               }
 
               const isApprovals = item.href === "/aprovacoes";
-              const isEntries = item.href === "/apontamentos";
               const hasApprovalPending = isApprovals && pendingApprovalsCount > 0;
-              const hasMissingDays = isEntries && missingDaysCount > 0;
 
               return (
                 <Link
@@ -152,16 +148,6 @@ export function AppNav({
                     >
                       <ClockIcon className="size-3 text-amber-500 animate-pulse shrink-0" />
                       <span>{pendingApprovalsCount > 99 ? "99+" : pendingApprovalsCount}</span>
-                    </span>
-                  )}
-
-                  {hasMissingDays && (
-                    <span
-                      className="ml-auto flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400 shrink-0 shadow-2xs"
-                      title={`${missingDaysCount} dia(s) com horas pendentes de apontamento`}
-                    >
-                      <ClockIcon className="size-3 text-amber-500 shrink-0" />
-                      <span>{missingDaysCount > 99 ? "99+" : missingDaysCount}</span>
                     </span>
                   )}
                 </Link>

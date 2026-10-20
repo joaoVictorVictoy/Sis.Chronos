@@ -70,7 +70,6 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             role={profile.role}
             isSuperAdmin={isSuperAdmin}
             pendingApprovalsCount={pendingApprovalsCount}
-            missingDaysCount={missingDaysCount}
           />
         </div>
 
