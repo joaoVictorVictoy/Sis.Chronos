@@ -963,85 +963,9 @@ export function ClientHoursView({
         </Card>
       ) : (
         <>
-          {/* Card Unificado: Visualização Consolidada & Filtros Cruzados */}
+          {/* Card Unificado: Filtros Cruzados do Cliente com Modos de Consolidação */}
           <Card className="border-dashed bg-muted/20">
-            <CardHeader className="py-3.5 px-4 space-y-3.5">
-              {/* Seletor de Modo de Visualização Consolidada */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground">Visualização Consolidada de Horas</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Alterne a forma de consolidação para analisar por área técnica, por atividade ou pela equipe alocada.
-                  </p>
-                </div>
-
-                <div className="inline-flex rounded-lg border bg-background/80 p-1 text-xs shadow-2xs shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("areas")}
-                    className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-all cursor-pointer ${
-                      viewMode === "areas"
-                        ? "bg-muted text-foreground shadow-xs font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <LayersIcon className="size-3.5" />
-                    Por Área de Atuação
-                    <Badge variant="secondary" className="text-[10px] py-0 px-1 ml-0.5">
-                      {byAreaDynamic.length}
-                    </Badge>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("atividades")}
-                    className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-all cursor-pointer ${
-                      viewMode === "atividades"
-                        ? "bg-muted text-foreground shadow-xs font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <TagIcon className="size-3.5" />
-                    Por Atividade
-                    <Badge variant="secondary" className="text-[10px] py-0 px-1 ml-0.5">
-                      {byActivityDynamic.length}
-                    </Badge>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("colaboradores")}
-                    className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-all cursor-pointer ${
-                      viewMode === "colaboradores"
-                        ? "bg-muted text-foreground shadow-xs font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <UsersIcon className="size-3.5" />
-                    Por Colaborador
-                    <Badge variant="secondary" className="text-[10px] py-0 px-1 ml-0.5">
-                      {byEmployeeDynamic.length}
-                    </Badge>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("todas")}
-                    className={`hidden md:inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-all cursor-pointer ${
-                      viewMode === "todas"
-                        ? "bg-muted text-foreground shadow-xs font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Visão Completa
-                  </button>
-                </div>
-              </div>
-
-              {/* Divisor interno sutil */}
-              <div className="border-t border-border/60" />
-
-              {/* Cabeçalho dos Filtros Cruzados Dinâmicos */}
+            <CardHeader className="py-3 px-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <ListFilterIcon className="size-4 text-primary" />
@@ -1053,18 +977,82 @@ export function ClientHoursView({
                   )}
                 </div>
 
-                {isAnyFilterActive && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={resetFilters}
-                    className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    <RotateCcwIcon className="size-3.5" />
-                    Limpar filtros
-                  </Button>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex rounded-lg border bg-background/80 p-1 text-xs shadow-2xs shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("areas")}
+                      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-all cursor-pointer ${
+                        viewMode === "areas"
+                          ? "bg-muted text-foreground shadow-xs font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <LayersIcon className="size-3.5" />
+                      Por Área de Atuação
+                      <Badge variant="secondary" className="text-[10px] py-0 px-1 ml-0.5">
+                        {byAreaDynamic.length}
+                      </Badge>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("atividades")}
+                      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-all cursor-pointer ${
+                        viewMode === "atividades"
+                          ? "bg-muted text-foreground shadow-xs font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <TagIcon className="size-3.5" />
+                      Por Atividade
+                      <Badge variant="secondary" className="text-[10px] py-0 px-1 ml-0.5">
+                        {byActivityDynamic.length}
+                      </Badge>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("colaboradores")}
+                      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-all cursor-pointer ${
+                        viewMode === "colaboradores"
+                          ? "bg-muted text-foreground shadow-xs font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <UsersIcon className="size-3.5" />
+                      Por Colaborador
+                      <Badge variant="secondary" className="text-[10px] py-0 px-1 ml-0.5">
+                        {byEmployeeDynamic.length}
+                      </Badge>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("todas")}
+                      className={`hidden md:inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-all cursor-pointer ${
+                        viewMode === "todas"
+                          ? "bg-muted text-foreground shadow-xs font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Visão Completa
+                    </button>
+                  </div>
+
+                  {isAnyFilterActive && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={resetFilters}
+                      className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                      <RotateCcwIcon className="size-3.5" />
+                      Limpar filtros
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
 
