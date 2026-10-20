@@ -959,20 +959,6 @@ export function ClientHoursView({
                       {isSlimView ? <EyeIcon className="size-3.5 text-primary" /> : <EyeOffIcon className="size-3.5" />}
                       <span>{isSlimView ? "Modo Slim: Ativo (só horas)" : "Ocultar % e Custo (Slim)"}</span>
                     </Button>
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setShowAreaEmployees((prev) => !prev);
-                        setIndividualAreaEmployees({});
-                      }}
-                      className="h-7 text-xs gap-1 shadow-xs cursor-pointer"
-                    >
-                      <UsersIcon className="size-3.5" />
-                      {showAreaEmployees ? "Esconder colaboradores" : "Mostrar colaboradores"}
-                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -985,7 +971,6 @@ export function ClientHoursView({
                 ) : (
                   byAreaDynamic.map((area) => {
                     const isExpanded = expandedAreas[area.name] ?? (byAreaDynamic.length <= 3);
-                    const isEmpVisible = individualAreaEmployees[area.name] ?? showAreaEmployees;
 
                     return (
                       <div
@@ -1075,66 +1060,10 @@ export function ClientHoursView({
                           />
                         </div>
 
-                        {/* Detalhamento de Colaboradores e Atividades dentro desta Área (Expansível) */}
+                        {/* Detalhamento de Atividades dentro desta Área (Expansível) */}
                         {isExpanded && (
                           <div className="mt-2 grid gap-3.5 rounded-lg border bg-muted/20 p-3.5">
-                            {/* 1. Colaboradores na área com horas consolidadas */}
-                            <div className="grid gap-2">
-                              <div className="flex items-center justify-between text-xs font-semibold text-foreground border-b pb-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => toggleAreaEmployees(area.name)}
-                                  className="flex items-center gap-1.5 hover:text-primary transition-colors cursor-pointer text-left"
-                                >
-                                  <UsersIcon className="size-3.5 text-primary" />
-                                  <span>Colaboradores atuantes ({area.employees.length})</span>
-                                  <span className="text-[11px] font-normal text-muted-foreground underline">
-                                    {isEmpVisible ? "(Esconder)" : "(Mostrar)"}
-                                  </span>
-                                </button>
-                                {isEmpVisible && (
-                                  <div className="flex items-center gap-4 shrink-0 tabular-nums text-muted-foreground text-[11px] font-medium">
-                                    <span className="w-16 text-right">Horas</span>
-                                    {!isSlimView && <span className="w-14 text-right">Part. %</span>}
-                                    {!isSlimView && canSeeCosts && <span className="w-20 text-right">Custo</span>}
-                                  </div>
-                                )}
-                              </div>
-                              {isEmpVisible && (
-                                <div className="grid gap-1.5">
-                                  {area.employees.map((emp) => (
-                                    <div
-                                      key={emp.id}
-                                      className="flex items-center justify-between text-xs py-1.5 px-2 rounded-md bg-card/60 border hover:bg-card transition-colors"
-                                    >
-                                      <div className="flex items-center gap-2 min-w-0 pr-2">
-                                        <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
-                                          {emp.name.charAt(0).toUpperCase()}
-                                        </span>
-                                        <span className="font-medium truncate text-foreground">{emp.name}</span>
-                                      </div>
-                                      <div className="flex items-center gap-4 shrink-0 tabular-nums">
-                                        <span className="font-semibold text-foreground w-16 text-right">
-                                          {formatHours(emp.hours)}
-                                        </span>
-                                        {!isSlimView && (
-                                          <span className="text-muted-foreground text-[11px] w-14 text-right">
-                                            {emp.percentageInArea.toFixed(1)}%
-                                          </span>
-                                        )}
-                                        {!isSlimView && canSeeCosts && (
-                                          <span className="text-muted-foreground text-[11px] w-20 text-right">
-                                            {emp.cost > 0 ? formatCurrency(emp.cost) : "—"}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* 2. Atividades executadas na área (COM SUBTABELA EXPANSÍVEL DRILL-DOWN) */}
+                            {/* Atividades executadas na área (COM SUBTABELA EXPANSÍVEL DRILL-DOWN) */}
                             <div className="grid gap-2">
                               <div className="flex items-center justify-between text-xs font-semibold text-foreground border-b pb-1.5">
                                 <div className="flex items-center gap-2">
