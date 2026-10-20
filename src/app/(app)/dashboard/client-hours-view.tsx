@@ -23,6 +23,7 @@ import {
   EyeOffIcon,
   LayoutGridIcon,
   LayoutListIcon,
+  XIcon,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1159,12 +1160,7 @@ export function ClientHoursView({
                     </CardDescription>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-                    {areaFilter !== "todas" && (
-                      <Badge variant="outline" className="text-xs gap-1">
-                        Filtrado pela área: <strong className="text-foreground">{areaFilter}</strong>
-                      </Badge>
-                    )}
+                  <div className="flex flex-col items-start sm:items-end gap-1.5 self-start sm:self-auto shrink-0">
                     <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-1.5 shadow-2xs">
                       <BriefcaseIcon className="size-4 text-primary shrink-0" />
                       <div className="text-left sm:text-right">
@@ -1172,6 +1168,23 @@ export function ClientHoursView({
                         <span className="text-xs font-bold text-foreground block max-w-xs truncate">{selectedClient.name}</span>
                       </div>
                     </div>
+
+                    {areaFilter !== "todas" && (
+                      <Badge variant="outline" className="text-xs gap-1 py-0.5 px-2">
+                        <span>
+                          Filtrado pela área: <strong className="text-foreground">{areaFilter}</strong>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setAreaFilter("todas")}
+                          className="ml-0.5 rounded-full p-0.5 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                          aria-label="Remover filtro de área"
+                          title="Remover filtro de área"
+                        >
+                          <XIcon className="size-3" />
+                        </button>
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </CardHeader>
