@@ -1130,7 +1130,7 @@ export function ClientHoursView({
                                       : "(Expandir colaboradores de todas)"}
                                   </button>
                                 </div>
-                                <div className="flex items-center gap-3 shrink-0 tabular-nums text-muted-foreground text-[11px] font-medium">
+                                <div className="flex items-center gap-2 shrink-0 tabular-nums text-muted-foreground text-[11px] font-medium">
                                   <span className="w-16 text-right">Horas</span>
                                   {!isSlimView ? (
                                     <div className="flex items-center gap-2">
@@ -1139,20 +1139,20 @@ export function ClientHoursView({
                                       <button
                                         type="button"
                                         onClick={() => setIsSlimView(true)}
-                                        className="text-[11px] text-muted-foreground hover:text-foreground hover:underline ml-1 cursor-pointer"
-                                        title="Recolher / ocultar colunas de % e Custo"
+                                        className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted cursor-pointer transition-colors"
+                                        title="Ocultar % e Custo"
                                       >
-                                        (Ocultar)
+                                        <EyeOffIcon className="size-3.5" />
                                       </button>
                                     </div>
                                   ) : (
                                     <button
                                       type="button"
                                       onClick={() => setIsSlimView(false)}
-                                      className="text-[11px] text-primary hover:underline font-normal cursor-pointer flex items-center gap-0.5 ml-1"
-                                      title="Expandir colunas de Part. % e Custo"
+                                      className="text-muted-foreground hover:text-primary p-1 rounded hover:bg-muted cursor-pointer transition-colors"
+                                      title="Mostrar % e Custo"
                                     >
-                                      <span>+ Ver % e Custo</span>
+                                      <EyeIcon className="size-3.5" />
                                     </button>
                                   )}
                                 </div>
