@@ -358,7 +358,7 @@ export function ClientHoursView({
       .sort((a, b) => b.minutes - a.minutes);
   }, [filteredEntries, metrics.minutes]);
 
-  // Agrupamento consolidado dinâmico por Colaborador
+  // Agrupamento consolidado dinâmico por Colaborador com atividades organizadas por Área
   const byEmployeeDynamic = useMemo(() => {
     if (!filteredEntries.length) return [];
 
@@ -370,17 +370,24 @@ export function ClientHoursView({
         minutes: number;
         cost: number;
         entriesCount: number;
-        areasSet: Set<string>;
-        activitiesMap: Map<
+        areasMap: Map<
           string,
           {
-            id: string;
             name: string;
-            areaName: string;
             minutes: number;
-            hours: number;
             cost: number;
-            billable: boolean;
+            activitiesMap: Map<
+              string,
+              {
+                id: string;
+                name: string;
+                areaName: string;
+                minutes: number;
+                hours: number;
+                cost: number;
+                billable: boolean;
+              }
+            >;
           }
         >;
       }
@@ -395,20 +402,32 @@ export function ClientHoursView({
           minutes: 0,
           cost: 0,
           entriesCount: 0,
-          areasSet: new Set(),
-          activitiesMap: new Map(),
+          areasMap: new Map(),
         };
         map.set(e.employeeId, emp);
       }
       emp.minutes += e.minutes;
       emp.cost += e.costAmount;
       emp.entriesCount += 1;
-      if (e.areaName) emp.areasSet.add(e.areaName);
 
-      const act = emp.activitiesMap.get(e.activityId) ?? {
+      const areaKey = e.areaName || "Sem área";
+      let empArea = emp.areasMap.get(areaKey);
+      if (!empArea) {
+        empArea = {
+          name: areaKey,
+          minutes: 0,
+          cost: 0,
+          activitiesMap: new Map(),
+        };
+        emp.areasMap.set(areaKey, empArea);
+      }
+      empArea.minutes += e.minutes;
+      empArea.cost += e.costAmount;
+
+      const act = empArea.activitiesMap.get(e.activityId) ?? {
         id: e.activityId,
         name: e.activityName,
-        areaName: e.areaName,
+        areaName: areaKey,
         minutes: 0,
         hours: 0,
         cost: 0,
@@ -417,26 +436,46 @@ export function ClientHoursView({
       act.minutes += e.minutes;
       act.hours = act.minutes / 60;
       act.cost += e.costAmount;
-      emp.activitiesMap.set(e.activityId, act);
+      empArea.activitiesMap.set(e.activityId, act);
     }
 
     const totalFilteredMins = metrics.minutes || 1;
 
     return Array.from(map.values())
       .map((e) => {
-        const activities = Array.from(e.activitiesMap.values())
-          .map((act) => ({
-            ...act,
-            percentageInEmployee: e.minutes > 0 ? (act.minutes / e.minutes) * 100 : 0,
-          }))
+        const areas = Array.from(e.areasMap.values())
+          .map((ar) => {
+            const activities = Array.from(ar.activitiesMap.values())
+              .map((act) => ({
+                ...act,
+                percentageInArea: ar.minutes > 0 ? (act.minutes / ar.minutes) * 100 : 0,
+                percentageInEmployee: e.minutes > 0 ? (act.minutes / e.minutes) * 100 : 0,
+              }))
+              .sort((x, y) => y.minutes - x.minutes);
+
+            return {
+              name: ar.name,
+              minutes: ar.minutes,
+              hours: ar.minutes / 60,
+              cost: ar.cost,
+              percentageInEmployee: e.minutes > 0 ? (ar.minutes / e.minutes) * 100 : 0,
+              activities,
+            };
+          })
           .sort((x, y) => y.minutes - x.minutes);
 
+        const totalActivitiesCount = areas.reduce((acc, ar) => acc + ar.activities.length, 0);
+
         return {
-          ...e,
+          id: e.id,
+          name: e.name,
+          minutes: e.minutes,
           hours: e.minutes / 60,
+          cost: e.cost,
+          entriesCount: e.entriesCount,
           percentage: (e.minutes / totalFilteredMins) * 100,
-          areas: Array.from(e.areasSet),
-          activities,
+          areas,
+          totalActivitiesCount,
         };
       })
       .sort((a, b) => b.minutes - a.minutes);
@@ -1436,9 +1475,18 @@ export function ClientHoursView({
                             <div className="min-w-0">
                               <span className="font-semibold text-foreground text-sm block truncate">{emp.name}</span>
                               {emp.areas.length > 0 && (
-                                <span className="text-[11px] text-muted-foreground block truncate">
-                                  Áreas: <strong className="font-normal text-foreground">{emp.areas.join(", ")}</strong>
-                                </span>
+                                <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] text-muted-foreground">
+                                  <span className="font-medium text-foreground">Áreas:</span>
+                                  {emp.areas.map((ar) => (
+                                    <span
+                                      key={ar.name}
+                                      className="inline-flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full text-[10px]"
+                                    >
+                                      <span className="font-medium text-foreground">{ar.name}</span>
+                                      <span className="text-muted-foreground">· {formatHours(ar.hours)}</span>
+                                    </span>
+                                  ))}
+                                </div>
                               )}
                             </div>
                           </div>
@@ -1468,11 +1516,11 @@ export function ClientHoursView({
                           />
                         </div>
 
-                        {/* Lista de Atividades executadas pelo Colaborador (Drill-Down) */}
-                        {isEmpExpanded && emp.activities.length > 0 && (
-                          <div className="mt-1 ml-5 border-l-2 border-primary/30 pl-3 grid gap-1">
+                        {/* Lista de Atividades executadas pelo Colaborador (Organizada por Área com Totais) */}
+                        {isEmpExpanded && emp.areas.length > 0 && (
+                          <div className="mt-2 ml-4 mr-1 border-l-2 border-primary/30 pl-3 grid gap-2.5">
                             <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-2 py-0.5 border-b border-border/40">
-                              <span>Atividades realizadas ({emp.activities.length})</span>
+                              <span>Atividades organizadas por Área ({emp.totalActivitiesCount})</span>
                               <div className="flex items-center gap-4 shrink-0 tabular-nums">
                                 <span className="w-16 text-right">Horas</span>
                                 {!isSlimView && <span className="w-14 text-right">Part. %</span>}
@@ -1480,40 +1528,69 @@ export function ClientHoursView({
                               </div>
                             </div>
 
-                            {emp.activities.map((act) => (
-                              <div
-                                key={act.id}
-                                className="flex items-center justify-between text-xs py-1.5 px-2 rounded-md bg-muted/30 hover:bg-muted/60 transition-colors"
-                              >
-                                <div className="flex items-center gap-2 min-w-0 pr-2">
-                                  <span className="font-medium truncate text-foreground text-[11px]">{act.name}</span>
-                                  {act.areaName && (
-                                    <Badge variant="outline" className="text-[9px] py-0 px-1 shrink-0">
-                                      {act.areaName}
+                            {emp.areas.map((ar) => (
+                              <div key={ar.name} className="grid gap-1.5 rounded-lg border bg-muted/20 p-2.5">
+                                {/* Linha de cabeçalho da Área com Total da Soma */}
+                                <div className="flex items-center justify-between text-xs font-semibold text-foreground pb-1 border-b border-border/30">
+                                  <div className="flex items-center gap-2 min-w-0 pr-2">
+                                    <LayersIcon className="size-3.5 text-primary shrink-0" />
+                                    <span className="font-bold text-foreground truncate">{ar.name}</span>
+                                    <Badge variant="outline" className="text-[10px] py-0 px-1 font-normal text-muted-foreground shrink-0">
+                                      {ar.activities.length} {ar.activities.length === 1 ? "atividade" : "atividades"}
                                     </Badge>
-                                  )}
-                                  <Badge
-                                    variant={act.billable ? "outline" : "secondary"}
-                                    className="text-[9px] py-0 px-1 shrink-0"
-                                  >
-                                    {act.billable ? "Faturável" : "Interna"}
-                                  </Badge>
+                                  </div>
+
+                                  <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                                    <span className="font-bold text-foreground w-16 text-right">
+                                      {formatHours(ar.hours)}
+                                    </span>
+                                    {!isSlimView && (
+                                      <span className="text-muted-foreground text-[11px] w-14 text-right">
+                                        {ar.percentageInEmployee.toFixed(1)}%
+                                      </span>
+                                    )}
+                                    {!isSlimView && canSeeCosts && (
+                                      <span className="text-muted-foreground text-[11px] w-20 text-right">
+                                        {ar.cost > 0 ? formatCurrency(ar.cost) : "—"}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
 
-                                <div className="flex items-center gap-4 shrink-0 tabular-nums">
-                                  <span className="font-medium text-foreground w-16 text-right text-[11px]">
-                                    {formatHours(act.hours)}
-                                  </span>
-                                  {!isSlimView && (
-                                    <span className="text-muted-foreground text-[11px] w-14 text-right">
-                                      {act.percentageInEmployee.toFixed(1)}%
-                                    </span>
-                                  )}
-                                  {!isSlimView && canSeeCosts && (
-                                    <span className="text-muted-foreground text-[11px] w-20 text-right">
-                                      {act.cost > 0 ? formatCurrency(act.cost) : "—"}
-                                    </span>
-                                  )}
+                                {/* Atividades pertencentes a esta Área */}
+                                <div className="grid gap-1 pt-0.5">
+                                  {ar.activities.map((act) => (
+                                    <div
+                                      key={act.id}
+                                      className="flex items-center justify-between text-xs py-1 px-2 rounded-md bg-card/70 hover:bg-card transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                                        <span className="font-medium truncate text-foreground text-[11px]">{act.name}</span>
+                                        <Badge
+                                          variant={act.billable ? "outline" : "secondary"}
+                                          className="text-[9px] py-0 px-1 shrink-0"
+                                        >
+                                          {act.billable ? "Faturável" : "Interna"}
+                                        </Badge>
+                                      </div>
+
+                                      <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                                        <span className="font-medium text-foreground w-16 text-right text-[11px]">
+                                          {formatHours(act.hours)}
+                                        </span>
+                                        {!isSlimView && (
+                                          <span className="text-muted-foreground text-[11px] w-14 text-right">
+                                            {act.percentageInArea.toFixed(1)}%
+                                          </span>
+                                        )}
+                                        {!isSlimView && canSeeCosts && (
+                                          <span className="text-muted-foreground text-[11px] w-20 text-right">
+                                            {act.cost > 0 ? formatCurrency(act.cost) : "—"}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
                             ))}
