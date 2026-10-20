@@ -21,6 +21,8 @@ import {
   ChevronRightIcon,
   EyeIcon,
   EyeOffIcon,
+  LayoutGridIcon,
+  LayoutListIcon,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -68,6 +70,7 @@ export function ClientHoursView({
   const [billableFilter, setBillableFilter] = useState<"todos" | "sim" | "nao">("todos");
   const [viewMode, setViewMode] = useState<"areas" | "atividades" | "colaboradores" | "todas">("areas");
   const [isSlimView, setIsSlimView] = useState(true);
+  const [activityLayout, setActivityLayout] = useState<"list" | "grid">("list");
   const [expandedAreas, setExpandedAreas] = useState<Record<string, boolean>>({});
   const [expandedActivities, setExpandedActivities] = useState<Record<string, boolean>>({});
   const [expandedEmployees, setExpandedEmployees] = useState<Record<string, boolean>>({});
@@ -1170,6 +1173,36 @@ export function ClientHoursView({
                                   </button>
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0 tabular-nums text-muted-foreground text-[11px] font-medium">
+                                  {/* Alternador de Layout Lista / Grade */}
+                                  <div className="flex items-center rounded-md border bg-muted/60 p-0.5 mr-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setActivityLayout("list")}
+                                      className={`p-1 rounded cursor-pointer transition-colors ${
+                                        activityLayout === "list"
+                                          ? "bg-background text-foreground shadow-2xs font-semibold"
+                                          : "text-muted-foreground hover:text-foreground"
+                                      }`}
+                                      title="Visualização em Linhas/Lista"
+                                      aria-label="Visualização em Linhas/Lista"
+                                    >
+                                      <LayoutListIcon className="size-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setActivityLayout("grid")}
+                                      className={`p-1 rounded cursor-pointer transition-colors ${
+                                        activityLayout === "grid"
+                                          ? "bg-background text-foreground shadow-2xs font-semibold"
+                                          : "text-muted-foreground hover:text-foreground"
+                                      }`}
+                                      title="Visualização em Grade"
+                                      aria-label="Visualização em Grade"
+                                    >
+                                      <LayoutGridIcon className="size-3.5" />
+                                    </button>
+                                  </div>
+
                                   <span className="w-16 text-right">Horas</span>
                                   {!isSlimView ? (
                                     <div className="flex items-center gap-2">
@@ -1197,110 +1230,219 @@ export function ClientHoursView({
                                 </div>
                               </div>
 
-                              <div className="grid gap-1.5">
-                                {area.activities.map((act) => {
-                                  const actKey = `${area.name}-${act.id}`;
-                                  const isActExpanded = expandedActivities[actKey] ?? false;
+                              {activityLayout === "grid" ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                                  {area.activities.map((act) => {
+                                    const actKey = `${area.name}-${act.id}`;
+                                    const isActExpanded = expandedActivities[actKey] ?? false;
 
-                                  return (
-                                    <div
-                                      key={act.id}
-                                      className="grid gap-1 rounded-lg border bg-card/70 hover:border-primary/40 transition-colors"
-                                    >
-                                      {/* Linha principal da Atividade */}
+                                    return (
                                       <div
-                                        className="flex items-center justify-between text-xs py-2 px-2.5 cursor-pointer select-none"
-                                        onClick={() => toggleActivityExpand(actKey)}
+                                        key={act.id}
+                                        className={`rounded-lg border bg-card/90 p-3 shadow-2xs transition-all flex flex-col justify-between ${
+                                          isActExpanded
+                                            ? "border-primary/50 ring-1 ring-primary/20"
+                                            : "hover:border-primary/40"
+                                        }`}
                                       >
-                                        <div className="flex items-center gap-2 min-w-0 pr-2">
-                                          <button
-                                            type="button"
-                                            className="p-0.5 text-muted-foreground hover:text-primary shrink-0 transition-transform"
-                                            aria-label={isActExpanded ? "Recolher atividade" : "Expandir atividade"}
-                                          >
-                                            {isActExpanded ? (
-                                              <ChevronDownIcon className="size-3.5 text-primary" />
-                                            ) : (
-                                              <ChevronRightIcon className="size-3.5" />
+                                        <div>
+                                          <div className="flex items-start justify-between gap-2 mb-2">
+                                            <span
+                                              className="font-semibold text-xs text-foreground leading-snug line-clamp-2"
+                                              title={act.name}
+                                            >
+                                              {act.name}
+                                            </span>
+                                            <Badge
+                                              variant={act.billable ? "outline" : "secondary"}
+                                              className="text-[10px] py-0 px-1 shrink-0"
+                                            >
+                                              {act.billable ? "Faturável" : "Interna"}
+                                            </Badge>
+                                          </div>
+
+                                          <div className="flex items-baseline justify-between border-b pb-2 mb-2">
+                                            <div>
+                                              <span className="text-lg font-bold tabular-nums text-foreground">
+                                                {formatHours(act.hours)}
+                                              </span>
+                                              {!isSlimView && (
+                                                <span className="text-[11px] text-muted-foreground ml-1.5 tabular-nums">
+                                                  ({act.percentageInArea.toFixed(1)}%)
+                                                </span>
+                                              )}
+                                            </div>
+                                            {!isSlimView && canSeeCosts && (
+                                              <span className="text-xs font-semibold text-foreground tabular-nums">
+                                                {act.cost > 0 ? formatCurrency(act.cost) : "—"}
+                                              </span>
                                             )}
-                                          </button>
-                                          <span className="font-semibold text-foreground truncate">{act.name}</span>
-                                          <Badge
-                                            variant={act.billable ? "outline" : "secondary"}
-                                            className="text-[10px] py-0 px-1 shrink-0"
-                                          >
-                                            {act.billable ? "Faturável" : "Interna"}
-                                          </Badge>
-                                          <span className="text-[11px] text-muted-foreground inline-flex items-center gap-1 shrink-0 ml-1">
-                                            <UsersIcon className="size-3" />
-                                            {act.employees.length} {act.employees.length === 1 ? "colaborador" : "colaboradores"}
-                                          </span>
+                                          </div>
                                         </div>
 
-                                        <div className="flex items-center gap-4 shrink-0 tabular-nums">
-                                          <span className="font-bold text-foreground w-16 text-right">
-                                            {formatHours(act.hours)}
-                                          </span>
-                                          {!isSlimView && (
-                                            <span className="text-muted-foreground text-[11px] w-14 text-right">
-                                              {act.percentageInArea.toFixed(1)}%
+                                        <div>
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleActivityExpand(actKey)}
+                                            className="w-full flex items-center justify-between text-xs text-muted-foreground hover:text-foreground py-1 px-1.5 rounded hover:bg-muted/50 transition-colors cursor-pointer select-none"
+                                          >
+                                            <span className="inline-flex items-center gap-1.5 text-[11px]">
+                                              <UsersIcon className="size-3 text-primary" />
+                                              <span className="font-medium text-foreground">{act.employees.length}</span>{" "}
+                                              {act.employees.length === 1 ? "colaborador" : "colaboradores"}
                                             </span>
-                                          )}
-                                          {!isSlimView && canSeeCosts && (
-                                            <span className="text-muted-foreground text-[11px] w-20 text-right">
-                                              {act.cost > 0 ? formatCurrency(act.cost) : "—"}
-                                            </span>
+                                            {isActExpanded ? (
+                                              <ChevronUpIcon className="size-3.5 text-primary" />
+                                            ) : (
+                                              <ChevronDownIcon className="size-3.5" />
+                                            )}
+                                          </button>
+
+                                          {isActExpanded && (
+                                            <div className="mt-2 pt-2 border-t border-dashed space-y-1 max-h-48 overflow-y-auto">
+                                              {act.employees.map((emp) => (
+                                                <div
+                                                  key={emp.id}
+                                                  className="flex items-center justify-between text-xs py-1 px-1.5 rounded bg-muted/40 hover:bg-muted/70 transition-colors"
+                                                >
+                                                  <div className="flex items-center gap-1.5 min-w-0 pr-1">
+                                                    <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">
+                                                      {emp.name.charAt(0).toUpperCase()}
+                                                    </span>
+                                                    <span className="truncate text-foreground text-[11px] font-medium">
+                                                      {emp.name}
+                                                    </span>
+                                                  </div>
+                                                  <div className="flex items-center gap-2 shrink-0 tabular-nums text-[11px]">
+                                                    <span className="font-semibold text-foreground">
+                                                      {formatHours(emp.hours)}
+                                                    </span>
+                                                    {!isSlimView && (
+                                                      <span className="text-muted-foreground text-[10px]">
+                                                        {emp.percentageInActivity.toFixed(0)}%
+                                                      </span>
+                                                    )}
+                                                    {!isSlimView && canSeeCosts && (
+                                                      <span className="text-muted-foreground text-[10px]">
+                                                        {emp.cost > 0 ? formatCurrency(emp.cost) : "—"}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
                                           )}
                                         </div>
                                       </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div className="grid gap-1.5">
+                                  {area.activities.map((act) => {
+                                    const actKey = `${area.name}-${act.id}`;
+                                    const isActExpanded = expandedActivities[actKey] ?? false;
 
-                                      {/* Subtabela Expansível (Drill-Down de colaboradores na atividade) */}
-                                      {isActExpanded && (
-                                        <div className="mt-0.5 mb-2 ml-4 mr-2 border-l-2 border-primary/30 pl-3 grid gap-1">
-                                          <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-2 py-0.5 border-b border-border/40">
-                                            <span>Colaborador na atividade</span>
-                                            <div className="flex items-center gap-4 shrink-0 tabular-nums">
-                                              <span className="w-16 text-right">Horas</span>
-                                              {!isSlimView && <span className="w-14 text-right">Part. %</span>}
-                                              {!isSlimView && canSeeCosts && <span className="w-20 text-right">Custo</span>}
-                                            </div>
-                                          </div>
-                                          {act.employees.map((emp) => (
-                                            <div
-                                              key={emp.id}
-                                              className="flex items-center justify-between text-xs py-1 px-2 rounded-md bg-muted/40 hover:bg-muted/70 transition-colors"
+                                    return (
+                                      <div
+                                        key={act.id}
+                                        className="grid gap-1 rounded-lg border bg-card/70 hover:border-primary/40 transition-colors"
+                                      >
+                                        {/* Linha principal da Atividade */}
+                                        <div
+                                          className="flex items-center justify-between text-xs py-2 px-2.5 cursor-pointer select-none"
+                                          onClick={() => toggleActivityExpand(actKey)}
+                                        >
+                                          <div className="flex items-center gap-2 min-w-0 pr-2">
+                                            <button
+                                              type="button"
+                                              className="p-0.5 text-muted-foreground hover:text-primary shrink-0 transition-transform"
+                                              aria-label={isActExpanded ? "Recolher atividade" : "Expandir atividade"}
                                             >
-                                              <div className="flex items-center gap-2 min-w-0 pr-2">
-                                                <span className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">
-                                                  {emp.name.charAt(0).toUpperCase()}
-                                                </span>
-                                                <span className="font-medium truncate text-foreground text-[11px]">
-                                                  {emp.name}
-                                                </span>
-                                              </div>
+                                              {isActExpanded ? (
+                                                <ChevronDownIcon className="size-3.5 text-primary" />
+                                              ) : (
+                                                <ChevronRightIcon className="size-3.5" />
+                                              )}
+                                            </button>
+                                            <span className="font-semibold text-foreground truncate">{act.name}</span>
+                                            <Badge
+                                              variant={act.billable ? "outline" : "secondary"}
+                                              className="text-[10px] py-0 px-1 shrink-0"
+                                            >
+                                              {act.billable ? "Faturável" : "Interna"}
+                                            </Badge>
+                                            <span className="text-[11px] text-muted-foreground inline-flex items-center gap-1 shrink-0 ml-1">
+                                              <UsersIcon className="size-3" />
+                                              {act.employees.length} {act.employees.length === 1 ? "colaborador" : "colaboradores"}
+                                            </span>
+                                          </div>
+
+                                          <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                                            <span className="font-bold text-foreground w-16 text-right">
+                                              {formatHours(act.hours)}
+                                            </span>
+                                            {!isSlimView && (
+                                              <span className="text-muted-foreground text-[11px] w-14 text-right">
+                                                {act.percentageInArea.toFixed(1)}%
+                                              </span>
+                                            )}
+                                            {!isSlimView && canSeeCosts && (
+                                              <span className="text-muted-foreground text-[11px] w-20 text-right">
+                                                {act.cost > 0 ? formatCurrency(act.cost) : "—"}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        {/* Subtabela Expansível (Drill-Down de colaboradores na atividade) */}
+                                        {isActExpanded && (
+                                          <div className="mt-0.5 mb-2 ml-4 mr-2 border-l-2 border-primary/30 pl-3 grid gap-1">
+                                            <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-2 py-0.5 border-b border-border/40">
+                                              <span>Colaborador na atividade</span>
                                               <div className="flex items-center gap-4 shrink-0 tabular-nums">
-                                                <span className="font-medium text-foreground w-16 text-right text-[11px]">
-                                                  {formatHours(emp.hours)}
-                                                </span>
-                                                {!isSlimView && (
-                                                  <span className="text-muted-foreground text-[11px] w-14 text-right">
-                                                    {emp.percentageInActivity.toFixed(1)}%
-                                                  </span>
-                                                )}
-                                                {!isSlimView && canSeeCosts && (
-                                                  <span className="text-muted-foreground text-[11px] w-20 text-right">
-                                                    {emp.cost > 0 ? formatCurrency(emp.cost) : "—"}
-                                                  </span>
-                                                )}
+                                                <span className="w-16 text-right">Horas</span>
+                                                {!isSlimView && <span className="w-14 text-right">Part. %</span>}
+                                                {!isSlimView && canSeeCosts && <span className="w-20 text-right">Custo</span>}
                                               </div>
                                             </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
+                                            {act.employees.map((emp) => (
+                                              <div
+                                                key={emp.id}
+                                                className="flex items-center justify-between text-xs py-1 px-2 rounded-md bg-muted/40 hover:bg-muted/70 transition-colors"
+                                              >
+                                                <div className="flex items-center gap-2 min-w-0 pr-2">
+                                                  <span className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">
+                                                    {emp.name.charAt(0).toUpperCase()}
+                                                  </span>
+                                                  <span className="font-medium truncate text-foreground text-[11px]">
+                                                    {emp.name}
+                                                  </span>
+                                                </div>
+                                                <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                                                  <span className="font-medium text-foreground w-16 text-right text-[11px]">
+                                                    {formatHours(emp.hours)}
+                                                  </span>
+                                                  {!isSlimView && (
+                                                    <span className="text-muted-foreground text-[11px] w-14 text-right">
+                                                      {emp.percentageInActivity.toFixed(1)}%
+                                                    </span>
+                                                  )}
+                                                  {!isSlimView && canSeeCosts && (
+                                                    <span className="text-muted-foreground text-[11px] w-20 text-right">
+                                                      {emp.cost > 0 ? formatCurrency(emp.cost) : "—"}
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
@@ -1330,19 +1472,51 @@ export function ClientHoursView({
                     </CardDescription>
                   </div>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setShowActivityEmployees((prev) => !prev);
-                      setIndividualAreaActivityEmployees({});
-                    }}
-                    className="h-7 text-xs gap-1 shadow-xs cursor-pointer self-start sm:self-auto"
-                  >
-                    <UsersIcon className="size-3.5" />
-                    {showActivityEmployees ? "Esconder colaboradores" : "Mostrar colaboradores"}
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                    {/* Alternador de Layout Lista / Grade */}
+                    <div className="flex items-center rounded-md border bg-muted/60 p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setActivityLayout("list")}
+                        className={`p-1 rounded cursor-pointer transition-colors ${
+                          activityLayout === "list"
+                            ? "bg-background text-foreground shadow-2xs font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                        title="Visualização em Linhas/Lista"
+                        aria-label="Visualização em Linhas/Lista"
+                      >
+                        <LayoutListIcon className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActivityLayout("grid")}
+                        className={`p-1 rounded cursor-pointer transition-colors ${
+                          activityLayout === "grid"
+                            ? "bg-background text-foreground shadow-2xs font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                        title="Visualização em Grade"
+                        aria-label="Visualização em Grade"
+                      >
+                        <LayoutGridIcon className="size-3.5" />
+                      </button>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setShowActivityEmployees((prev) => !prev);
+                        setIndividualAreaActivityEmployees({});
+                      }}
+                      className="h-7 text-xs gap-1 shadow-xs cursor-pointer"
+                    >
+                      <UsersIcon className="size-3.5" />
+                      {showActivityEmployees ? "Esconder colaboradores" : "Mostrar colaboradores"}
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="grid gap-3 pt-0">
@@ -1350,6 +1524,77 @@ export function ClientHoursView({
                   <p className="py-6 text-center text-xs text-muted-foreground">
                     Nenhuma atividade encontrada para os filtros selecionados.
                   </p>
+                ) : activityLayout === "grid" ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {byActivityDynamic.map((act) => (
+                      <div
+                        key={act.id}
+                        className="rounded-lg border bg-card/90 p-3 shadow-2xs hover:border-primary/40 transition-all flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="min-w-0 flex-1">
+                              <span className="font-semibold text-xs text-foreground leading-snug line-clamp-2" title={act.name}>
+                                {act.name}
+                              </span>
+                              <span className="text-[11px] text-muted-foreground block mt-0.5">
+                                Área: <strong className="text-foreground font-normal">{act.areaName}</strong>
+                              </span>
+                            </div>
+                            <Badge
+                              variant={act.billable ? "outline" : "secondary"}
+                              className="text-[10px] py-0 px-1 shrink-0"
+                            >
+                              {act.billable ? "Faturável" : "Interna"}
+                            </Badge>
+                          </div>
+
+                          <div className="flex items-baseline justify-between border-b pb-2 mb-2">
+                            <div>
+                              <span className="text-lg font-bold tabular-nums text-foreground">
+                                {formatHours(act.hours)}
+                              </span>
+                              {!isSlimView && (
+                                <span className="text-[11px] text-muted-foreground ml-1.5 tabular-nums">
+                                  ({act.percentage.toFixed(1)}%)
+                                </span>
+                              )}
+                            </div>
+                            {!isSlimView && canSeeCosts && (
+                              <span className="text-xs font-semibold text-foreground tabular-nums">
+                                {act.cost > 0 ? formatCurrency(act.cost) : "—"}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden mb-2">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${
+                                act.billable ? "bg-[--viz-good]" : "bg-muted-foreground/60"
+                              }`}
+                              style={{ width: `${Math.min(100, act.percentage)}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {showActivityEmployees && act.employees.length > 0 && (
+                          <div className="mt-1 pt-2 border-t border-dashed space-y-1 max-h-36 overflow-y-auto">
+                            {act.employees.map((emp) => (
+                              <div
+                                key={emp.id}
+                                className="flex items-center justify-between text-xs py-0.5 px-1.5 rounded bg-muted/40"
+                              >
+                                <span className="truncate text-foreground text-[11px]">{emp.name}</span>
+                                <span className="font-semibold text-foreground text-[11px] tabular-nums">
+                                  {formatHours(emp.hours)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 ) : (
                   byActivityDynamic.map((act) => (
                     <div key={act.id} className="grid gap-1.5 rounded-lg border p-3">
