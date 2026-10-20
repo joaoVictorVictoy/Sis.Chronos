@@ -68,10 +68,14 @@ const NAV: { group: string; items: NavItem[] }[] = [
 export function AppNav({
   role,
   isSuperAdmin = false,
+  pendingApprovalsCount = 0,
+  missingDaysCount = 0,
   onNavigate,
 }: {
   role: AppRole;
   isSuperAdmin?: boolean;
+  pendingApprovalsCount?: number;
+  missingDaysCount?: number;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
@@ -122,18 +126,44 @@ export function AppNav({
                   </span>
                 );
               }
+
+              const isApprovals = item.href === "/aprovacoes";
+              const isEntries = item.href === "/apontamentos";
+              const hasApprovalPending = isApprovals && pendingApprovalsCount > 0;
+              const hasMissingDays = isEntries && missingDaysCount > 0;
+
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={onNavigate}
                   className={cn(
-                    "flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted",
+                    "flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted group",
                     active && "bg-muted font-medium text-foreground",
                   )}
                 >
-                  <Icon className="size-4" />
-                  {item.label}
+                  <Icon className="size-4 shrink-0" />
+                  <span className="truncate">{item.label}</span>
+
+                  {hasApprovalPending && (
+                    <span
+                      className="ml-auto flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400 shrink-0 shadow-2xs"
+                      title={`${pendingApprovalsCount} apontamento(s) pendente(s) de aprovação`}
+                    >
+                      <ClockIcon className="size-3 text-amber-500 animate-pulse shrink-0" />
+                      <span>{pendingApprovalsCount > 99 ? "99+" : pendingApprovalsCount}</span>
+                    </span>
+                  )}
+
+                  {hasMissingDays && (
+                    <span
+                      className="ml-auto flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400 shrink-0 shadow-2xs"
+                      title={`${missingDaysCount} dia(s) com horas pendentes de apontamento`}
+                    >
+                      <ClockIcon className="size-3 text-amber-500 shrink-0" />
+                      <span>{missingDaysCount > 99 ? "99+" : missingDaysCount}</span>
+                    </span>
+                  )}
                 </Link>
               );
             })}

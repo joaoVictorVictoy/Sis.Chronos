@@ -66,7 +66,12 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         </div>
 
         <div className="lg:flex-1 lg:overflow-y-auto lg:pr-1 min-h-0">
-          <AppNav role={profile.role} isSuperAdmin={isSuperAdmin} />
+          <AppNav
+            role={profile.role}
+            isSuperAdmin={isSuperAdmin}
+            pendingApprovalsCount={pendingApprovalsCount}
+            missingDaysCount={missingDaysCount}
+          />
         </div>
 
         <div className="grid gap-2 border-t pt-3 shrink-0">

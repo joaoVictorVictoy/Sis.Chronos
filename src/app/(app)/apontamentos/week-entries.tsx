@@ -8,6 +8,7 @@ import {
   CalendarIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ClockIcon,
   LockIcon,
   PencilIcon,
   Trash2Icon,
@@ -257,6 +258,14 @@ function EntryRow({
           {isDeletionRequested ? (
             <Badge variant="destructive" className="border-amber-500/30 bg-amber-500/15 text-amber-800 dark:text-amber-300">
               Exclusão solicitada
+            </Badge>
+          ) : entry.status === "pendente" ? (
+            <Badge
+              variant="outline"
+              className="border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300 gap-1 font-medium"
+            >
+              <ClockIcon className="size-3 text-amber-500 animate-pulse shrink-0" />
+              Pendente
             </Badge>
           ) : (
             <Badge variant={STATUS_VARIANT[entry.status]}>{STATUS_LABEL[entry.status]}</Badge>

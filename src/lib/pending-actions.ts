@@ -127,15 +127,22 @@ export async function getPendingCounts(params: {
     missingDaysCount = calculateMissingBusinessDays(entryDates, leaves, monthStart, today);
   }
 
-  // 2. Apontamentos pendentes de aprovação (para gestor ou administrador)
+  // 2. Apontamentos pendentes de aprovação ou exclusão (para gestor ou administrador)
   if (isManager(role)) {
-    const res = await supabase
-      .from("time_entries")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId)
-      .eq("status", "pendente");
+    const [resPending, resDeletion] = await Promise.all([
+      supabase
+        .from("time_entries")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("status", "pendente"),
+      supabase
+        .from("time_entries")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .not("deletion_requested_at", "is", null),
+    ]);
 
-    pendingApprovalsCount = res.count ?? 0;
+    pendingApprovalsCount = (resPending.count ?? 0) + (resDeletion.count ?? 0);
   }
 
   return {
