@@ -67,7 +67,7 @@ export function ClientHoursView({
   const [activityFilter, setActivityFilter] = useState<string>("todas");
   const [billableFilter, setBillableFilter] = useState<"todos" | "sim" | "nao">("todos");
   const [viewMode, setViewMode] = useState<"areas" | "atividades" | "colaboradores" | "todas">("areas");
-  const [isSlimView, setIsSlimView] = useState(false);
+  const [isSlimView, setIsSlimView] = useState(true);
   const [expandedAreas, setExpandedAreas] = useState<Record<string, boolean>>({});
   const [expandedActivities, setExpandedActivities] = useState<Record<string, boolean>>({});
   const [showAreaEmployees, setShowAreaEmployees] = useState(false);
@@ -954,10 +954,10 @@ export function ClientHoursView({
                       className={`h-7 text-xs gap-1.5 shadow-xs cursor-pointer transition-colors ${
                         isSlimView ? "border-primary/50 bg-primary/10 text-primary font-medium" : ""
                       }`}
-                      title={isSlimView ? "Voltar à visualização completa (% e Custo)" : "Ocultar % e Custo para visão ultra slim (só horas)"}
+                      title={isSlimView ? "Expandir colunas de % e Custo" : "Recolher / ocultar colunas de % e Custo"}
                     >
-                      {isSlimView ? <EyeIcon className="size-3.5 text-primary" /> : <EyeOffIcon className="size-3.5" />}
-                      <span>{isSlimView ? "Modo Slim: Ativo (só horas)" : "Ocultar % e Custo (Slim)"}</span>
+                      {isSlimView ? <EyeOffIcon className="size-3.5 text-primary" /> : <EyeIcon className="size-3.5" />}
+                      <span>{isSlimView ? "Mostrar % e Custo" : "Ocultar % e Custo (Slim)"}</span>
                     </Button>
                   </div>
                 </div>
@@ -1081,10 +1081,31 @@ export function ClientHoursView({
                                       : "(Expandir colaboradores de todas)"}
                                   </button>
                                 </div>
-                                <div className="flex items-center gap-4 shrink-0 tabular-nums text-muted-foreground text-[11px] font-medium">
+                                <div className="flex items-center gap-3 shrink-0 tabular-nums text-muted-foreground text-[11px] font-medium">
                                   <span className="w-16 text-right">Horas</span>
-                                  {!isSlimView && <span className="w-14 text-right">Part. %</span>}
-                                  {!isSlimView && canSeeCosts && <span className="w-20 text-right">Custo</span>}
+                                  {!isSlimView ? (
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-14 text-right">Part. %</span>
+                                      {canSeeCosts && <span className="w-20 text-right">Custo</span>}
+                                      <button
+                                        type="button"
+                                        onClick={() => setIsSlimView(true)}
+                                        className="text-[11px] text-muted-foreground hover:text-foreground hover:underline ml-1 cursor-pointer"
+                                        title="Recolher / ocultar colunas de % e Custo"
+                                      >
+                                        (Ocultar)
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setIsSlimView(false)}
+                                      className="text-[11px] text-primary hover:underline font-normal cursor-pointer flex items-center gap-0.5 ml-1"
+                                      title="Expandir colunas de Part. % e Custo"
+                                    >
+                                      <span>+ Ver % e Custo</span>
+                                    </button>
+                                  )}
                                 </div>
                               </div>
 
