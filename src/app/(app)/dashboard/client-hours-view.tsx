@@ -244,6 +244,7 @@ export function ClientHoursView({
           {
             id: string;
             name: string;
+            clientName?: string;
             minutes: number;
             billable: boolean;
             cost: number;
@@ -287,9 +288,13 @@ export function ClientHoursView({
       emp.entriesCount += 1;
       area.employeesMap.set(e.employeeId, emp);
 
-      const act = area.activitiesMap.get(e.activityId) ?? {
-        id: e.activityId,
+      const clientKey = (e as { clientName?: string }).clientName || "";
+      const actKey = selectedClientId === ALL_CLIENTS_ID && clientKey ? `${e.activityId}__${clientKey}` : e.activityId;
+
+      const act = area.activitiesMap.get(actKey) ?? {
+        id: actKey,
         name: e.activityName,
+        clientName: clientKey,
         minutes: 0,
         billable: e.billable,
         cost: 0,
@@ -310,7 +315,7 @@ export function ClientHoursView({
       actEmp.cost += e.costAmount;
       act.employeesMap.set(e.employeeId, actEmp);
 
-      area.activitiesMap.set(e.activityId, act);
+      area.activitiesMap.set(actKey, act);
     }
 
     const totalFilteredMins = metrics.minutes || 1;
@@ -355,7 +360,7 @@ export function ClientHoursView({
         };
       })
       .sort((a, b) => b.minutes - a.minutes);
-  }, [filteredEntries, metrics.minutes]);
+  }, [filteredEntries, metrics.minutes, selectedClientId]);
 
   // Agrupamento consolidado dinâmico por Atividade
   const byActivityDynamic = useMemo(() => {
@@ -366,6 +371,7 @@ export function ClientHoursView({
       {
         id: string;
         name: string;
+        clientName?: string;
         areaName: string;
         minutes: number;
         cost: number;
@@ -376,11 +382,15 @@ export function ClientHoursView({
     >();
 
     for (const e of filteredEntries) {
-      let act = map.get(e.activityId);
+      const clientKey = (e as { clientName?: string }).clientName || "";
+      const actKey = selectedClientId === ALL_CLIENTS_ID && clientKey ? `${e.activityId}__${clientKey}` : e.activityId;
+
+      let act = map.get(actKey);
       if (!act) {
         act = {
-          id: e.activityId,
+          id: actKey,
           name: e.activityName,
+          clientName: clientKey,
           areaName: e.areaName,
           minutes: 0,
           cost: 0,
@@ -388,7 +398,7 @@ export function ClientHoursView({
           entriesCount: 0,
           employeesMap: new Map(),
         };
-        map.set(e.activityId, act);
+        map.set(actKey, act);
       }
       act.minutes += e.minutes;
       act.cost += e.costAmount;
@@ -415,7 +425,7 @@ export function ClientHoursView({
         employees: Array.from(a.employeesMap.values()).sort((x, y) => y.minutes - x.minutes),
       }))
       .sort((a, b) => b.minutes - a.minutes);
-  }, [filteredEntries, metrics.minutes]);
+  }, [filteredEntries, metrics.minutes, selectedClientId]);
 
   // Agrupamento consolidado dinâmico por Colaborador com atividades organizadas por Área
   const byEmployeeDynamic = useMemo(() => {
@@ -440,6 +450,7 @@ export function ClientHoursView({
               {
                 id: string;
                 name: string;
+                clientName?: string;
                 areaName: string;
                 minutes: number;
                 hours: number;
@@ -483,9 +494,13 @@ export function ClientHoursView({
       empArea.minutes += e.minutes;
       empArea.cost += e.costAmount;
 
-      const act = empArea.activitiesMap.get(e.activityId) ?? {
-        id: e.activityId,
+      const clientKey = (e as { clientName?: string }).clientName || "";
+      const actKey = selectedClientId === ALL_CLIENTS_ID && clientKey ? `${e.activityId}__${clientKey}` : e.activityId;
+
+      const act = empArea.activitiesMap.get(actKey) ?? {
+        id: actKey,
         name: e.activityName,
+        clientName: clientKey,
         areaName: areaKey,
         minutes: 0,
         hours: 0,
@@ -495,7 +510,7 @@ export function ClientHoursView({
       act.minutes += e.minutes;
       act.hours = act.minutes / 60;
       act.cost += e.costAmount;
-      empArea.activitiesMap.set(e.activityId, act);
+      empArea.activitiesMap.set(actKey, act);
     }
 
     const totalFilteredMins = metrics.minutes || 1;
@@ -533,12 +548,12 @@ export function ClientHoursView({
           cost: e.cost,
           entriesCount: e.entriesCount,
           percentage: (e.minutes / totalFilteredMins) * 100,
-          areas,
           totalActivitiesCount,
+          areas,
         };
       })
       .sort((a, b) => b.minutes - a.minutes);
-  }, [filteredEntries, metrics.minutes]);
+  }, [filteredEntries, metrics.minutes, selectedClientId]);
 
   // Alterna expansão de uma área para exibir suas atividades
   const toggleAreaExpand = (areaName: string) => {
@@ -1354,12 +1369,23 @@ export function ClientHoursView({
                                       >
                                         <div>
                                           <div className="flex items-start justify-between gap-2 mb-2">
-                                            <span
-                                              className="font-semibold text-xs text-foreground leading-snug line-clamp-2"
-                                              title={act.name}
-                                            >
-                                              {act.name}
-                                            </span>
+                                            <div className="flex flex-col gap-1 min-w-0">
+                                              {selectedClientId === ALL_CLIENTS_ID && (act as { clientName?: string }).clientName && (
+                                                <Badge
+                                                  variant="outline"
+                                                  className="text-[9px] py-0 px-1.5 font-medium text-primary border-primary/30 bg-primary/5 shrink-0 max-w-44 truncate w-fit"
+                                                  title={`Empresa: ${(act as { clientName?: string }).clientName}`}
+                                                >
+                                                  {(act as { clientName?: string }).clientName}
+                                                </Badge>
+                                              )}
+                                              <span
+                                                className="font-semibold text-xs text-foreground leading-snug line-clamp-2"
+                                                title={act.name}
+                                              >
+                                                {act.name}
+                                              </span>
+                                            </div>
                                             <Badge
                                               variant={act.billable ? "outline" : "secondary"}
                                               className="text-[10px] py-0 px-1 shrink-0"
@@ -1472,6 +1498,15 @@ export function ClientHoursView({
                                                 <ChevronRightIcon className="size-3.5" />
                                               )}
                                             </button>
+                                            {selectedClientId === ALL_CLIENTS_ID && (act as { clientName?: string }).clientName && (
+                                              <Badge
+                                                variant="outline"
+                                                className="text-[10px] py-0 px-1.5 font-medium text-primary border-primary/30 bg-primary/5 shrink-0 max-w-44 truncate"
+                                                title={`Empresa: ${(act as { clientName?: string }).clientName}`}
+                                              >
+                                                {(act as { clientName?: string }).clientName}
+                                              </Badge>
+                                            )}
                                             <span className="font-semibold text-foreground truncate">{act.name}</span>
                                             <Badge
                                               variant={act.billable ? "outline" : "secondary"}
@@ -1646,7 +1681,16 @@ export function ClientHoursView({
                         <div>
                           <div className="flex items-start justify-between gap-2 mb-2">
                             <div className="min-w-0 flex-1">
-                              <span className="font-semibold text-xs text-foreground leading-snug line-clamp-2" title={act.name}>
+                              {selectedClientId === ALL_CLIENTS_ID && (act as { clientName?: string }).clientName && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[9px] py-0 px-1 font-medium text-primary border-primary/30 bg-primary/5 mb-1 inline-flex max-w-full truncate"
+                                  title={`Empresa: ${(act as { clientName?: string }).clientName}`}
+                                >
+                                  {(act as { clientName?: string }).clientName}
+                                </Badge>
+                              )}
+                              <span className="font-semibold text-xs text-foreground leading-snug line-clamp-2 block" title={act.name}>
                                 {act.name}
                               </span>
                               <span className="text-[11px] text-muted-foreground block mt-0.5">
@@ -1712,6 +1756,15 @@ export function ClientHoursView({
                     <div key={act.id} className="grid gap-1.5 rounded-lg border p-3">
                       <div className="flex items-center justify-between text-sm">
                         <div className="min-w-0 flex flex-wrap items-center gap-2">
+                          {selectedClientId === ALL_CLIENTS_ID && (act as { clientName?: string }).clientName && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] py-0 px-1.5 font-medium text-primary border-primary/30 bg-primary/5 shrink-0 max-w-44 truncate"
+                              title={`Empresa: ${(act as { clientName?: string }).clientName}`}
+                            >
+                              {(act as { clientName?: string }).clientName}
+                            </Badge>
+                          )}
                           <span className="font-medium truncate">{act.name}</span>
                           <Badge
                             variant={act.billable ? "outline" : "secondary"}
@@ -1927,6 +1980,15 @@ export function ClientHoursView({
                                       className="flex items-center justify-between text-xs py-1 px-2 rounded-md bg-card/70 hover:bg-card transition-colors"
                                     >
                                       <div className="flex items-center gap-2 min-w-0 pr-2">
+                                        {selectedClientId === ALL_CLIENTS_ID && (act as { clientName?: string }).clientName && (
+                                          <Badge
+                                            variant="outline"
+                                            className="text-[10px] py-0 px-1.5 font-medium text-primary border-primary/30 bg-primary/5 shrink-0 max-w-44 truncate"
+                                            title={`Empresa: ${(act as { clientName?: string }).clientName}`}
+                                          >
+                                            {(act as { clientName?: string }).clientName}
+                                          </Badge>
+                                        )}
                                         <span className="font-medium truncate text-foreground text-[11px]">{act.name}</span>
                                         <Badge
                                           variant={act.billable ? "outline" : "secondary"}
