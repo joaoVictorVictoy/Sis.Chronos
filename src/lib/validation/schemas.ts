@@ -142,6 +142,14 @@ export const dateSchema = z
   .trim()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Informe uma data válida.");
 
+export const optionalDateSchema = fromForm(
+  z
+    .string()
+    .trim()
+    .transform((v) => (v === "" ? null : v))
+    .refine((v) => v === null || /^\d{4}-\d{2}-\d{2}$/.test(v), "Informe uma data válida."),
+);
+
 export const areaSchema = z.object({
   name: nameSchema.max(100, "Máximo de 100 caracteres."),
   description: optionalText(500),
@@ -184,6 +192,19 @@ export const employeeCostSchema = z.object({
   validFrom: dateSchema,
 });
 
+export const updateEmployeeCostSchema = employeeCostSchema
+  .extend({
+    id: z.uuid(),
+    validTo: optionalDateSchema,
+  })
+  .refine(
+    (data) => !data.validTo || data.validTo >= data.validFrom,
+    {
+      message: "A data final não pode ser anterior à data inicial.",
+      path: ["validTo"],
+    },
+  );
+
 export const clientSchema = z.object({
   legalName: nameSchema,
   tradeName: optionalText(150),
@@ -206,14 +227,6 @@ export const expenseRecurrenceSchema = z.enum([
   "semestral",
   "anual",
 ]);
-
-const optionalDateSchema = fromForm(
-  z
-    .string()
-    .trim()
-    .transform((v) => (v === "" ? null : v))
-    .refine((v) => v === null || /^\d{4}-\d{2}-\d{2}$/.test(v), "Informe uma data válida."),
-);
 
 export const contractSchema = z
   .object({

@@ -10,7 +10,7 @@ import { translateError } from "@/lib/auth/errors";
 import { createAccessLink } from "@/lib/server/access-link";
 import { getOrigin } from "@/lib/server/origin";
 import { parseForm, type ActionState } from "@/lib/actions";
-import { employeeCostSchema, employeeSchema, roleSchema } from "@/lib/validation/schemas";
+import { employeeCostSchema, employeeSchema, roleSchema, updateEmployeeCostSchema } from "@/lib/validation/schemas";
 
 export async function createEmployeeAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const { tenant } = await requireRole(["admin", "gestor"]);
@@ -139,6 +139,54 @@ export async function setEmployeeCostAction(_prev: ActionState, formData: FormDa
   revalidatePath("/minhas-analises");
   revalidatePath("/apontamentos");
   return { success: "Custo registrado com a nova vigência." };
+}
+
+export async function updateEmployeeCostAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireRole(["admin"]);
+  const parsed = parseForm(updateEmployeeCostSchema, formData);
+  if (!parsed.ok) return parsed.state;
+
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("employee_costs")
+    .update({
+      monthly_salary: parsed.data.monthlySalary,
+      charges_percent: parsed.data.chargesPercent,
+      charges_amount: parsed.data.chargesAmount,
+      benefits: parsed.data.benefits,
+      monthly_hours: parsed.data.monthlyHours,
+      valid_from: parsed.data.validFrom,
+      valid_to: parsed.data.validTo,
+    })
+    .eq("id", parsed.data.id)
+    .eq("employee_id", parsed.data.employeeId);
+
+  if (error) return { error: translateError(error) };
+
+  // Se for a vigência mais recente, sincroniza as horas mensais vigentes no cadastro do colaborador
+  const { data: latest } = await supabase
+    .from("employee_costs")
+    .select("id, monthly_hours")
+    .eq("employee_id", parsed.data.employeeId)
+    .order("valid_from", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latest?.id === parsed.data.id) {
+    await supabase
+      .from("employees")
+      .update({ monthly_hours: parsed.data.monthlyHours })
+      .eq("id", parsed.data.employeeId);
+  }
+
+  revalidatePath(`/colaboradores/${parsed.data.employeeId}`);
+  revalidatePath("/colaboradores");
+  revalidatePath("/dashboard");
+  revalidatePath("/inicio");
+  revalidatePath("/minhas-analises");
+  revalidatePath("/apontamentos");
+  return { success: "Vigência de custo atualizada com sucesso." };
 }
 
 export async function deleteEmployeeCostAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

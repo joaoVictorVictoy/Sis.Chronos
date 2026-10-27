@@ -157,7 +157,7 @@ export default async function MyAnalyticsPage({ searchParams }: PageProps<"/minh
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-3">
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>Por cliente</CardTitle>
             <CardDescription>Horas sem contrato aparecem como internas.</CardDescription>
@@ -179,9 +179,10 @@ export default async function MyAnalyticsPage({ searchParams }: PageProps<"/minh
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>Por atividade</CardTitle>
+            <CardDescription>Distribuição de horas pelas atividades apontadas.</CardDescription>
           </CardHeader>
           <CardContent>
             {a.byActivity.length === 0 ? (
@@ -200,9 +201,10 @@ export default async function MyAnalyticsPage({ searchParams }: PageProps<"/minh
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>Por área</CardTitle>
+            <CardDescription>Distribuição de horas pelas áreas de atuação.</CardDescription>
           </CardHeader>
           <CardContent>
             {a.byArea.length === 0 ? (

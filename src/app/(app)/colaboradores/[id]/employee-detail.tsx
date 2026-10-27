@@ -1,6 +1,18 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { PencilIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { NativeCheckbox, NativeSelect } from "@/components/native-select";
@@ -17,6 +29,7 @@ import {
   setEmployeeAreasAction,
   setEmployeeCostAction,
   updateEmployeeAction,
+  updateEmployeeCostAction,
 } from "../actions";
 import { DeleteEmployeeButton } from "../delete-employee-button";
 
@@ -315,12 +328,296 @@ export function NewCostForm({
   );
 }
 
+export function EditCostDialog({ cost }: { cost: Tables<"employee_costs"> }) {
+  const [open, setOpen] = useState(false);
+  const [state, formAction] = useActionState(updateEmployeeCostAction, initialActionState);
+
+  const [validFrom, setValidFrom] = useState(cost.valid_from);
+  const [validTo, setValidTo] = useState(cost.valid_to ?? "");
+  const [salary, setSalary] = useState(
+    Number(cost.monthly_salary).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  );
+  const [chargesPercent, setChargesPercent] = useState(
+    Number(cost.charges_percent) > 0 ? Number(cost.charges_percent).toString().replace(".", ",") : ""
+  );
+  const [chargesAmount, setChargesAmount] = useState(
+    Number(cost.charges_amount) > 0
+      ? Number(cost.charges_amount).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : ""
+  );
+  const [benefits, setBenefits] = useState(
+    Number(cost.benefits) > 0
+      ? Number(cost.benefits).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : ""
+  );
+
+  const initialDailyHours = Number(cost.monthly_hours) / 21;
+  const [dailyHours, setDailyHours] = useState<string>(
+    initialDailyHours.toLocaleString("pt-BR", { maximumFractionDigits: 2 })
+  );
+  const [workingDays, setWorkingDays] = useState<string>("21");
+  const [customMonthlyHours, setCustomMonthlyHours] = useState<string>(
+    Number(cost.monthly_hours).toLocaleString("pt-BR")
+  );
+  const [mode, setMode] = useState<"diaria" | "mensal">("diaria");
+
+  const dailyNum = parsePtBrNumber(dailyHours);
+  const daysNum = parsePtBrNumber(workingDays) || 21;
+  const calculatedMonthly = mode === "diaria" ? dailyNum * daysNum : parsePtBrNumber(customMonthlyHours);
+
+  const salaryNum = parsePtBrNumber(salary);
+  const chargesPctNum = parsePtBrNumber(chargesPercent);
+  const chargesValNum = parsePtBrNumber(chargesAmount);
+  const benefitsNum = parsePtBrNumber(benefits);
+
+  const chargesFromPct = (salaryNum * chargesPctNum) / 100;
+  const totalMonthlyCost = salaryNum + chargesFromPct + chargesValNum + benefitsNum;
+  const hourlyCost = calculatedMonthly > 0 ? totalMonthlyCost / calculatedMonthly : 0;
+  const dailyCost = daysNum > 0 ? totalMonthlyCost / daysNum : 0;
+
+  useEffect(() => {
+    if (state.success) {
+      setOpen(false);
+    }
+  }, [state.success]);
+
+  useEffect(() => {
+    if (open) {
+      setValidFrom(cost.valid_from);
+      setValidTo(cost.valid_to ?? "");
+      setSalary(
+        Number(cost.monthly_salary).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      );
+      setChargesPercent(
+        Number(cost.charges_percent) > 0 ? Number(cost.charges_percent).toString().replace(".", ",") : ""
+      );
+      setChargesAmount(
+        Number(cost.charges_amount) > 0
+          ? Number(cost.charges_amount).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : ""
+      );
+      setBenefits(
+        Number(cost.benefits) > 0
+          ? Number(cost.benefits).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : ""
+      );
+      const initDaily = Number(cost.monthly_hours) / 21;
+      setDailyHours(initDaily.toLocaleString("pt-BR", { maximumFractionDigits: 2 }));
+      setWorkingDays("21");
+      setCustomMonthlyHours(Number(cost.monthly_hours).toLocaleString("pt-BR"));
+    }
+  }, [open, cost]);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Editar vigência"
+            title="Editar vigência"
+          >
+            <PencilIcon className="size-4" />
+          </Button>
+        }
+      />
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <PencilIcon className="size-4 text-primary" />
+            Editar vigência de custo
+          </DialogTitle>
+          <DialogDescription>
+            Ajuste os valores, a jornada ou o período de vigência desta remuneração.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form action={formAction} className="grid gap-4 py-2">
+          <input type="hidden" name="id" value={cost.id} />
+          <input type="hidden" name="employeeId" value={cost.employee_id} />
+          <input
+            type="hidden"
+            name="monthlyHours"
+            value={calculatedMonthly > 0 ? calculatedMonthly.toFixed(2).replace(".", ",") : "168"}
+          />
+          <FormAlert state={state} />
+
+          {/* Vigência */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Vigência a partir de" htmlFor={`edit-validFrom-${cost.id}`} errors={state.fieldErrors?.validFrom}>
+              <Input
+                id={`edit-validFrom-${cost.id}`}
+                name="validFrom"
+                type="date"
+                value={validFrom}
+                onChange={(e) => setValidFrom(e.target.value)}
+                required
+              />
+            </Field>
+            <Field
+              label="Vigência até"
+              htmlFor={`edit-validTo-${cost.id}`}
+              hint={cost.valid_to ? undefined : "Em branco = atualmente vigente"}
+              errors={state.fieldErrors?.validTo}
+            >
+              <Input
+                id={`edit-validTo-${cost.id}`}
+                name="validTo"
+                type="date"
+                value={validTo}
+                onChange={(e) => setValidTo(e.target.value)}
+                placeholder="Vigente"
+              />
+            </Field>
+          </div>
+
+          {/* Valores Financeiros */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Salário mensal (R$)" htmlFor={`edit-salary-${cost.id}`} errors={state.fieldErrors?.monthlySalary}>
+              <Input
+                id={`edit-salary-${cost.id}`}
+                name="monthlySalary"
+                inputMode="decimal"
+                value={salary}
+                onChange={(e) => setSalary(e.target.value)}
+                placeholder="0,00"
+                required
+              />
+            </Field>
+            <Field label="Benefícios (R$)" htmlFor={`edit-benefits-${cost.id}`} errors={state.fieldErrors?.benefits}>
+              <Input
+                id={`edit-benefits-${cost.id}`}
+                name="benefits"
+                inputMode="decimal"
+                value={benefits}
+                onChange={(e) => setBenefits(e.target.value)}
+                placeholder="0,00"
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Encargos (%)" htmlFor={`edit-chargesPercent-${cost.id}`} errors={state.fieldErrors?.chargesPercent}>
+              <Input
+                id={`edit-chargesPercent-${cost.id}`}
+                name="chargesPercent"
+                inputMode="decimal"
+                value={chargesPercent}
+                onChange={(e) => setChargesPercent(e.target.value)}
+                placeholder="0"
+              />
+            </Field>
+            <Field label="Encargos (R$)" htmlFor={`edit-chargesAmount-${cost.id}`} errors={state.fieldErrors?.chargesAmount}>
+              <Input
+                id={`edit-chargesAmount-${cost.id}`}
+                name="chargesAmount"
+                inputMode="decimal"
+                value={chargesAmount}
+                onChange={(e) => setChargesAmount(e.target.value)}
+                placeholder="0,00"
+              />
+            </Field>
+          </div>
+
+          {/* Jornada */}
+          {mode === "diaria" ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Horas por dia"
+                htmlFor={`edit-costDailyHours-${cost.id}`}
+                hint={`= ${calculatedMonthly.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}h no mês`}
+                errors={state.fieldErrors?.monthlyHours}
+              >
+                <Input
+                  id={`edit-costDailyHours-${cost.id}`}
+                  inputMode="decimal"
+                  value={dailyHours}
+                  onChange={(e) => setDailyHours(e.target.value)}
+                  placeholder="8"
+                  required
+                />
+              </Field>
+              <Field
+                label="Dias úteis/mês"
+                htmlFor={`edit-costWorkingDays-${cost.id}`}
+                hint="Padrão: 21 dias"
+              >
+                <Input
+                  id={`edit-costWorkingDays-${cost.id}`}
+                  inputMode="decimal"
+                  value={workingDays}
+                  onChange={(e) => setWorkingDays(e.target.value)}
+                  placeholder="21"
+                  required
+                />
+              </Field>
+            </div>
+          ) : (
+            <Field
+              label="Horas no mês"
+              htmlFor={`edit-costMonthlyHours-${cost.id}`}
+              hint={`≈ ${(parsePtBrNumber(customMonthlyHours) / 21).toFixed(1).replace(".", ",")}h/dia`}
+              errors={state.fieldErrors?.monthlyHours}
+            >
+              <Input
+                id={`edit-costMonthlyHours-${cost.id}`}
+                inputMode="decimal"
+                value={customMonthlyHours}
+                onChange={(e) => setCustomMonthlyHours(e.target.value)}
+                placeholder="168"
+                required
+              />
+            </Field>
+          )}
+
+          <div>
+            <button
+              type="button"
+              onClick={() => setMode(mode === "diaria" ? "mensal" : "diaria")}
+              className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline cursor-pointer"
+            >
+              {mode === "diaria"
+                ? "Prefere informar total de horas no mês diretamente?"
+                : "Calcular a partir de horas diárias (jornada)?"}
+            </button>
+          </div>
+
+          {/* Painel de Cálculo em Tempo Real */}
+          <div className="grid gap-3 rounded-md bg-muted/40 p-3 sm:grid-cols-3 sm:items-center text-sm border">
+            <div>
+              <span className="text-xs text-muted-foreground block">Custo total mensal</span>
+              <strong className="text-base text-foreground font-semibold">{formatCurrency(totalMonthlyCost)}</strong>
+            </div>
+            <div>
+              <span className="text-xs text-muted-foreground block">Custo por dia</span>
+              <strong className="text-base text-foreground font-semibold">{formatCurrency(dailyCost)}</strong>
+            </div>
+            <div>
+              <span className="text-xs text-muted-foreground block">Custo por hora</span>
+              <strong className="text-base text-primary font-semibold">{formatCurrency(hourlyCost)}</strong>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-2">
+            <DialogClose render={<Button type="button" variant="outline" />}>Cancelar</DialogClose>
+            <SubmitButton>Salvar alterações</SubmitButton>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function CostHistory({
   costs,
   canDelete = false,
+  canEdit = canDelete,
 }: {
   costs: Tables<"employee_costs">[];
   canDelete?: boolean;
+  canEdit?: boolean;
 }) {
   if (!costs.length) return <EmptyState>Nenhum custo registrado — a rentabilidade não considerará estas horas.</EmptyState>;
 
@@ -334,7 +631,7 @@ export function CostHistory({
           <TableHead>Benefícios</TableHead>
           <TableHead>Jornada / Horas</TableHead>
           <TableHead>Custo hora</TableHead>
-          {canDelete ? <TableHead className="w-10 text-right">Ações</TableHead> : null}
+          {canDelete || canEdit ? <TableHead className="w-20 text-right">Ações</TableHead> : null}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -358,15 +655,20 @@ export function CostHistory({
               <span className="block text-xs text-muted-foreground">{formatHours(Number(cost.monthly_hours))} no mês</span>
             </TableCell>
             <TableCell className="font-medium">{formatCurrency(Number(cost.hourly_cost))}</TableCell>
-            {canDelete ? (
+            {canDelete || canEdit ? (
               <TableCell className="text-right">
-                <DeleteButton
-                  action={deleteEmployeeCostAction}
-                  hiddenFields={{ id: cost.id, employeeId: cost.employee_id }}
-                  title="Excluir vigência de custo"
-                  description={`Tem certeza que deseja excluir esta vigência de custo (iniciada em ${formatDate(cost.valid_from)})?`}
-                  label="Excluir"
-                />
+                <div className="flex items-center justify-end gap-1">
+                  {canEdit ? <EditCostDialog cost={cost} /> : null}
+                  {canDelete ? (
+                    <DeleteButton
+                      action={deleteEmployeeCostAction}
+                      hiddenFields={{ id: cost.id, employeeId: cost.employee_id }}
+                      title="Excluir vigência de custo"
+                      description={`Tem certeza que deseja excluir esta vigência de custo (iniciada em ${formatDate(cost.valid_from)})?`}
+                      label="Excluir"
+                    />
+                  ) : null}
+                </div>
               </TableCell>
             ) : null}
           </TableRow>

@@ -245,25 +245,55 @@ export function BarList({
   const max = Math.max(...items.map((i) => Math.abs(i.value)), 1);
 
   return (
-    <div className="grid gap-2">
-      {items.map((item) => (
-        <div key={item.id} className="grid gap-1">
-          <div className="flex items-baseline justify-between gap-3 text-sm">
-            <span className="min-w-0 truncate" title={item.label}>{item.label}</span>
-            <span className="shrink-0 tabular-nums font-medium">{formatValue(item.value)}</span>
+    <div className="w-full space-y-2.5">
+      {items.map((item) => {
+        const pct = Math.min(100, Math.max(0, (Math.abs(item.value) / max) * 100));
+        const isShortHint = item.hint && item.hint.length <= 10;
+
+        return (
+          <div
+            key={item.id}
+            className="group flex flex-col gap-1.5 rounded-lg p-1.5 -mx-1.5 transition-colors hover:bg-muted/40 min-w-0"
+          >
+            <div className="flex items-baseline justify-between gap-3 text-sm min-w-0">
+              <span
+                className="min-w-0 truncate font-medium text-foreground group-hover:text-primary transition-colors"
+                title={item.label}
+              >
+                {item.label}
+              </span>
+              <div className="flex items-baseline gap-1.5 shrink-0 tabular-nums">
+                <span className="font-semibold text-foreground">
+                  {formatValue(item.value)}
+                </span>
+                {isShortHint ? (
+                  <span className="text-xs text-muted-foreground font-normal">
+                    ({item.hint})
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted/60">
+              <div
+                className="h-full rounded-full transition-all duration-500 ease-out"
+                style={{
+                  width: `${pct}%`,
+                  minWidth: item.value !== 0 ? "4px" : "0px",
+                  background:
+                    item.value < 0
+                      ? "var(--viz-critical)"
+                      : "linear-gradient(90deg, var(--viz-1) 0%, var(--viz-3) 100%)",
+                }}
+              />
+            </div>
+
+            {!isShortHint && item.hint ? (
+              <p className="text-xs text-muted-foreground truncate">{item.hint}</p>
+            ) : null}
           </div>
-          <div className="h-1.5 rounded-full bg-muted">
-            <div
-              className="h-1.5 rounded-full"
-              style={{
-                width: `${(Math.abs(item.value) / max) * 100}%`,
-                background: item.value < 0 ? "var(--viz-critical)" : "var(--viz-1)",
-              }}
-            />
-          </div>
-          {item.hint ? <p className="text-xs text-muted-foreground">{item.hint}</p> : null}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
