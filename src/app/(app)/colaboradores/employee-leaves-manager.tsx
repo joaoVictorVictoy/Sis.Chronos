@@ -299,7 +299,7 @@ export function EmployeeLeavesManager({
                 id="select-emp"
                 value={selectedEmpId}
                 onChange={(e) => setSelectedEmpId(e.target.value)}
-                className="h-9 rounded-md border border-input bg-background text-foreground px-3 py-1 text-xs font-medium shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="h-8 rounded-lg border border-input bg-background text-foreground px-2.5 py-1 text-xs font-medium shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 style={{ colorScheme: "dark light" }}
               >
                 <option value="all">Todos os colaboradores</option>
@@ -314,11 +314,10 @@ export function EmployeeLeavesManager({
 
           <Button
             type="button"
-            size="sm"
             onClick={handleOpenNew}
-            className="bg-orange-600 hover:bg-orange-700 text-white font-medium"
+            className="h-8 px-3 text-xs bg-orange-600 hover:bg-orange-700 text-white font-medium shadow-xs"
           >
-            <PlusIcon className="size-4 mr-1.5" />
+            <PlusIcon className="size-3.5 mr-1.5" />
             Adicionar Férias / Recesso
           </Button>
         </div>
