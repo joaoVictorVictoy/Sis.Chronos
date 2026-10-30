@@ -100,7 +100,7 @@ export function EmployeesTable({
   canSeeCosts: boolean;
   tenantMonthlyHours: number | string;
 }) {
-  const [filter, setFilter] = useState<"active" | "inactive" | "all">("active");
+  const [filter, setFilter] = useState<"active" | "inactive">("active");
 
   const activeEmployees = useMemo(
     () => employees.filter((e) => e.active !== false),
@@ -111,11 +111,10 @@ export function EmployeesTable({
     [employees]
   );
 
-  const filteredEmployees = useMemo(() => {
-    if (filter === "active") return activeEmployees;
-    if (filter === "inactive") return inactiveEmployees;
-    return employees;
-  }, [filter, activeEmployees, inactiveEmployees, employees]);
+  const filteredEmployees = useMemo(
+    () => (filter === "active" ? activeEmployees : inactiveEmployees),
+    [filter, activeEmployees, inactiveEmployees]
+  );
 
   return (
     <>
@@ -129,7 +128,7 @@ export function EmployeesTable({
           </CardDescription>
         </div>
 
-        {/* Filtro Ativos | Inativos | Todos */}
+        {/* Filtro Ativos | Inativos */}
         <div className="inline-flex items-center gap-1 p-1 bg-muted/60 rounded-lg border border-border/50 text-xs self-start sm:self-auto">
           <button
             type="button"
@@ -176,38 +175,15 @@ export function EmployeesTable({
               {inactiveEmployees.length}
             </span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => setFilter("all")}
-            className={cn(
-              "px-3 py-1.5 rounded-md font-medium transition-all cursor-pointer flex items-center gap-1.5",
-              filter === "all"
-                ? "bg-background text-foreground shadow-xs font-semibold"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <span>Todos</span>
-            <span
-              className={cn(
-                "px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none",
-                filter === "all"
-                  ? "bg-foreground/10 text-foreground"
-                  : "bg-muted text-muted-foreground"
-              )}
-            >
-              {employees.length}
-            </span>
-          </button>
         </div>
       </CardHeader>
 
       <CardContent>
         {filteredEmployees.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/70 p-8 text-center text-sm text-muted-foreground">
-            {filter === "active" && "Nenhum colaborador ativo no momento."}
-            {filter === "inactive" && "Nenhum colaborador inativo no momento."}
-            {filter === "all" && "Nenhum colaborador cadastrado ainda."}
+            {filter === "active"
+              ? "Nenhum colaborador ativo no momento."
+              : "Nenhum colaborador inativo no momento."}
           </div>
         ) : (
           <Table>
