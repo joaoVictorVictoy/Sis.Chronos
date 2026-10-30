@@ -1,22 +1,12 @@
-import Link from "next/link";
-import { ChevronRightIcon } from "lucide-react";
-import { PageHeader, EmptyState } from "@/components/page-header";
-import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requireRole } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { formatCurrency, formatHours } from "@/lib/format";
-import type { Tables } from "@/lib/database.types";
-import { NewEmployeeForm, EmployeeStatusToggle } from "./employees-client";
+import { NewEmployeeForm, EmployeesTable, type EmployeeRow } from "./employees-client";
 import { EmployeeLeavesManager } from "./employee-leaves-manager";
 import type { LeaveRecord } from "../minhas-analises/leaves-dialog";
 
 export const metadata = { title: "Colaboradores | Apontamento" };
-
-type EmployeeRow = Tables<"employees"> & {
-  employee_costs: Pick<Tables<"employee_costs">, "hourly_cost" | "valid_from" | "valid_to" | "monthly_hours">[];
-};
 
 export default async function EmployeesPage() {
   const { tenant, profile } = await requireRole(["admin", "gestor"]);
@@ -36,6 +26,11 @@ export default async function EmployeesPage() {
   const employees = (employeesData ?? []) as EmployeeRow[];
   const leaves = (leavesData ?? []) as LeaveRecord[];
   const canSeeCosts = profile.role === "admin" || profile.can_view_costs;
+
+  // Filtra apenas colaboradores ativos para a gestão de férias
+  const activeEmployees = employees.filter((e) => e.active !== false);
+  const activeEmployeeIds = new Set(activeEmployees.map((e) => e.id));
+  const activeLeaves = leaves.filter((l) => !l.employee_id || activeEmployeeIds.has(l.employee_id));
 
   return (
     <div className="grid gap-6">
@@ -57,107 +52,20 @@ export default async function EmployeesPage() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Equipe</CardTitle>
-          <CardDescription>
-            {canSeeCosts
-              ? "Custo hora vigente hoje."
-              : "Você não tem permissão para ver custos individuais — fale com o administrador."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {employees.length === 0 ? (
-            <EmptyState>Nenhum colaborador cadastrado ainda.</EmptyState>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Cargo</TableHead>
-                  <TableHead>Horas/mês</TableHead>
-                  {canSeeCosts ? <TableHead>Custo hora</TableHead> : null}
-                  <TableHead>Acesso</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {employees.map((employee) => {
-                  const current = employee.employee_costs?.find((c) => c.valid_to === null);
-                  const effectiveHours = current?.monthly_hours ?? employee.monthly_hours;
-                  const isDefault = effectiveHours === null || effectiveHours === undefined;
-                  const displayHours = effectiveHours ?? tenant.monthly_hours;
-
-                  return (
-                    <TableRow key={employee.id}>
-                      <TableCell>
-                        <Link href={`/colaboradores/${employee.id}`} className="font-medium hover:underline">
-                          {employee.full_name}
-                        </Link>
-                        {employee.email ? (
-                          <p className="text-xs text-muted-foreground">{employee.email}</p>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{employee.job_title ?? "—"}</TableCell>
-                      <TableCell>
-                        {formatHours(Number(displayHours))}
-                        {isDefault ? (
-                          <span className="ml-1 text-xs text-muted-foreground">(padrão)</span>
-                        ) : null}
-                      </TableCell>
-                      {canSeeCosts ? (
-                        <TableCell>
-                          {current ? (
-                            formatCurrency(Number(current.hourly_cost))
-                          ) : (
-                            <span className="text-muted-foreground">sem custo</span>
-                          )}
-                        </TableCell>
-                      ) : null}
-                      <TableCell>
-                        {employee.profile_id ? (
-                          <Badge variant="secondary">com login</Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">sem acesso</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {!employee.active ? (
-                            <Badge variant="secondary">inativo</Badge>
-                          ) : (
-                            <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400">
-                              ativo
-                            </Badge>
-                          )}
-                          <EmployeeStatusToggle
-                            employeeId={employee.id}
-                            active={employee.active}
-                            employeeName={employee.full_name}
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Link href={`/colaboradores/${employee.id}`} aria-label={`Abrir ${employee.full_name}`}>
-                          <ChevronRightIcon className="size-4 text-muted-foreground" />
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
+        <EmployeesTable
+          employees={employees}
+          canSeeCosts={canSeeCosts}
+          tenantMonthlyHours={tenant.monthly_hours}
+        />
       </Card>
 
       <EmployeeLeavesManager
-        employees={employees.map((e) => ({
+        employees={activeEmployees.map((e) => ({
           id: e.id,
           full_name: e.full_name,
           active: e.active,
         }))}
-        leaves={leaves}
+        leaves={activeLeaves}
       />
     </div>
   );

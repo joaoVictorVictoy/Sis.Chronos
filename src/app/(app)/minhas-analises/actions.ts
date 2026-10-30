@@ -12,18 +12,21 @@ export async function createEmployeeLeaveAction(data: {
   type: LeaveType;
   notes?: string;
   targetEmployeeId?: string;
+  targetEmployeeIds?: string[];
 }) {
   const { tenant, employeeId, profile } = await requireContext();
   const isManager = profile.role === "admin" || profile.role === "gestor";
 
-  // Se for especificado um colaborador alvo diferente do usuário logado, exige gestor/admin
-  const finalEmployeeId = data.targetEmployeeId || employeeId;
+  const targetIds =
+    data.targetEmployeeIds && data.targetEmployeeIds.length > 0
+      ? data.targetEmployeeIds
+      : [data.targetEmployeeId || employeeId].filter(Boolean) as string[];
 
-  if (!finalEmployeeId) {
+  if (targetIds.length === 0) {
     return { error: "Colaborador não identificado." };
   }
 
-  if (data.targetEmployeeId && data.targetEmployeeId !== employeeId && !isManager) {
+  if (targetIds.some((id) => id !== employeeId) && !isManager) {
     return { error: "Apenas gestores ou administradores podem cadastrar férias para outros colaboradores." };
   }
 
@@ -39,14 +42,16 @@ export async function createEmployeeLeaveAction(data: {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.from("employee_leaves").insert({
+  const rows = targetIds.map((tId) => ({
     tenant_id: tenant.id,
-    employee_id: finalEmployeeId,
+    employee_id: tId,
     start_date: startDate,
     end_date: endDate,
     type: data.type,
     notes: data.notes?.trim() || null,
-  });
+  }));
+
+  const { error } = await supabase.from("employee_leaves").insert(rows);
 
   if (error) {
     console.error("Erro ao cadastrar férias/recesso:", error);
@@ -57,7 +62,9 @@ export async function createEmployeeLeaveAction(data: {
   revalidatePath("/apontamentos");
   revalidatePath("/inicio");
   revalidatePath("/colaboradores");
-  revalidatePath(`/colaboradores/${finalEmployeeId}`);
+  for (const tId of targetIds) {
+    revalidatePath(`/colaboradores/${tId}`);
+  }
   return { success: true };
 }
 

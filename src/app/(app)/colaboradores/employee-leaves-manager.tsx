@@ -78,7 +78,10 @@ export function EmployeeLeavesManager({
   defaultEmployeeId,
 }: EmployeeLeavesManagerProps) {
   const [selectedEmpId, setSelectedEmpId] = useState<string>(
-    defaultEmployeeId || employees[0]?.id || "",
+    defaultEmployeeId || "all",
+  );
+  const [formEmployeeId, setFormEmployeeId] = useState<string>(
+    defaultEmployeeId || (employees[0]?.id || "all"),
   );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingLeave, setEditingLeave] = useState<LeaveRecord | null>(null);
@@ -90,18 +93,36 @@ export function EmployeeLeavesManager({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const selectedEmployee = useMemo(
-    () => employees.find((e) => e.id === selectedEmpId),
-    [employees, selectedEmpId],
+  const employeesMap = useMemo(
+    () => new Map(employees.map((e) => [e.id, e])),
+    [employees],
   );
 
-  // Filtra as férias do colaborador selecionado
+  const activeEmployees = useMemo(
+    () => employees.filter((e) => e.active !== false),
+    [employees],
+  );
+
+  const activeEmployeeIds = useMemo(
+    () => new Set(activeEmployees.map((e) => e.id)),
+    [activeEmployees],
+  );
+
+  const selectedEmployee = useMemo(
+    () => (selectedEmpId === "all" ? null : employeesMap.get(selectedEmpId)),
+    [employeesMap, selectedEmpId],
+  );
+
+  // Filtra as férias do colaborador selecionado ou mostra todas dos colaboradores ativos
   const employeeLeaves = useMemo(
-    () =>
-      leaves
-        .filter((l) => l.employee_id === selectedEmpId)
-        .sort((a, b) => b.start_date.localeCompare(a.start_date)),
-    [leaves, selectedEmpId],
+    () => {
+      const filtered =
+        selectedEmpId === "all"
+          ? leaves.filter((l) => !l.employee_id || activeEmployeeIds.has(l.employee_id))
+          : leaves.filter((l) => l.employee_id === selectedEmpId);
+      return [...filtered].sort((a, b) => b.start_date.localeCompare(a.start_date));
+    },
+    [leaves, selectedEmpId, activeEmployeeIds],
   );
 
   const resetForm = () => {
@@ -110,15 +131,18 @@ export function EmployeeLeavesManager({
     setStartDate("");
     setEndDate("");
     setNotes("");
+    setFormEmployeeId(selectedEmpId === "all" ? (employees[0]?.id || "") : selectedEmpId);
   };
 
   const handleOpenNew = () => {
     resetForm();
+    setFormEmployeeId(selectedEmpId === "all" ? "all" : selectedEmpId);
     setDialogOpen(true);
   };
 
   const handleOpenEdit = (leave: LeaveRecord) => {
     setEditingLeave(leave);
+    setFormEmployeeId(leave.employee_id || "");
     setType((leave.type as LeaveType) || "ferias");
     setStartDate(leave.start_date);
     setEndDate(leave.end_date);
@@ -128,7 +152,7 @@ export function EmployeeLeavesManager({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedEmpId) {
+    if (!formEmployeeId) {
       toast.error("Selecione um colaborador.");
       return;
     }
@@ -160,22 +184,51 @@ export function EmployeeLeavesManager({
           resetForm();
         }
       } else {
-        const res = await createEmployeeLeaveAction({
-          startDate,
-          endDate,
-          type,
-          notes,
-          targetEmployeeId: selectedEmpId,
-        });
+        if (formEmployeeId === "all") {
+          const activeEmployees = employees.filter((e) => e.active !== false);
+          const targetEmployeeIds = (activeEmployees.length > 0 ? activeEmployees : employees).map((e) => e.id);
 
-        if (res.error) {
-          toast.error(res.error);
+          if (targetEmployeeIds.length === 0) {
+            toast.error("Nenhum colaborador encontrado para registrar.");
+            return;
+          }
+
+          const res = await createEmployeeLeaveAction({
+            startDate,
+            endDate,
+            type,
+            notes,
+            targetEmployeeIds,
+          });
+
+          if (res.error) {
+            toast.error(res.error);
+          } else {
+            toast.success(
+              `${TYPE_LABELS[type]} registrado para toda a equipe (${targetEmployeeIds.length} colaboradores)!`,
+            );
+            setDialogOpen(false);
+            resetForm();
+          }
         } else {
-          toast.success(
-            `${TYPE_LABELS[type]} registrado para ${selectedEmployee?.full_name || "o colaborador"}!`,
-          );
-          setDialogOpen(false);
-          resetForm();
+          const res = await createEmployeeLeaveAction({
+            startDate,
+            endDate,
+            type,
+            notes,
+            targetEmployeeId: formEmployeeId,
+          });
+
+          if (res.error) {
+            toast.error(res.error);
+          } else {
+            const empName = employeesMap.get(formEmployeeId)?.full_name || "o colaborador";
+            toast.success(
+              `${TYPE_LABELS[type]} registrado para ${empName}!`,
+            );
+            setDialogOpen(false);
+            resetForm();
+          }
         }
       }
     } catch (err) {
@@ -236,8 +289,8 @@ export function EmployeeLeavesManager({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Seletor de Colaborador (quando há mais de um) */}
-          {employees.length > 1 && (
+          {/* Seletor de Colaborador (quando há mais de um ativo) */}
+          {activeEmployees.length > 1 && (
             <div className="flex items-center gap-2">
               <Label htmlFor="select-emp" className="sr-only">
                 Colaborador
@@ -249,9 +302,10 @@ export function EmployeeLeavesManager({
                 className="h-9 rounded-md border border-input bg-background text-foreground px-3 py-1 text-xs font-medium shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 style={{ colorScheme: "dark light" }}
               >
-                {employees.map((emp) => (
+                <option value="all">Todos os colaboradores</option>
+                {activeEmployees.map((emp) => (
                   <option key={emp.id} value={emp.id}>
-                    {emp.full_name} {emp.active === false ? "(Inativo)" : ""}
+                    {emp.full_name}
                   </option>
                 ))}
               </select>
@@ -275,8 +329,14 @@ export function EmployeeLeavesManager({
           <div className="rounded-lg border border-dashed border-border/70 p-6 text-center text-sm text-muted-foreground">
             <PalmtreeIcon className="size-8 mx-auto mb-2 text-muted-foreground/60" />
             <p className="font-medium text-foreground">
-              Nenhum período de férias ou recesso registrado para{" "}
-              <strong>{selectedEmployee?.full_name || "este colaborador"}</strong>.
+              {selectedEmpId === "all" ? (
+                "Nenhum período de férias ou recesso registrado para a equipe."
+              ) : (
+                <>
+                  Nenhum período de férias ou recesso registrado para{" "}
+                  <strong>{selectedEmployee?.full_name || "este colaborador"}</strong>.
+                </>
+              )}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               Clique em &quot;Adicionar Férias / Recesso&quot; acima para registrar ausências.
@@ -286,26 +346,48 @@ export function EmployeeLeavesManager({
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs text-muted-foreground pb-1">
               <span>
-                Mostrando {employeeLeaves.length}{" "}
-                {employeeLeaves.length === 1 ? "período registrado" : "períodos registrados"} para{" "}
-                <strong className="text-foreground">{selectedEmployee?.full_name}</strong>
+                {selectedEmpId === "all" ? (
+                  <>
+                    Mostrando {employeeLeaves.length}{" "}
+                    {employeeLeaves.length === 1 ? "período registrado" : "períodos registrados"} de{" "}
+                    <strong className="text-foreground">toda a equipe</strong>
+                  </>
+                ) : (
+                  <>
+                    Mostrando {employeeLeaves.length}{" "}
+                    {employeeLeaves.length === 1 ? "período registrado" : "períodos registrados"} para{" "}
+                    <strong className="text-foreground">{selectedEmployee?.full_name}</strong>
+                  </>
+                )}
               </span>
             </div>
 
             <div className="divide-y divide-border/50 rounded-lg border border-border/60 overflow-hidden">
               {employeeLeaves.map((leave) => {
                 const isDeleting = deletingId === leave.id;
+                const emp = employeesMap.get(leave.employee_id || "");
                 return (
                   <div
                     key={leave.id}
                     className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 text-sm bg-card hover:bg-muted/30 transition-colors"
                   >
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {selectedEmpId === "all" && (
+                          <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-foreground border border-border/40">
+                            <UsersIcon className="size-3 text-muted-foreground" />
+                            {emp?.full_name || "Colaborador"}
+                            {emp?.active === false && (
+                              <span className="text-[10px] text-muted-foreground font-normal">(Inativo)</span>
+                            )}
+                          </span>
+                        )}
                         <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2.5 py-0.5 text-xs font-semibold text-orange-700 dark:text-orange-400">
                           {leave.type === "ferias" && "🏖️"}
                           {leave.type === "recesso" && "🎉"}
                           {leave.type === "folga" && "☕"}
+                          {leave.type === "falta" && "❌"}
+                          {leave.type === "atestado" && "🏥"}
                           {leave.type === "outro" && "📋"}
                           {TYPE_LABELS[leave.type] ?? leave.type}
                         </span>
@@ -365,13 +447,42 @@ export function EmployeeLeavesManager({
               {editingLeave ? "Alterar Férias / Recesso" : "Registrar Férias / Recesso"}
             </DialogTitle>
             <DialogDescription>
-              {selectedEmployee?.full_name
-                ? `Colaborador: ${selectedEmployee.full_name}`
-                : "Defina o período de ausência."}
+              {editingLeave ? (
+                <>
+                  Colaborador:{" "}
+                  <strong>{employeesMap.get(editingLeave.employee_id || "")?.full_name || "Colaborador"}</strong>
+                </>
+              ) : formEmployeeId === "all" ? (
+                "O período será aplicado para todos os colaboradores ativos da equipe."
+              ) : (
+                `Colaborador: ${employeesMap.get(formEmployeeId)?.full_name || "Selecione o colaborador"}`
+              )}
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4 py-2">
+            {/* Seletor de Colaborador no Dialog (quando não estiver editando e houver mais de um ativo) */}
+            {!editingLeave && activeEmployees.length > 1 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="dialog-emp-select">Colaborador</Label>
+                <select
+                  id="dialog-emp-select"
+                  value={formEmployeeId}
+                  onChange={(e) => setFormEmployeeId(e.target.value)}
+                  className="w-full h-9 rounded-md border border-input bg-background text-foreground px-3 py-1 text-xs font-medium shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  style={{ colorScheme: "dark light" }}
+                >
+                  <option value="all">🌟 Toda a equipe (todos os colaboradores ativos)</option>
+                  <optgroup label="Colaborador individual">
+                    {activeEmployees.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.full_name}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+            )}
             {/* Seletor de Tipo em Botões/Pills (sem problemas de fundo branco) */}
             <div className="space-y-1.5">
               <Label>Tipo de Ausência</Label>
