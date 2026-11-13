@@ -6,6 +6,8 @@ import { ptBR } from "date-fns/locale";
 import {
   CalendarDaysIcon,
   CheckIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
   Loader2Icon,
   PalmtreeIcon,
   PencilIcon,
@@ -85,6 +87,7 @@ export function EmployeeLeavesManager({
   );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingLeave, setEditingLeave] = useState<LeaveRecord | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const [type, setType] = useState<LeaveType>("ferias");
   const [startDate, setStartDate] = useState("");
@@ -278,7 +281,10 @@ export function EmployeeLeavesManager({
   return (
     <Card className="border border-border/80 shadow-xs">
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-1">
+        <div
+          className="space-y-1 cursor-pointer select-none"
+          onClick={() => setIsExpanded((prev) => !prev)}
+        >
           <CardTitle className="flex items-center gap-2 text-lg">
             <PalmtreeIcon className="size-5 text-orange-500" />
             Férias e Recessos da Equipe
@@ -320,9 +326,20 @@ export function EmployeeLeavesManager({
             <PlusIcon className="size-3.5 mr-1.5" />
             Adicionar Férias / Recesso
           </Button>
+
+          <button
+            type="button"
+            onClick={() => setIsExpanded((prev) => !prev)}
+            aria-label={isExpanded ? "Ocultar períodos" : "Expandir períodos"}
+            title={isExpanded ? "Ocultar períodos" : "Expandir períodos"}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer shrink-0"
+          >
+            {isExpanded ? <ChevronUpIcon className="size-4" /> : <ChevronDownIcon className="size-4" />}
+          </button>
         </div>
       </CardHeader>
 
+      {isExpanded ? (
       <CardContent>
         {employeeLeaves.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/70 p-6 text-center text-sm text-muted-foreground">
@@ -436,6 +453,7 @@ export function EmployeeLeavesManager({
           </div>
         )}
       </CardContent>
+      ) : null}
 
       {/* Dialog para Adicionar ou Editar Férias */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
