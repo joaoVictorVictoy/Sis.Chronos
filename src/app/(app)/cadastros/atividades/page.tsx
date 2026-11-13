@@ -66,17 +66,12 @@ export default async function ActivitiesPage() {
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Atividades cadastradas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ActivitiesTable
-            activities={(activities ?? []) as (Tables<"activities"> & { time_entries: { count: number }[] })[]}
-            areas={areaOptions}
-            clients={clientOptions}
-            canManage={canManage}
-          />
-        </CardContent>
+        <ActivitiesTable
+          activities={(activities ?? []) as (Tables<"activities"> & { time_entries: { count: number }[] })[]}
+          areas={areaOptions}
+          clients={clientOptions}
+          canManage={canManage}
+        />
       </Card>
     </div>
   );

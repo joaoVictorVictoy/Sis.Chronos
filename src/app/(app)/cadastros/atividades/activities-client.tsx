@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { NativeCheckbox, NativeSelect } from "@/components/native-select";
@@ -184,6 +186,7 @@ export function ActivitiesTable({
   clients: ClientOption[];
   canManage?: boolean;
 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [areaFilter, setAreaFilter] = useState<string>("all");
 
@@ -199,94 +202,121 @@ export function ActivitiesTable({
     });
   }, [activities, clientFilter, areaFilter]);
 
-  if (!activities.length) return <EmptyState>Nenhuma atividade cadastrada ainda.</EmptyState>;
-
   return (
-    <div className="space-y-4">
-      {/* Filtros rápidos */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>Filtrar por Cliente:</span>
-          <NativeSelect value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} className="w-auto h-8 text-xs">
-            <option value="all">Todos os clientes</option>
-            <option value="general">Gerais (sem cliente)</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </NativeSelect>
+    <>
+      <CardHeader
+        className="flex flex-row items-center justify-between gap-3 cursor-pointer select-none"
+        onClick={() => setIsExpanded((prev) => !prev)}
+      >
+        <div className="flex items-center gap-2">
+          <CardTitle>Atividades cadastradas</CardTitle>
+          <Badge variant="secondary" className="tabular-nums text-xs">
+            {activities.length} {activities.length === 1 ? "atividade" : "atividades"}
+          </Badge>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>Filtrar por Área:</span>
-          <NativeSelect value={areaFilter} onChange={(e) => setAreaFilter(e.target.value)} className="w-auto h-8 text-xs">
-            <option value="all">Todas as áreas</option>
-            {areas.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </NativeSelect>
-        </div>
-
-        <span className="text-xs text-muted-foreground ml-auto">
-          {filteredActivities.length} de {activities.length} atividade(s)
+        <span
+          aria-label={isExpanded ? "Ocultar atividades" : "Expandir atividades"}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
+        >
+          {isExpanded ? <ChevronUpIcon className="size-4" /> : <ChevronDownIcon className="size-4" />}
         </span>
-      </div>
+      </CardHeader>
 
-      <Table>
-        <TableHeader>
-          {canManage ? (
-            <TableRow>
-              <TableHead colSpan={7}>Atividades</TableHead>
-            </TableRow>
+      {isExpanded ? (
+        <CardContent>
+          {!activities.length ? (
+            <EmptyState>Nenhuma atividade cadastrada ainda.</EmptyState>
           ) : (
-            <TableRow>
-              <TableHead>Nome</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Área</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
+            <div className="space-y-4">
+              {/* Filtros rápidos */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Filtrar por Cliente:</span>
+                  <NativeSelect value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} className="w-auto h-8 text-xs">
+                    <option value="all">Todos os clientes</option>
+                    <option value="general">Gerais (sem cliente)</option>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Filtrar por Área:</span>
+                  <NativeSelect value={areaFilter} onChange={(e) => setAreaFilter(e.target.value)} className="w-auto h-8 text-xs">
+                    <option value="all">Todas as áreas</option>
+                    {areas.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </div>
+
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {filteredActivities.length} de {activities.length} atividade(s)
+                </span>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  {canManage ? (
+                    <TableRow>
+                      <TableHead colSpan={7}>Atividades</TableHead>
+                    </TableRow>
+                  ) : (
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Área</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  )}
+                </TableHeader>
+                <TableBody>
+                  {filteredActivities.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={canManage ? 7 : 5} className="text-center py-6 text-sm text-muted-foreground">
+                        Nenhuma atividade encontrada com os filtros selecionados.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredActivities.map((activity) =>
+                      canManage ? (
+                        <ActivityRow key={activity.id} activity={activity} areas={areas} clients={clients} />
+                      ) : (
+                        <TableRow key={activity.id}>
+                          <TableCell className="font-medium">{activity.name}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {activity.client_id ? clientMap.get(activity.client_id) ?? "Cliente" : "Geral"}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {areaMap.get(activity.area_id) ?? "Área"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={activity.billable ? "default" : "secondary"}>
+                              {activity.billable ? "Faturável" : "Não faturável"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={activity.active ? "outline" : "secondary"}>
+                              {activity.active ? "Ativa" : "Inativa"}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    )
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           )}
-        </TableHeader>
-        <TableBody>
-          {filteredActivities.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={canManage ? 7 : 5} className="text-center py-6 text-sm text-muted-foreground">
-                Nenhuma atividade encontrada com os filtros selecionados.
-              </TableCell>
-            </TableRow>
-          ) : (
-            filteredActivities.map((activity) =>
-              canManage ? (
-                <ActivityRow key={activity.id} activity={activity} areas={areas} clients={clients} />
-              ) : (
-                <TableRow key={activity.id}>
-                  <TableCell className="font-medium">{activity.name}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {activity.client_id ? clientMap.get(activity.client_id) ?? "Cliente" : "Geral"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {areaMap.get(activity.area_id) ?? "Área"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={activity.billable ? "default" : "secondary"}>
-                      {activity.billable ? "Faturável" : "Não faturável"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={activity.active ? "outline" : "secondary"}>
-                      {activity.active ? "Ativa" : "Inativa"}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              )
-            )
-          )}
-        </TableBody>
-      </Table>
-    </div>
+        </CardContent>
+      ) : null}
+    </>
   );
 }
