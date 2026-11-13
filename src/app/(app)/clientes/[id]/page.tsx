@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeftIcon, PlusIcon } from "lucide-react";
+import { ArrowLeftIcon, LockIcon, PlusIcon } from "lucide-react";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { formatCurrency, formatDate, todayISO } from "@/lib/format";
 import type { Tables } from "@/lib/database.types";
 import { ClientActivitiesSection, ClientAreasForm, ClientDetailsForm } from "../clients-client";
 import { DeleteContractButton } from "@/app/(app)/contratos/delete-contract-button";
+import { TerminateContractDialog } from "@/app/(app)/contratos/[id]/contract-termination";
 
 export const metadata = { title: "Cliente | Apontamento" };
 
@@ -152,11 +153,34 @@ export default async function ClientPage({ params }: PageProps<"/clientes/[id]">
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <DeleteContractButton
-                            contractId={contract.id}
-                            contractName={contract.name}
-                            iconOnly
-                          />
+                          <div className="flex items-center justify-end gap-1.5">
+                            {contract.status !== "encerrado" ? (
+                              <TerminateContractDialog
+                                contract={contract}
+                                otherActiveContractsCount={Math.max(
+                                  0,
+                                  activeContracts.filter((c) => c.id !== contract.id).length
+                                )}
+                                today={today}
+                                trigger={
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+                                  >
+                                    <LockIcon className="size-3.5" />
+                                    Encerrar
+                                  </Button>
+                                }
+                              />
+                            ) : null}
+                            <DeleteContractButton
+                              contractId={contract.id}
+                              contractName={contract.name}
+                              iconOnly
+                            />
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
