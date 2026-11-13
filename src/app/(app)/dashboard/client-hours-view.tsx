@@ -806,48 +806,12 @@ export function ClientHoursView({
     return activities.every((act) => expandedActivities[`${areaName}-${act.id}`]);
   };
 
-  // Alterna expansão de todas as áreas
-  const toggleAllAreasExpand = (areas: { name: string }[]) => {
-    const allExpanded = areas.length > 0 && areas.every((a) => !!expandedAreas[a.name]);
-    setExpandedAreas((prev) => {
-      const next = { ...prev };
-      for (const a of areas) {
-        next[a.name] = !allExpanded;
-      }
-      return next;
-    });
-  };
-
-  // Verifica se todas as áreas estão expandidas
-  const areAllAreasExpanded = (areas: { name: string }[]) => {
-    if (areas.length === 0) return false;
-    return areas.every((a) => !!expandedAreas[a.name]);
-  };
-
   // Alterna expansão de um colaborador para exibir suas atividades
   const toggleEmployeeExpand = (empId: string) => {
     setExpandedEmployees((prev) => ({
       ...prev,
       [empId]: !prev[empId],
     }));
-  };
-
-  // Alterna expansão de todos os colaboradores
-  const toggleAllEmployeesExpand = (employees: { id: string }[]) => {
-    const allExpanded = employees.length > 0 && employees.every((e) => !!expandedEmployees[e.id]);
-    setExpandedEmployees((prev) => {
-      const next = { ...prev };
-      for (const e of employees) {
-        next[e.id] = !allExpanded;
-      }
-      return next;
-    });
-  };
-
-  // Verifica se todos os colaboradores estão expandidos
-  const areAllEmployeesExpanded = (employees: { id: string }[]) => {
-    if (employees.length === 0) return false;
-    return employees.every((e) => !!expandedEmployees[e.id]);
   };
 
   const isAnyFilterActive =
@@ -1369,26 +1333,6 @@ export function ClientHoursView({
                         <BriefcaseIcon className="size-3.5 text-primary shrink-0" />
                         <span className="font-semibold text-foreground truncate max-w-48">{selectedClient.name}</span>
                       </div>
-
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => toggleAllAreasExpand(byAreaDynamic)}
-                        className="h-7 text-xs gap-1 shadow-xs cursor-pointer"
-                      >
-                        {areAllAreasExpanded(byAreaDynamic) ? (
-                          <>
-                            <ChevronUpIcon className="size-3.5" />
-                            Recolher áreas
-                          </>
-                        ) : (
-                          <>
-                            <ChevronDownIcon className="size-3.5" />
-                            Expandir áreas
-                          </>
-                        )}
-                      </Button>
                     </div>
 
                     {areaFilter !== "todas" && (
@@ -2355,26 +2299,6 @@ export function ClientHoursView({
                       <BriefcaseIcon className="size-3.5 text-primary shrink-0" />
                       <span className="font-semibold text-foreground truncate max-w-48">{selectedClient.name}</span>
                     </div>
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => toggleAllEmployeesExpand(byEmployeeDynamic)}
-                      className="h-7 text-xs gap-1 shadow-xs cursor-pointer"
-                    >
-                      {areAllEmployeesExpanded(byEmployeeDynamic) ? (
-                        <>
-                          <ChevronUpIcon className="size-3.5" />
-                          Recolher atividades
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDownIcon className="size-3.5" />
-                          Expandir atividades
-                        </>
-                      )}
-                    </Button>
                   </div>
                 </div>
               </CardHeader>
