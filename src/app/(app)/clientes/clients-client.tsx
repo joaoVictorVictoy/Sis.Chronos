@@ -5,7 +5,6 @@ import { useActionState, useMemo, useState } from "react";
 import { ChevronDownIcon, ChevronRightIcon, ChevronUpIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NativeCheckbox, NativeSelect } from "@/components/native-select";
 import { EmptyState } from "@/components/page-header";
@@ -141,7 +140,7 @@ export function ClientActivitiesSection({
   return (
     <>
       <CardHeader
-        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer select-none"
+        className="flex flex-row items-center justify-between gap-3 cursor-pointer select-none"
         onClick={() => setIsExpanded((prev) => !prev)}
       >
         <div className="grid gap-1">
@@ -156,28 +155,12 @@ export function ClientActivitiesSection({
           </CardDescription>
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsExpanded((prev) => !prev);
-          }}
-          className="h-8 text-xs gap-1.5 self-start sm:self-auto cursor-pointer"
+        <span
+          aria-label={isExpanded ? "Ocultar atividades" : "Expandir atividades"}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
         >
-          {isExpanded ? (
-            <>
-              <ChevronUpIcon className="size-3.5" />
-              Ocultar atividades
-            </>
-          ) : (
-            <>
-              <ChevronDownIcon className="size-3.5" />
-              Expandir atividades
-            </>
-          )}
-        </Button>
+          {isExpanded ? <ChevronUpIcon className="size-4" /> : <ChevronDownIcon className="size-4" />}
+        </span>
       </CardHeader>
 
       {isExpanded ? (
