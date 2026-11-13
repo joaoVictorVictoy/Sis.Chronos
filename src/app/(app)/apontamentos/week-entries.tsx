@@ -5,10 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangleIcon,
+  BriefcaseIcon,
   CalendarIcon,
+  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
+  ListIcon,
   LockIcon,
   PencilIcon,
   Trash2Icon,
@@ -413,6 +416,8 @@ export function WeekEntries({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [weekViewMode, setWeekViewMode] = useState<"dias" | "colaboradores" | "empresas">("dias");
+  const [collapsedDays, setCollapsedDays] = useState<Record<string, boolean>>({});
 
   const isManagerUser = role ? isManager(role) : false;
 
@@ -493,12 +498,98 @@ export function WeekEntries({
   const displayDays = selectedDay ? [selectedDay] : days;
   const dayFilteredEntries = selectedDay ? entries.filter((e) => e.entry_date === selectedDay) : entries;
   const dayFilteredMinutes = dayFilteredEntries.reduce((sum, e) => sum + e.minutes, 0);
+  const nonBillableMinutes = Math.max(0, totalMinutes - billableMinutes);
+  const weekCompletionPct =
+    expectedWeekHours > 0 ? Math.round(((totalMinutes / 60) / expectedWeekHours) * 100) : 0;
+
+  const contractClientMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of contracts) {
+      map.set(c.id, c.clientName);
+    }
+    return map;
+  }, [contracts]);
+
+  const byEmployeeWeek = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        totalMinutes: number;
+        billableMinutes: number;
+        entriesCount: number;
+        daysMinutes: Record<string, number>;
+      }
+    >();
+    for (const e of entries) {
+      const empId = e.employee_id;
+      const empName =
+        e.employees?.full_name ??
+        employees?.find((emp) => emp.id === empId)?.name ??
+        "Colaborador";
+      let item = map.get(empId);
+      if (!item) {
+        item = {
+          id: empId,
+          name: empName,
+          totalMinutes: 0,
+          billableMinutes: 0,
+          entriesCount: 0,
+          daysMinutes: {},
+        };
+        map.set(empId, item);
+      }
+      item.totalMinutes += e.minutes;
+      if (e.billable) item.billableMinutes += e.minutes;
+      item.entriesCount += 1;
+      item.daysMinutes[e.entry_date] = (item.daysMinutes[e.entry_date] ?? 0) + e.minutes;
+    }
+    return Array.from(map.values()).sort((a, b) => b.totalMinutes - a.totalMinutes);
+  }, [entries, employees]);
+
+  const byCompanyWeek = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        name: string;
+        totalMinutes: number;
+        billableMinutes: number;
+        entriesCount: number;
+        daysMinutes: Record<string, number>;
+      }
+    >();
+    for (const e of entries) {
+      const companyName = (e.contract_id && contractClientMap.get(e.contract_id)) || "Interno";
+      let item = map.get(companyName);
+      if (!item) {
+        item = {
+          name: companyName,
+          totalMinutes: 0,
+          billableMinutes: 0,
+          entriesCount: 0,
+          daysMinutes: {},
+        };
+        map.set(companyName, item);
+      }
+      item.totalMinutes += e.minutes;
+      if (e.billable) item.billableMinutes += e.minutes;
+      item.entriesCount += 1;
+      item.daysMinutes[e.entry_date] = (item.daysMinutes[e.entry_date] ?? 0) + e.minutes;
+    }
+    return Array.from(map.values()).sort((a, b) => b.totalMinutes - a.totalMinutes);
+  }, [entries, contractClientMap]);
 
   return (
     <Card>
       <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="grid gap-1">
-          <CardTitle>Semana de {formatDate(weekStart)}</CardTitle>
+        <div className="grid gap-1.5 min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle>Semana de {formatDate(weekStart)}</CardTitle>
+            <Badge variant="outline" className="tabular-nums text-[11px] font-semibold">
+              {weekCompletionPct}% da meta
+            </Badge>
+          </div>
           <CardDescription>
             {formatHours(totalMinutes / 60)} apontadas de {formatHours(expectedWeekHours)} esperadas{subtitleContext ? ` ${subtitleContext}` : ""} ·{" "}
             {totalMinutes > 0 ? Math.round((billableMinutes / totalMinutes) * 100) : 0}% faturável
@@ -508,6 +599,26 @@ export function WeekEntries({
               </span>
             ) : null}
           </CardDescription>
+          <div className="mt-1 flex flex-wrap items-center gap-3">
+            <div className="h-1.5 w-full max-w-xs rounded-full bg-muted overflow-hidden">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-300",
+                  weekCompletionPct >= 100 ? "bg-emerald-500" : "bg-primary",
+                )}
+                style={{ width: `${Math.min(100, weekCompletionPct)}%` }}
+              />
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground tabular-nums">
+              <span>
+                Faturável: <strong className="text-foreground">{formatHours(billableMinutes / 60)}</strong>
+              </span>
+              <span>·</span>
+              <span>
+                Interna: <strong className="text-foreground">{formatHours(nonBillableMinutes / 60)}</strong>
+              </span>
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -617,11 +728,25 @@ export function WeekEntries({
                     </span>
                   </div>
                 ) : (
-                  <p className="text-sm font-medium tabular-nums">{dayMinutes ? formatHours(dayMinutes / 60) : "—"}</p>
+                  <div className="flex flex-col items-start sm:items-center">
+                    <p className="text-sm font-semibold tabular-nums">{dayMinutes ? formatHours(dayMinutes / 60) : "—"}</p>
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                      {!isWeekend && targetForDay > 0
+                        ? `de ${formatHours(targetForDay)} · ${Math.round(((dayMinutes / 60) / targetForDay) * 100)}%`
+                        : dayEntries.length > 0
+                        ? `${dayEntries.length} apont.`
+                        : "fim de semana"}
+                    </span>
+                  </div>
                 )}
                 <div className="h-1 rounded-full bg-muted overflow-hidden">
                   <div
-                    className={cn("h-1 rounded-full", dayLeave ? "bg-emerald-500" : "bg-primary")}
+                    className={cn(
+                      "h-1 rounded-full transition-all",
+                      dayLeave || (!isWeekend && targetForDay > 0 && dayMinutes / 60 >= targetForDay)
+                        ? "bg-emerald-500"
+                        : "bg-primary",
+                    )}
                     style={{ width: `${ratio * 100}%` }}
                   />
                 </div>
@@ -668,27 +793,241 @@ export function WeekEntries({
           </p>
         ) : null}
 
+        {entries.length > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+            <div className="inline-flex items-center gap-1 rounded-lg border bg-muted/40 p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setWeekViewMode("dias")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer",
+                  weekViewMode === "dias"
+                    ? "bg-card text-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <ListIcon className="size-3.5" />
+                Por Dia
+              </button>
+              {isManagerUser ? (
+                <button
+                  type="button"
+                  onClick={() => setWeekViewMode("colaboradores")}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer",
+                    weekViewMode === "colaboradores"
+                      ? "bg-card text-foreground shadow-2xs font-semibold"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <UsersIcon className="size-3.5" />
+                  Por Colaborador
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setWeekViewMode("empresas")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer",
+                  weekViewMode === "empresas"
+                    ? "bg-card text-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <BriefcaseIcon className="size-3.5" />
+                Por Empresa
+              </button>
+            </div>
+
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {entries.length} {entries.length === 1 ? "apontamento" : "apontamentos"} na semana
+            </span>
+          </div>
+        ) : null}
+
+        {weekViewMode === "colaboradores" && isManagerUser ? (
+          byEmployeeWeek.length === 0 ? (
+            <EmptyState>Nenhuma hora apontada nesta semana.</EmptyState>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/40 text-muted-foreground">
+                  <tr className="border-b">
+                    <th className="py-2 px-3 text-left font-medium">Colaborador</th>
+                    {days.map((d, i) => (
+                      <th
+                        key={d}
+                        className={cn(
+                          "py-2 px-2 text-right font-medium tabular-nums",
+                          d === today && "text-primary font-semibold",
+                        )}
+                      >
+                        {WEEKDAY_LABELS[i]} {d.slice(8, 10)}
+                      </th>
+                    ))}
+                    <th className="py-2 px-3 text-right font-medium">Faturável</th>
+                    <th className="py-2 px-3 text-right font-semibold text-foreground">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {byEmployeeWeek.map((emp) => {
+                    const billablePct =
+                      emp.totalMinutes > 0 ? Math.round((emp.billableMinutes / emp.totalMinutes) * 100) : 0;
+                    return (
+                      <tr
+                        key={emp.id}
+                        onClick={() => handleEmployeeChange(emp.id)}
+                        className="hover:bg-muted/30 cursor-pointer transition-colors"
+                        title={`Filtrar semana por ${emp.name}`}
+                      >
+                        <td className="py-2 px-3 font-medium text-foreground whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
+                              {emp.name.charAt(0).toUpperCase()}
+                            </span>
+                            <span>{emp.name}</span>
+                          </div>
+                        </td>
+                        {days.map((d) => {
+                          const mins = emp.daysMinutes[d] ?? 0;
+                          return (
+                            <td
+                              key={d}
+                              className={cn(
+                                "py-2 px-2 text-right tabular-nums",
+                                mins > 0 ? "text-foreground font-medium" : "text-muted-foreground/50",
+                              )}
+                            >
+                              {mins > 0 ? formatHours(mins / 60) : "—"}
+                            </td>
+                          );
+                        })}
+                        <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">
+                          {billablePct}%
+                        </td>
+                        <td className="py-2 px-3 text-right tabular-nums font-bold text-foreground">
+                          {formatHours(emp.totalMinutes / 60)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : weekViewMode === "empresas" ? (
+          byCompanyWeek.length === 0 ? (
+            <EmptyState>Nenhuma hora apontada nesta semana.</EmptyState>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/40 text-muted-foreground">
+                  <tr className="border-b">
+                    <th className="py-2 px-3 text-left font-medium">Empresa</th>
+                    {days.map((d, i) => (
+                      <th
+                        key={d}
+                        className={cn(
+                          "py-2 px-2 text-right font-medium tabular-nums",
+                          d === today && "text-primary font-semibold",
+                        )}
+                      >
+                        {WEEKDAY_LABELS[i]} {d.slice(8, 10)}
+                      </th>
+                    ))}
+                    <th className="py-2 px-3 text-right font-medium">Part. %</th>
+                    <th className="py-2 px-3 text-right font-semibold text-foreground">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {byCompanyWeek.map((comp) => {
+                    const sharePct =
+                      totalMinutes > 0 ? ((comp.totalMinutes / totalMinutes) * 100).toFixed(1) : "0.0";
+                    return (
+                      <tr key={comp.name} className="hover:bg-muted/30 transition-colors">
+                        <td className="py-2 px-3 font-medium text-foreground whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <BriefcaseIcon className="size-3.5 text-primary shrink-0" />
+                            <span>{comp.name}</span>
+                          </div>
+                        </td>
+                        {days.map((d) => {
+                          const mins = comp.daysMinutes[d] ?? 0;
+                          return (
+                            <td
+                              key={d}
+                              className={cn(
+                                "py-2 px-2 text-right tabular-nums",
+                                mins > 0 ? "text-foreground font-medium" : "text-muted-foreground/50",
+                              )}
+                            >
+                              {mins > 0 ? formatHours(mins / 60) : "—"}
+                            </td>
+                          );
+                        })}
+                        <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">
+                          {sharePct}%
+                        </td>
+                        <td className="py-2 px-3 text-right tabular-nums font-bold text-foreground">
+                          {formatHours(comp.totalMinutes / 60)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : (
         <div className="grid gap-4">
           {displayDays.map((day) => {
             const dayEntries = entries.filter((e) => e.entry_date === day);
             if (!dayEntries.length) return null;
+            const dayMinutes = dayEntries.reduce((sum, e) => sum + e.minutes, 0);
+            const dayBillableMinutes = dayEntries.filter((e) => e.billable).reduce((sum, e) => sum + e.minutes, 0);
+            const dayBillablePct = dayMinutes > 0 ? Math.round((dayBillableMinutes / dayMinutes) * 100) : 0;
+            const isDayCollapsed = !!collapsedDays[day];
+
             return (
               <div key={day} className="grid gap-2">
-                <p className="text-sm font-medium">{formatDate(day)}</p>
-                {dayEntries.map((entry) => (
-                  <EntryRow
-                    key={entry.id}
-                    entry={entry}
-                    clients={clients}
-                    areas={areas}
-                    activities={activities}
-                    contracts={contracts}
-                    clientAreas={clientAreas}
-                    locked={lockedThrough !== null && entry.entry_date <= lockedThrough}
-                    role={role}
-                    showEmployee={isManagerUser && selectedEmployeeId === "todos"}
-                  />
-                ))}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCollapsedDays((prev) => ({ ...prev, [day]: !prev[day] }))
+                  }
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/30 px-3 py-1.5 text-left hover:bg-muted/50 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    {isDayCollapsed ? (
+                      <ChevronRightIcon className="size-3.5 text-muted-foreground" />
+                    ) : (
+                      <ChevronDownIcon className="size-3.5 text-primary" />
+                    )}
+                    <span className="text-sm font-semibold">{formatDate(day)}</span>
+                    <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal">
+                      {dayEntries.length} {dayEntries.length === 1 ? "apontamento" : "apontamentos"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs tabular-nums">
+                    <span className="text-muted-foreground">{dayBillablePct}% faturável</span>
+                    <span className="font-bold text-foreground">{formatHours(dayMinutes / 60)}</span>
+                  </div>
+                </button>
+                {!isDayCollapsed &&
+                  dayEntries.map((entry) => (
+                    <EntryRow
+                      key={entry.id}
+                      entry={entry}
+                      clients={clients}
+                      areas={areas}
+                      activities={activities}
+                      contracts={contracts}
+                      clientAreas={clientAreas}
+                      locked={lockedThrough !== null && entry.entry_date <= lockedThrough}
+                      role={role}
+                      showEmployee={isManagerUser && selectedEmployeeId === "todos"}
+                    />
+                  ))}
               </div>
             );
           })}
@@ -698,6 +1037,7 @@ export function WeekEntries({
             <EmptyState>Nenhuma hora apontada nesta semana.</EmptyState>
           ) : null}
         </div>
+        )}
       </CardContent>
     </Card>
   );

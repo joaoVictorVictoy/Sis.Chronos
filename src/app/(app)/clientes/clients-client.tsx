@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon, ChevronUpIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NativeCheckbox, NativeSelect } from "@/components/native-select";
 import { EmptyState } from "@/components/page-header";
 import { Field, FormAlert, SubmitButton } from "@/components/form";
@@ -135,10 +136,53 @@ export function ClientActivitiesSection({
   activities: (Tables<"activities"> & { areas?: { name: string } | null })[];
 }) {
   const [createState, createAction] = useActionState(createActivityAction, initialActionState);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <div className="grid gap-6">
-      {/* Formulário rápido de nova atividade para este cliente */}
+    <>
+      <CardHeader
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer select-none"
+        onClick={() => setIsExpanded((prev) => !prev)}
+      >
+        <div className="grid gap-1">
+          <div className="flex items-center gap-2">
+            <CardTitle>Atividades do Cliente</CardTitle>
+            <Badge variant="secondary" className="tabular-nums text-xs">
+              {activities.length} {activities.length === 1 ? "atividade" : "atividades"}
+            </Badge>
+          </div>
+          <CardDescription>
+            Atividades específicas deste cliente organizadas por área de consultoria.
+          </CardDescription>
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsExpanded((prev) => !prev);
+          }}
+          className="h-8 text-xs gap-1.5 self-start sm:self-auto cursor-pointer"
+        >
+          {isExpanded ? (
+            <>
+              <ChevronUpIcon className="size-3.5" />
+              Ocultar atividades
+            </>
+          ) : (
+            <>
+              <ChevronDownIcon className="size-3.5" />
+              Expandir atividades
+            </>
+          )}
+        </Button>
+      </CardHeader>
+
+      {isExpanded ? (
+        <CardContent className="grid gap-6">
+          {/* Formulário rápido de nova atividade para este cliente */}
       <form action={createAction} className="grid gap-4 rounded-lg border p-4 bg-muted/20">
         <input type="hidden" name="clientId" value={clientId} />
         <FormAlert state={createState} />
@@ -213,7 +257,9 @@ export function ClientActivitiesSection({
           </TableBody>
         </Table>
       )}
-    </div>
+        </CardContent>
+      ) : null}
+    </>
   );
 }
 
@@ -378,20 +424,13 @@ export function ClientsTable({
                       {client.email ? <p className="text-xs">{client.email}</p> : null}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        {!client.active ? (
-                          <Badge variant="secondary">inativo</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
-                            ativo
-                          </Badge>
-                        )}
-                        <ClientStatusToggle
-                          clientId={client.id}
-                          active={client.active}
-                          clientName={displayName}
-                        />
-                      </div>
+                      {!client.active ? (
+                        <Badge variant="secondary">inativo</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
+                          ativo
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">

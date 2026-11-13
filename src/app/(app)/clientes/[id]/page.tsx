@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { CONTRACT_STATUS_LABELS, PERIODICITY_LABELS, PERIODICITY_MONTHS, monthsBetween } from "@/lib/contracts";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { Tables } from "@/lib/database.types";
-import { ClientActivitiesSection, ClientAreasForm, ClientDetailsForm } from "../clients-client";
+import { ClientActivitiesSection, ClientAreasForm, ClientDetailsForm, ClientStatusToggle } from "../clients-client";
 import { DeleteContractButton } from "@/app/(app)/contratos/delete-contract-button";
 
 export const metadata = { title: "Cliente | Apontamento" };
@@ -49,7 +49,14 @@ export default async function ClientPage({ params }: PageProps<"/clientes/[id]">
         title={client.trade_name || client.legal_name}
         description={client.trade_name ? client.legal_name : undefined}
       >
-        {!client.active ? <Badge variant="secondary">inativo</Badge> : null}
+        <div className="flex items-center gap-2">
+          {!client.active ? <Badge variant="secondary">inativo</Badge> : null}
+          <ClientStatusToggle
+            clientId={client.id}
+            active={client.active}
+            clientName={client.trade_name || client.legal_name}
+          />
+        </div>
       </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
@@ -80,19 +87,11 @@ export default async function ClientPage({ params }: PageProps<"/clientes/[id]">
 
       {/* Atividades vinculadas a este cliente */}
       <Card>
-        <CardHeader>
-          <CardTitle>Atividades do Cliente</CardTitle>
-          <CardDescription>
-            Atividades específicas deste cliente organizadas por área de consultoria.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ClientActivitiesSection
-            clientId={client.id}
-            clientAreas={assignedAreas.length > 0 ? assignedAreas : (areas ?? [])}
-            activities={(clientActivities ?? []) as (Tables<"activities"> & { areas?: { name: string } | null })[]}
-          />
-        </CardContent>
+        <ClientActivitiesSection
+          clientId={client.id}
+          clientAreas={assignedAreas.length > 0 ? assignedAreas : (areas ?? [])}
+          activities={(clientActivities ?? []) as (Tables<"activities"> & { areas?: { name: string } | null })[]}
+        />
       </Card>
 
       {isAdmin ? (
