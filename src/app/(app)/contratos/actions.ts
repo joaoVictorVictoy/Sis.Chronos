@@ -138,7 +138,8 @@ export async function deleteExpenseAction(_prev: ActionState, formData: FormData
 }
 
 export async function terminateContractAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireRole(["admin"]);
+  await requireRole(["admin", "gestor"]);
+  const terminateAllClientContracts = formData.get("terminateAllClientContracts") === "true";
   const parsed = parseForm(terminateContractSchema, formData);
   if (!parsed.ok) return parsed.state;
 
@@ -152,23 +153,31 @@ export async function terminateContractAction(_prev: ActionState, formData: Form
 
   if (contractErr || !contract) return { error: "Contrato não encontrado." };
 
-  const { error: updateErr } = await supabase
-    .from("contracts")
-    .update({
-      status: "encerrado",
-      termination_reason: parsed.data.terminationReason,
-      termination_sub_reason: parsed.data.terminationSubReason || null,
-      termination_notes: parsed.data.terminationNotes || null,
-      terminated_at: parsed.data.terminatedAt,
-      termination_penalty: parsed.data.terminationPenalty ?? null,
-      end_date: parsed.data.terminatedAt,
-    })
-    .eq("id", contract.id);
+  const terminationPayload = {
+    status: "encerrado" as const,
+    termination_reason: parsed.data.terminationReason,
+    termination_sub_reason: parsed.data.terminationSubReason || null,
+    termination_notes: parsed.data.terminationNotes || null,
+    terminated_at: parsed.data.terminatedAt,
+    termination_penalty: parsed.data.terminationPenalty ?? null,
+    end_date: parsed.data.terminatedAt,
+  };
+
+  const { error: updateErr } = terminateAllClientContracts
+    ? await supabase
+        .from("contracts")
+        .update(terminationPayload)
+        .eq("client_id", contract.client_id)
+        .eq("status", "ativo")
+    : await supabase
+        .from("contracts")
+        .update(terminationPayload)
+        .eq("id", contract.id);
 
   if (updateErr) return { error: translateError(updateErr) };
 
   // Se solicitado desativar o cliente, verifica se não há outros contratos ativos
-  if (parsed.data.deactivateClient) {
+  if (parsed.data.deactivateClient || terminateAllClientContracts) {
     const { count } = await supabase
       .from("contracts")
       .select("id", { count: "exact", head: true })
@@ -176,13 +185,17 @@ export async function terminateContractAction(_prev: ActionState, formData: Form
       .eq("status", "ativo")
       .neq("id", contract.id);
 
-    if (count === 0) {
-      await supabase.from("clients").update({ active: false }).eq("id", contract.client_id);
+    if (count === 0 || terminateAllClientContracts) {
+      await supabase
+        .from("clients")
+        .update({ active: false, is_active: false })
+        .eq("id", contract.client_id);
     }
   }
 
   revalidatePath(`/contratos/${contract.id}`);
   revalidatePath(`/clientes/${contract.client_id}`);
+  revalidatePath("/clientes");
   revalidatePath("/apontamentos");
   revalidatePath("/dashboard");
 
@@ -219,10 +232,11 @@ export async function reopenContractAction(_prev: ActionState, formData: FormDat
   if (updateErr) return { error: translateError(updateErr) };
 
   // Reativa o cliente
-  await supabase.from("clients").update({ active: true }).eq("id", contract.client_id);
+  await supabase.from("clients").update({ active: true, is_active: true }).eq("id", contract.client_id);
 
   revalidatePath(`/contratos/${contract.id}`);
   revalidatePath(`/clientes/${contract.client_id}`);
+  revalidatePath("/clientes");
   revalidatePath("/apontamentos");
   revalidatePath("/dashboard");
 

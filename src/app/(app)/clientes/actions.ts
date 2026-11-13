@@ -56,6 +56,7 @@ export async function updateClientAction(_prev: ActionState, formData: FormData)
       phone: parsed.data.phone,
       notes: parsed.data.notes,
       active: parsed.data.active,
+      is_active: parsed.data.active,
     })
     .eq("id", parsed.data.id);
 

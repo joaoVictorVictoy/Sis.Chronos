@@ -34,7 +34,7 @@ export async function getProfitabilityReport(period: Period): Promise<Profitabil
   const supabase = await createClient();
 
   const { data } = await supabase.rpc("contract_metrics", { p_from: period.from, p_to: period.to });
-  const rows = (data ?? []) as ContractMetricsRow[];
+  const rows = ((data ?? []) as ContractMetricsRow[]).filter((row) => row.contract_status === "ativo");
   const tolerance = Number(tenant.margin_attention_tolerance) || 0;
   const options = { attentionTolerancePoints: tolerance };
   const today = todayISO();

@@ -24,6 +24,7 @@ import {
   updateClientAction,
 } from "./actions";
 import { createActivityAction, deleteActivityAction } from "@/app/(app)/cadastros/atividades/actions";
+import { TerminateContractDialog } from "@/app/(app)/contratos/[id]/contract-termination";
 
 export function NewClientForm() {
   const [state, formAction] = useActionState(createClientAction, initialActionState);
@@ -49,44 +50,81 @@ export function NewClientForm() {
   );
 }
 
-export function ClientDetailsForm({ client }: { client: Tables<"clients"> }) {
+export function ClientDetailsForm({
+  client,
+  activeContracts = [],
+  today = new Date().toISOString().slice(0, 10),
+}: {
+  client: Tables<"clients">;
+  activeContracts?: Tables<"contracts">[];
+  today?: string;
+}) {
   const [state, formAction] = useActionState(updateClientAction, initialActionState);
+  const [isActiveChecked, setIsActiveChecked] = useState(client.active);
+  const [terminateDialogOpen, setTerminateDialogOpen] = useState(false);
+
+  const primaryActiveContract = activeContracts[0];
 
   return (
-    <form action={formAction} className="grid gap-4">
-      <input type="hidden" name="id" value={client.id} />
-      <FormAlert state={state} />
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Razão social" htmlFor="legalName" errors={state.fieldErrors?.legalName}>
-          <Input id="legalName" name="legalName" defaultValue={client.legal_name} required />
+    <>
+      <form action={formAction} className="grid gap-4">
+        <input type="hidden" name="id" value={client.id} />
+        <FormAlert state={state} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Razão social" htmlFor="legalName" errors={state.fieldErrors?.legalName}>
+            <Input id="legalName" name="legalName" defaultValue={client.legal_name} required />
+          </Field>
+          <Field label="Nome fantasia" htmlFor="tradeName" errors={state.fieldErrors?.tradeName}>
+            <Input id="tradeName" name="tradeName" defaultValue={client.trade_name ?? ""} />
+          </Field>
+          <Field label="CNPJ" htmlFor="cnpj" errors={state.fieldErrors?.cnpj}>
+            <Input id="cnpj" name="cnpj" defaultValue={formatCnpj(client.cnpj)} />
+          </Field>
+          <Field label="Contato" htmlFor="contactName" errors={state.fieldErrors?.contactName}>
+            <Input id="contactName" name="contactName" defaultValue={client.contact_name ?? ""} />
+          </Field>
+          <Field label="E-mail" htmlFor="email" errors={state.fieldErrors?.email}>
+            <Input id="email" name="email" type="email" defaultValue={client.email ?? ""} />
+          </Field>
+          <Field label="Telefone" htmlFor="phone" errors={state.fieldErrors?.phone}>
+            <Input id="phone" name="phone" defaultValue={client.phone ?? ""} />
+          </Field>
+        </div>
+        <Field label="Observações" htmlFor="notes" errors={state.fieldErrors?.notes}>
+          <Textarea id="notes" name="notes" defaultValue={client.notes ?? ""} rows={3} />
         </Field>
-        <Field label="Nome fantasia" htmlFor="tradeName" errors={state.fieldErrors?.tradeName}>
-          <Input id="tradeName" name="tradeName" defaultValue={client.trade_name ?? ""} />
-        </Field>
-        <Field label="CNPJ" htmlFor="cnpj" errors={state.fieldErrors?.cnpj}>
-          <Input id="cnpj" name="cnpj" defaultValue={formatCnpj(client.cnpj)} />
-        </Field>
-        <Field label="Contato" htmlFor="contactName" errors={state.fieldErrors?.contactName}>
-          <Input id="contactName" name="contactName" defaultValue={client.contact_name ?? ""} />
-        </Field>
-        <Field label="E-mail" htmlFor="email" errors={state.fieldErrors?.email}>
-          <Input id="email" name="email" type="email" defaultValue={client.email ?? ""} />
-        </Field>
-        <Field label="Telefone" htmlFor="phone" errors={state.fieldErrors?.phone}>
-          <Input id="phone" name="phone" defaultValue={client.phone ?? ""} />
-        </Field>
-      </div>
-      <Field label="Observações" htmlFor="notes" errors={state.fieldErrors?.notes}>
-        <Textarea id="notes" name="notes" defaultValue={client.notes ?? ""} rows={3} />
-      </Field>
-      <label className="flex items-center gap-2 text-sm">
-        <NativeCheckbox name="active" defaultChecked={client.active} />
-        Cliente ativo
-      </label>
-      <div>
-        <SubmitButton>Salvar cliente</SubmitButton>
-      </div>
-    </form>
+        <label className="flex items-center gap-2 text-sm cursor-pointer w-fit">
+          <NativeCheckbox
+            name="active"
+            checked={client.active && primaryActiveContract ? true : isActiveChecked}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              if (!checked && client.active && primaryActiveContract) {
+                setTerminateDialogOpen(true);
+                return;
+              }
+              setIsActiveChecked(checked);
+            }}
+          />
+          Cliente ativo
+        </label>
+        <div>
+          <SubmitButton>Salvar cliente</SubmitButton>
+        </div>
+      </form>
+
+      {primaryActiveContract ? (
+        <TerminateContractDialog
+          contract={primaryActiveContract}
+          otherActiveContractsCount={Math.max(0, activeContracts.length - 1)}
+          today={today}
+          open={terminateDialogOpen}
+          onOpenChange={setTerminateDialogOpen}
+          hideTrigger
+          forceDeactivateClient
+        />
+      ) : null}
+    </>
   );
 }
 

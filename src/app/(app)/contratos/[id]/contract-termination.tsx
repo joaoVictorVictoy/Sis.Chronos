@@ -36,13 +36,26 @@ export function TerminateContractDialog({
   otherActiveContractsCount,
   today,
   trigger,
+  open: controlledOpen,
+  onOpenChange: setControlledOpen,
+  hideTrigger = false,
+  forceDeactivateClient = false,
 }: {
   contract: Tables<"contracts">;
   otherActiveContractsCount: number;
   today: string;
   trigger?: React.ReactElement;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
+  forceDeactivateClient?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = (next: boolean) => {
+    setInternalOpen(next);
+    setControlledOpen?.(next);
+  };
   const [reason, setReason] = useState<TerminationReason>(
     (contract.termination_reason as TerminationReason) ?? "termino_prazo"
   );
@@ -58,20 +71,22 @@ export function TerminateContractDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          trigger ?? (
-            <Button
-              type="button"
-              variant="outline"
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
-            >
-              <LockIcon className="size-4" />
-              Encerrar contrato
-            </Button>
-          )
-        }
-      />
+      {!hideTrigger ? (
+        <DialogTrigger
+          render={
+            trigger ?? (
+              <Button
+                type="button"
+                variant="outline"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+              >
+                <LockIcon className="size-4" />
+                Encerrar contrato
+              </Button>
+            )
+          }
+        />
+      ) : null}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Ajustar Dados da Rescisão" : "Encerrar ou Rescindir Contrato"}</DialogTitle>
@@ -82,6 +97,9 @@ export function TerminateContractDialog({
 
         <form action={formAction} className="grid gap-4">
           <input type="hidden" name="contractId" value={contract.id} />
+          {forceDeactivateClient ? (
+            <input type="hidden" name="terminateAllClientContracts" value="true" />
+          ) : null}
           <FormAlert state={state} />
 
           <Field label="Tipo / Motivo do encerramento" htmlFor="terminationReason" errors={state.fieldErrors?.terminationReason}>
@@ -162,14 +180,15 @@ export function TerminateContractDialog({
             />
           </Field>
 
-          {otherActiveContractsCount === 0 ? (
+          {otherActiveContractsCount === 0 || forceDeactivateClient ? (
             <label className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm">
               <NativeCheckbox name="deactivateClient" defaultChecked className="mt-0.5" />
               <span>
                 <strong className="block font-medium">Inativar o cadastro do cliente</strong>
                 <span className="text-xs text-muted-foreground">
-                  Este é o único contrato ativo deste cliente. Ao inativar, ele não aparecerá mais na lista de
-                  apontamentos da equipe.
+                  {forceDeactivateClient && otherActiveContractsCount > 0
+                    ? `Ao inativar o cliente, todos os ${otherActiveContractsCount + 1} contratos ativos serão encerrados e ele não aparecerá mais na lista de apontamentos da equipe.`
+                    : "Este é o único contrato ativo deste cliente. Ao inativar, ele não aparecerá mais na lista de apontamentos da equipe."}
                 </span>
               </span>
             </label>

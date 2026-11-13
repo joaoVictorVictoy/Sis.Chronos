@@ -9,9 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { requireRole } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { CONTRACT_STATUS_LABELS, PERIODICITY_LABELS, PERIODICITY_MONTHS, monthsBetween } from "@/lib/contracts";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, todayISO } from "@/lib/format";
 import type { Tables } from "@/lib/database.types";
-import { ClientActivitiesSection, ClientAreasForm, ClientDetailsForm, ClientStatusToggle } from "../clients-client";
+import { ClientActivitiesSection, ClientAreasForm, ClientDetailsForm } from "../clients-client";
 import { DeleteContractButton } from "@/app/(app)/contratos/delete-contract-button";
 
 export const metadata = { title: "Cliente | Apontamento" };
@@ -20,6 +20,7 @@ export default async function ClientPage({ params }: PageProps<"/clientes/[id]">
   const { id } = await params;
   const { profile } = await requireRole(["admin", "gestor"]);
   const isAdmin = profile.role === "admin";
+  const today = todayISO();
   const supabase = await createClient();
 
   const [{ data: client }, { data: areas }, { data: clientAreas }, { data: contracts }, { data: clientActivities }] =
@@ -27,14 +28,13 @@ export default async function ClientPage({ params }: PageProps<"/clientes/[id]">
       supabase.from("clients").select("*").eq("id", id).maybeSingle(),
       supabase.from("areas").select("id, name, active").order("name"),
       supabase.from("client_areas").select("area_id").eq("client_id", id),
-      isAdmin
-        ? supabase.from("contracts").select("*").eq("client_id", id).order("start_date", { ascending: false })
-        : Promise.resolve({ data: [] }),
+      supabase.from("contracts").select("*").eq("client_id", id).order("start_date", { ascending: false }),
       supabase.from("activities").select("*, areas(name)").eq("client_id", id).order("name"),
     ]);
 
   if (!client) notFound();
 
+  const activeContracts = ((contracts ?? []) as Tables<"contracts">[]).filter((c) => c.status === "ativo");
   const assignedAreaIds = (clientAreas ?? []).map((a) => a.area_id);
   const assignedAreas = (areas ?? []).filter((a) => assignedAreaIds.includes(a.id) && a.active);
 
@@ -49,14 +49,7 @@ export default async function ClientPage({ params }: PageProps<"/clientes/[id]">
         title={client.trade_name || client.legal_name}
         description={client.trade_name ? client.legal_name : undefined}
       >
-        <div className="flex items-center gap-2">
-          {!client.active ? <Badge variant="secondary">inativo</Badge> : null}
-          <ClientStatusToggle
-            clientId={client.id}
-            active={client.active}
-            clientName={client.trade_name || client.legal_name}
-          />
-        </div>
+        {!client.active ? <Badge variant="secondary">inativo</Badge> : null}
       </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
@@ -65,7 +58,11 @@ export default async function ClientPage({ params }: PageProps<"/clientes/[id]">
             <CardTitle>Dados do cliente</CardTitle>
           </CardHeader>
           <CardContent>
-            <ClientDetailsForm client={client as Tables<"clients">} />
+            <ClientDetailsForm
+              client={client as Tables<"clients">}
+              activeContracts={activeContracts}
+              today={today}
+            />
           </CardContent>
         </Card>
 
