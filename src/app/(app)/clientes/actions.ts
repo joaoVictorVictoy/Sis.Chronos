@@ -145,3 +145,27 @@ export async function deleteClientAction(_prev: ActionState, formData: FormData)
   revalidatePath("/clientes");
   return { success: "Cliente excluído." };
 }
+
+export async function toggleClientActiveAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireRole(["admin", "gestor"]);
+  const parsed = parseForm(
+    z.object({
+      id: z.uuid(),
+      active: z.enum(["true", "false"]).transform((v) => v === "true"),
+    }),
+    formData,
+  );
+  if (!parsed.ok) return parsed.state;
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("clients")
+    .update({ active: parsed.data.active, is_active: parsed.data.active })
+    .eq("id", parsed.data.id);
+
+  if (error) return { error: translateError(error) };
+
+  revalidatePath("/clientes");
+  revalidatePath(`/clientes/${parsed.data.id}`);
+  return { success: parsed.data.active ? "Cliente ativado." : "Cliente desativado." };
+}
