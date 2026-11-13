@@ -610,7 +610,7 @@ export function WeekEntries({
                 )}
               >
                 <ListIcon className="size-3.5" />
-                Por Dia
+                Dia
               </button>
               {isManagerUser ? (
                 <button
@@ -624,7 +624,7 @@ export function WeekEntries({
                   )}
                 >
                   <UsersIcon className="size-3.5" />
-                  Por Colaborador
+                  Colaborador
                 </button>
               ) : null}
               <button
@@ -638,7 +638,7 @@ export function WeekEntries({
                 )}
               >
                 <BriefcaseIcon className="size-3.5" />
-                Por Empresa
+                Empresa
               </button>
             </div>
           ) : null}
