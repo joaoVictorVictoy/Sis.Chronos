@@ -34,6 +34,7 @@ interface ActivityHeatmapProps {
   leaves: HeatmapRawLeave[];
   today: string;
   monthlyHours: number;
+  showBillable?: boolean;
 }
 
 type PeriodPreset = "7d" | "30d" | "90d" | "all";
@@ -46,6 +47,7 @@ export function ActivityHeatmap({
   leaves,
   today,
   monthlyHours,
+  showBillable = true,
 }: ActivityHeatmapProps) {
   const [preset, setPreset] = useState<PeriodPreset>("90d");
   const [tabView, setTabView] = useState<TabView>("overview");
@@ -188,7 +190,9 @@ export function ActivityHeatmap({
 
       <CardContent className="space-y-6">
         {/* Painel de KPIs idêntico ao layout do print */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div
+          className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${showBillable ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}
+        >
           <div className="rounded-xl border border-border/50 bg-muted/30 p-3">
             <span className="text-xs text-muted-foreground font-medium block">Dias Apontados</span>
             <span className="text-2xl font-bold tracking-tight text-foreground block mt-1">
@@ -229,15 +233,17 @@ export function ActivityHeatmap({
             </span>
           </div>
 
-          <div className="rounded-xl border border-border/50 bg-muted/30 p-3 col-span-2 sm:col-span-2 lg:col-span-1">
-            <span className="text-xs text-muted-foreground font-medium block">Horas Faturáveis</span>
-            <span className="text-2xl font-bold tracking-tight text-foreground block mt-1">
-              {formatPercent(kpis.billablePercent / 100)}
-            </span>
-            <span className="text-[11px] text-muted-foreground mt-0.5 block">
-              {formatHours(kpis.billableHours)} faturáveis
-            </span>
-          </div>
+          {showBillable ? (
+            <div className="rounded-xl border border-border/50 bg-muted/30 p-3 col-span-2 sm:col-span-2 lg:col-span-1">
+              <span className="text-xs text-muted-foreground font-medium block">Horas Faturáveis</span>
+              <span className="text-2xl font-bold tracking-tight text-foreground block mt-1">
+                {formatPercent(kpis.billablePercent / 100)}
+              </span>
+              <span className="text-[11px] text-muted-foreground mt-0.5 block">
+                {formatHours(kpis.billableHours)} faturáveis
+              </span>
+            </div>
+          ) : null}
         </div>
 
         {tabView === "overview" ? (
@@ -364,10 +370,12 @@ export function ActivityHeatmap({
                         style={{ width: `${Math.min(c.share, 100)}%` }}
                       />
                     </div>
-                    <div className="flex justify-between text-[11px] text-muted-foreground pt-0.5">
-                      <span>{formatHours(c.billableHours)} faturáveis</span>
-                      <span>{formatHours(c.hours - c.billableHours)} não-faturáveis</span>
-                    </div>
+                    {showBillable ? (
+                      <div className="flex justify-between text-[11px] text-muted-foreground pt-0.5">
+                        <span>{formatHours(c.billableHours)} faturáveis</span>
+                        <span>{formatHours(c.hours - c.billableHours)} não-faturáveis</span>
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>

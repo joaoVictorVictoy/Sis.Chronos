@@ -396,6 +396,7 @@ function CollaboratorSummary({
           leaves={leaves}
           today={today}
           monthlyHours={monthlyHours}
+          showBillable={false}
         />
       </div>
     </div>

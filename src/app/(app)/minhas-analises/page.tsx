@@ -97,6 +97,8 @@ export default async function MyAnalyticsPage({ searchParams }: PageProps<"/minh
   const dailyTarget = effectiveMonthlyHours / 21;
   const a = analyzeMyHours(rows, { from: period.from, to: period.to, today }, dailyTarget, leaves);
 
+  const showBillable = profile.role !== "colaborador";
+
   return (
     <div className="grid gap-6">
       <PageHeader
@@ -108,7 +110,7 @@ export default async function MyAnalyticsPage({ searchParams }: PageProps<"/minh
 
       <PeriodFilter preset={period.preset} from={period.from} to={period.to} />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className={`grid gap-4 sm:grid-cols-2 ${showBillable ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
         <Kpi label="Hoje" value={a.hoursToday} expected={a.expectedToday} />
         <Kpi label="Esta semana" value={a.hoursThisWeek} expected={a.expectedThisWeek} />
         <Kpi
@@ -121,19 +123,21 @@ export default async function MyAnalyticsPage({ searchParams }: PageProps<"/minh
               : `Saldo de ${a.balance >= 0 ? "+" : ""}${formatHours(a.balance)} até hoje`
           }
         />
-        <Card>
-          <CardHeader className="gap-1">
-            <CardDescription>Horas faturáveis</CardDescription>
-            <CardTitle className="text-2xl tabular-nums">{formatPercent(a.billableShare)}</CardTitle>
-            <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-muted">
-              <div style={{ width: `${a.billableShare * 100}%`, background: "var(--viz-1)" }} />
-              <div style={{ width: `${(1 - a.billableShare) * 100}%`, background: "var(--viz-2)" }} />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {formatHours(a.billableHours)} faturáveis · {formatHours(a.totalHours - a.billableHours)} não faturáveis
-            </p>
-          </CardHeader>
-        </Card>
+        {showBillable ? (
+          <Card>
+            <CardHeader className="gap-1">
+              <CardDescription>Horas faturáveis</CardDescription>
+              <CardTitle className="text-2xl tabular-nums">{formatPercent(a.billableShare)}</CardTitle>
+              <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-muted">
+                <div style={{ width: `${a.billableShare * 100}%`, background: "var(--viz-1)" }} />
+                <div style={{ width: `${(1 - a.billableShare) * 100}%`, background: "var(--viz-2)" }} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {formatHours(a.billableHours)} faturáveis · {formatHours(a.totalHours - a.billableHours)} não faturáveis
+              </p>
+            </CardHeader>
+          </Card>
+        ) : null}
       </div>
 
       <Card>

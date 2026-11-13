@@ -237,6 +237,7 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
           clientAreas={clientAreaOptions}
           today={today}
           lockedThrough={lockedThrough}
+          showBillable={isManagerUser}
         />
       ) : (
         <Card>

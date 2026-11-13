@@ -46,6 +46,7 @@ export interface TimerCardProps {
   entryDate?: string;
   onEntryDateChange?: (date: string) => void;
   onSuccess?: () => void;
+  showBillable?: boolean;
 }
 
 export function TimerCard({
@@ -66,6 +67,7 @@ export function TimerCard({
   onDescriptionChange,
   entryDate: controlledEntryDate,
   onSuccess,
+  showBillable = true,
 }: TimerCardProps) {
   const raw = useSyncExternalStore(subscribeTimer, getTimerSnapshot, getTimerServerSnapshot);
   const timer = useMemo(() => parseTimer(raw), [raw]);
@@ -188,6 +190,7 @@ export function TimerCard({
           onActivityChange={handleActivityChange}
           defaultContractId={timer.contractId}
           defaultActivityId={timer.activityId}
+          showBillable={showBillable}
         />
 
         <div className="grid gap-1.5 min-w-0">

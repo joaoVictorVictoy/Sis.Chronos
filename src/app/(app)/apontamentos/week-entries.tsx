@@ -163,6 +163,7 @@ function EntryRow({
               defaultContractId={entry.contract_id}
               defaultClientId={entry.client_id}
               defaultActivityId={entry.activity_id}
+              showBillable={isManagerUser}
             />
             <Field label="Duração" htmlFor={`duration-${entry.id}`} errors={state.fieldErrors?.duration}>
               <Input id={`duration-${entry.id}`} name="duration" defaultValue={minutesToInput(entry.minutes)} required />
@@ -243,7 +244,7 @@ function EntryRow({
           </div>
           <p className="text-xs text-muted-foreground">
             {activity?.name ?? "Atividade"}
-            {entry.billable ? "" : " · não faturável"}
+            {isManagerUser && !entry.billable ? " · não faturável" : ""}
             {entry.description ? ` · ${entry.description}` : ""}
             {entry.start_time && entry.end_time
               ? ` · ${entry.start_time.slice(0, 5)}–${entry.end_time.slice(0, 5)}`
@@ -583,8 +584,10 @@ export function WeekEntries({
         <div className="grid gap-1">
           <CardTitle>Semana de {formatDate(weekStart)}</CardTitle>
           <CardDescription>
-            {formatHours(totalMinutes / 60)} apontadas de {formatHours(expectedWeekHours)} esperadas{subtitleContext ? ` ${subtitleContext}` : ""} ·{" "}
-            {totalMinutes > 0 ? Math.round((billableMinutes / totalMinutes) * 100) : 0}% faturável
+            {formatHours(totalMinutes / 60)} apontadas de {formatHours(expectedWeekHours)} esperadas{subtitleContext ? ` ${subtitleContext}` : ""}
+            {isManagerUser
+              ? ` · ${totalMinutes > 0 ? Math.round((billableMinutes / totalMinutes) * 100) : 0}% faturável`
+              : ""}
             {leaveWeekHours > 0 && !isAllEmployees ? (
               <span className="block sm:inline sm:ml-1 text-emerald-600 dark:text-emerald-400 font-medium">
                 · {weekLeaveDaysCount} {weekLeaveDaysCount === 1 ? "afastamento" : "afastamentos"} (-{formatHours(leaveWeekHours)})
@@ -967,7 +970,9 @@ export function WeekEntries({
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2 text-xs tabular-nums">
-                    <span className="text-muted-foreground">{dayBillablePct}% faturável</span>
+                    {isManagerUser ? (
+                      <span className="text-muted-foreground">{dayBillablePct}% faturável</span>
+                    ) : null}
                     <span className="font-bold text-foreground">{formatHours(dayMinutes / 60)}</span>
                   </div>
                 </button>

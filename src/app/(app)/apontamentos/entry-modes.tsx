@@ -31,6 +31,7 @@ export function EntryModes({
   clientAreas,
   today,
   lockedThrough,
+  showBillable = true,
 }: {
   clients: ClientOption[];
   areas: AreaOption[];
@@ -39,6 +40,7 @@ export function EntryModes({
   clientAreas: ClientAreaOption[];
   today: string;
   lockedThrough: string | null;
+  showBillable?: boolean;
 }) {
   const [mode, setMode] = useState<Mode>("manual");
 
@@ -151,6 +153,7 @@ export function EntryModes({
             entryDate={entryDate}
             onEntryDateChange={setEntryDate}
             onSuccess={handleEntrySuccess}
+            showBillable={showBillable}
           />
         </div>
         <div className={mode === "manual" ? "block" : "hidden"}>
@@ -181,6 +184,7 @@ export function EntryModes({
             useInterval={useInterval}
             onUseIntervalChange={setUseInterval}
             onSuccess={handleEntrySuccess}
+            showBillable={showBillable}
           />
         </div>
       </CardContent>

@@ -30,6 +30,7 @@ export interface CascadeSelectorsProps {
   defaultActivityId?: string | null;
   defaultContractId?: string | null;
   disabled?: boolean;
+  showBillable?: boolean;
 }
 
 export function CascadeSelectors({
@@ -50,6 +51,7 @@ export function CascadeSelectors({
   defaultActivityId,
   defaultContractId,
   disabled,
+  showBillable = true,
 }: CascadeSelectorsProps) {
   const isControlledClient = controlledClientId !== undefined;
   const isControlledArea = controlledAreaId !== undefined;
@@ -357,7 +359,7 @@ export function CascadeSelectors({
           {availableActivities.map((act) => (
             <option key={act.id} value={act.id}>
               {act.name}
-              {act.billable ? "" : " (não faturável)"}
+              {showBillable && !act.billable ? " (não faturável)" : ""}
             </option>
           ))}
         </NativeSelect>
@@ -393,6 +395,7 @@ export interface EntryFormProps {
   useInterval?: boolean;
   onUseIntervalChange?: (val: boolean) => void;
   onSuccess?: () => void;
+  showBillable?: boolean;
 }
 
 export function EntryForm({
@@ -422,6 +425,7 @@ export function EntryForm({
   useInterval: controlledUseInterval,
   onUseIntervalChange,
   onSuccess,
+  showBillable = true,
 }: EntryFormProps) {
   const isControlledDescription = controlledDescription !== undefined;
   const isControlledEntryDate = controlledEntryDate !== undefined;
@@ -525,6 +529,7 @@ export function EntryForm({
           onAreaChange={onAreaChange}
           selectedActivityId={selectedActivityId}
           onActivityChange={onActivityChange}
+          showBillable={showBillable}
         />
 
         {currentUseInterval ? (

@@ -235,7 +235,9 @@ export async function buildDataset(
       },
       { header: "Contrato", type: "text", value: (e) => e.contracts?.name ?? "" },
       { header: "Atividade", type: "text", value: (e) => e.activities?.name ?? "" },
-      { header: "Faturável", type: "text", value: (e) => (e.billable ? "Sim" : "Não") },
+      ...(profile.role !== "colaborador"
+        ? [{ header: "Faturável", type: "text" as const, value: (e: TimeEntryRow) => (e.billable ? "Sim" : "Não") }]
+        : []),
       { header: "Horas", type: "hours", value: (e) => e.minutes / 60 },
       { header: "Descrição", type: "text", value: (e) => e.description ?? "" },
       { header: "Situação", type: "text", value: (e) => e.status },

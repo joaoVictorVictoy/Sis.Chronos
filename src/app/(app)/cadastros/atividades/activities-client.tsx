@@ -272,7 +272,6 @@ export function ActivitiesTable({
                       <TableHead>Nome</TableHead>
                       <TableHead>Cliente</TableHead>
                       <TableHead>Área</TableHead>
-                      <TableHead>Tipo</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   )}
@@ -280,7 +279,7 @@ export function ActivitiesTable({
                 <TableBody>
                   {filteredActivities.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={canManage ? 7 : 5} className="text-center py-6 text-sm text-muted-foreground">
+                      <TableCell colSpan={canManage ? 7 : 4} className="text-center py-6 text-sm text-muted-foreground">
                         Nenhuma atividade encontrada com os filtros selecionados.
                       </TableCell>
                     </TableRow>
@@ -296,11 +295,6 @@ export function ActivitiesTable({
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {areaMap.get(activity.area_id) ?? "Área"}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={activity.billable ? "default" : "secondary"}>
-                              {activity.billable ? "Faturável" : "Não faturável"}
-                            </Badge>
                           </TableCell>
                           <TableCell>
                             <Badge variant={activity.active ? "outline" : "secondary"}>
