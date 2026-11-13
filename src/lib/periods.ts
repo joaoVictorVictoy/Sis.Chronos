@@ -53,10 +53,10 @@ export function resolvePeriod(
   const isDate = (v?: string) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
   const preset = (params.periodo ?? "mes-atual") as PeriodPreset;
 
-  if (preset === "personalizado" && isDate(params.de) && isDate(params.ate)) {
+  if ((preset === "personalizado" || !params.periodo) && isDate(params.de) && isDate(params.ate)) {
     const from = params.de!;
     const to = params.ate!;
-    return { from, to, preset, label: "Período personalizado" };
+    return { from, to, preset: "personalizado", label: "Período personalizado" };
   }
 
   switch (preset) {

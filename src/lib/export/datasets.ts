@@ -34,7 +34,8 @@ type TimeEntryRow = {
   cost_amount: number;
   employees: { full_name: string } | null;
   activities: { name: string } | null;
-  contracts: { name: string; clients: { legal_name: string; trade_name: string | null } | null } | null;
+  clients: ClientRef;
+  contracts: { name: string; clients: ClientRef } | null;
 };
 
 function rentabilidade(contracts: ContractReport[], period: Period): Dataset<ContractReport> {
@@ -164,22 +165,32 @@ export async function buildDataset(
   const scope = options.scope ?? (profile.role === "colaborador" ? "meus" : "todos");
 
   let clientNameTitle = "";
-  if (options.clientId) {
-    const { data: clientInfo } = await supabase
-      .from("clients")
-      .select("trade_name, legal_name")
-      .eq("id", options.clientId)
-      .maybeSingle();
+  let clientContractIds: string[] = [];
+  if (options.clientId === "sem-cliente") {
+    clientNameTitle = " — Atividades Internas / Sem Cliente";
+  } else if (options.clientId) {
+    const [{ data: clientInfo }, { data: clientContracts }] = await Promise.all([
+      supabase
+        .from("clients")
+        .select("trade_name, legal_name")
+        .eq("id", options.clientId)
+        .maybeSingle(),
+      supabase
+        .from("contracts")
+        .select("id")
+        .eq("client_id", options.clientId),
+    ]);
     if (clientInfo) {
       clientNameTitle = ` — ${clientInfo.trade_name || clientInfo.legal_name}`;
     }
+    clientContractIds = (clientContracts ?? []).map((c) => c.id);
   }
 
   const data = await fetchAllPages((from, to) => {
     let pageQuery = supabase
       .from("time_entries")
       .select(
-        "entry_date, minutes, billable, status, description, cost_amount, employees(full_name), activities(name), contracts(name, clients(legal_name, trade_name))",
+        "entry_date, minutes, billable, status, description, cost_amount, employees(full_name), activities(name), clients(legal_name, trade_name), contracts(name, clients(legal_name, trade_name))",
       )
       .gte("entry_date", period.from)
       .lte("entry_date", period.to)
@@ -188,7 +199,15 @@ export async function buildDataset(
       .range(from, to);
 
     if (scope === "meus" && employeeId) pageQuery = pageQuery.eq("employee_id", employeeId);
-    if (options.clientId) pageQuery = pageQuery.eq("client_id", options.clientId);
+    if (options.clientId === "sem-cliente") {
+      pageQuery = pageQuery.is("client_id", null).is("contract_id", null);
+    } else if (options.clientId) {
+      if (clientContractIds.length > 0) {
+        pageQuery = pageQuery.or(`client_id.eq.${options.clientId},contract_id.in.(${clientContractIds.join(",")})`);
+      } else {
+        pageQuery = pageQuery.eq("client_id", options.clientId);
+      }
+    }
     return pageQuery;
   });
   const rows = data as unknown as TimeEntryRow[];
@@ -207,7 +226,12 @@ export async function buildDataset(
       {
         header: "Cliente",
         type: "text",
-        value: (e) => e.contracts?.clients?.trade_name || e.contracts?.clients?.legal_name || "Interno",
+        value: (e) =>
+          e.clients?.trade_name ||
+          e.clients?.legal_name ||
+          e.contracts?.clients?.trade_name ||
+          e.contracts?.clients?.legal_name ||
+          "Interno",
       },
       { header: "Contrato", type: "text", value: (e) => e.contracts?.name ?? "" },
       { header: "Atividade", type: "text", value: (e) => e.activities?.name ?? "" },

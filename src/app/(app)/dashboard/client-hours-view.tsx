@@ -838,6 +838,7 @@ export function ClientHoursView({
   const exportUrl = (format: "csv" | "xlsx" | "pdf") => {
     const params = new URLSearchParams({
       formato: format,
+      periodo: "personalizado",
       de: report.period.from,
       ate: report.period.to,
     });
