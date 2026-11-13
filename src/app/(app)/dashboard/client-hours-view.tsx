@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowUpDownIcon,
   BriefcaseIcon,
   CheckCircle2Icon,
   ClockIcon,
@@ -43,6 +44,45 @@ import { formatCurrency, formatDate, formatHours, formatPercent } from "@/lib/fo
 import type { ClientHoursReport, ClientHoursSummary, ClientHoursEntry } from "@/lib/server/metrics.types";
 
 export const ALL_CLIENTS_ID = "__todos__";
+
+type CompanySortOrder = "hours" | "client_hours" | "client_asc" | "client_desc";
+
+/** Ordena itens por horas totais ou agrupados/ordenados por empresa. */
+function sortByCompanyPreference<T extends { minutes: number }>(
+  items: T[],
+  getClientName: (item: T) => string,
+  sortOrder: CompanySortOrder
+): T[] {
+  if (sortOrder === "hours") {
+    return [...items].sort((a, b) => b.minutes - a.minutes);
+  }
+  if (sortOrder === "client_hours") {
+    const clientTotals = new Map<string, number>();
+    for (const item of items) {
+      const name = getClientName(item);
+      clientTotals.set(name, (clientTotals.get(name) ?? 0) + item.minutes);
+    }
+    return [...items].sort((a, b) => {
+      const ca = getClientName(a);
+      const cb = getClientName(b);
+      const diff = (clientTotals.get(cb) ?? 0) - (clientTotals.get(ca) ?? 0);
+      if (diff !== 0) return diff;
+      const nameDiff = ca.localeCompare(cb, "pt-BR");
+      if (nameDiff !== 0) return nameDiff;
+      return b.minutes - a.minutes;
+    });
+  }
+  return [...items].sort((a, b) => {
+    const ca = getClientName(a);
+    const cb = getClientName(b);
+    const nameDiff =
+      sortOrder === "client_asc"
+        ? ca.localeCompare(cb, "pt-BR")
+        : cb.localeCompare(ca, "pt-BR");
+    if (nameDiff !== 0) return nameDiff;
+    return b.minutes - a.minutes;
+  });
+}
 
 export function ClientHoursView({
   report,
@@ -127,6 +167,12 @@ export function ClientHoursView({
   const [expandedAreas, setExpandedAreas] = useState<Record<string, boolean>>({});
   const [expandedActivities, setExpandedActivities] = useState<Record<string, boolean>>({});
   const [expandedEmployees, setExpandedEmployees] = useState<Record<string, boolean>>({});
+  const [employeeGroupBy, setEmployeeGroupBy] = useState<"areas" | "empresas">("areas");
+  const [companySortOrder, setCompanySortOrder] = useState<CompanySortOrder>("hours");
+  const [expandedEmpClients, setExpandedEmpClients] = useState<Record<string, boolean>>({});
+  const [expandedEmpAreas, setExpandedEmpAreas] = useState<Record<string, boolean>>({});
+  const [areaGroupBy, setAreaGroupBy] = useState<"activities" | "empresas">("activities");
+  const [expandedAreaClients, setExpandedAreaClients] = useState<Record<string, boolean>>({});
   const [showAreaEmployees, setShowAreaEmployees] = useState(false);
   const [individualAreaEmployees, setIndividualAreaEmployees] = useState<Record<string, boolean>>({});
   const [showActivityEmployees, setShowActivityEmployees] = useState(false);
@@ -138,7 +184,29 @@ export function ClientHoursView({
     setExpandedAreas({});
     setExpandedEmployees({});
     setExpandedActivities({});
+    setExpandedEmpClients({});
+    setExpandedEmpAreas({});
+    setExpandedAreaClients({});
   }, [selectedClientId]);
+
+  const renderCompanySortControl = () =>
+    selectedClientId === ALL_CLIENTS_ID ? (
+      <div className="flex items-center gap-1 rounded-lg border bg-muted/40 px-2 py-1 text-xs shadow-2xs">
+        <ArrowUpDownIcon className="size-3 text-muted-foreground shrink-0" />
+        <select
+          aria-label="Organizar empresas"
+          title="Organizar empresas"
+          value={companySortOrder}
+          onChange={(e) => setCompanySortOrder(e.target.value as CompanySortOrder)}
+          className="bg-transparent text-xs font-medium text-foreground focus:outline-none cursor-pointer"
+        >
+          <option value="hours">Mais horas</option>
+          <option value="client_hours">Empresa (Mais horas)</option>
+          <option value="client_asc">Empresa (A–Z)</option>
+          <option value="client_desc">Empresa (Z–A)</option>
+        </select>
+      </div>
+    ) : null;
 
   const selectedClient = useMemo(() => {
     if (selectedClientId === ALL_CLIENTS_ID) {
@@ -330,8 +398,8 @@ export function ClientHoursView({
 
     return Array.from(map.values())
       .map((a) => {
-        const activities = Array.from(a.activitiesMap.values())
-          .map((act) => ({
+        const activities = sortByCompanyPreference(
+          Array.from(a.activitiesMap.values()).map((act) => ({
             ...act,
             hours: act.minutes / 60,
             percentageInArea: a.minutes > 0 ? (act.minutes / a.minutes) * 100 : 0,
@@ -341,8 +409,10 @@ export function ClientHoursView({
                 percentageInActivity: act.minutes > 0 ? (emp.minutes / act.minutes) * 100 : 0,
               }))
               .sort((x, y) => y.minutes - x.minutes),
-          }))
-          .sort((x, y) => y.minutes - x.minutes);
+          })),
+          (act) => (act as { clientName?: string }).clientName || "Atividades Internas / Sem Cliente",
+          companySortOrder
+        );
 
         const employees = Array.from(a.employeesMap.values())
           .map((emp) => ({
@@ -351,6 +421,42 @@ export function ClientHoursView({
             percentageInArea: a.minutes > 0 ? (emp.minutes / a.minutes) * 100 : 0,
           }))
           .sort((x, y) => y.minutes - x.minutes);
+
+        const areaClientsMap = new Map<
+          string,
+          {
+            name: string;
+            minutes: number;
+            cost: number;
+            activities: typeof activities;
+          }
+        >();
+        for (const act of activities) {
+          const clientBlockName =
+            (act as { clientName?: string }).clientName ||
+            (selectedClientId === ALL_CLIENTS_ID ? "Atividades Internas / Sem Cliente" : selectedClient?.name || "Sem cliente");
+          let cl = areaClientsMap.get(clientBlockName);
+          if (!cl) {
+            cl = { name: clientBlockName, minutes: 0, cost: 0, activities: [] };
+            areaClientsMap.set(clientBlockName, cl);
+          }
+          cl.minutes += act.minutes;
+          cl.cost += act.cost;
+          cl.activities.push(act);
+        }
+
+        const clients = sortByCompanyPreference(
+          Array.from(areaClientsMap.values()).map((cl) => ({
+            name: cl.name,
+            minutes: cl.minutes,
+            hours: cl.minutes / 60,
+            cost: cl.cost,
+            percentageInArea: a.minutes > 0 ? (cl.minutes / a.minutes) * 100 : 0,
+            activities: [...cl.activities].sort((x, y) => y.minutes - x.minutes),
+          })),
+          (cl) => cl.name,
+          companySortOrder === "client_hours" ? "hours" : companySortOrder
+        );
 
         return {
           name: a.name,
@@ -364,11 +470,12 @@ export function ClientHoursView({
           entriesCount: a.entriesCount,
           activitiesCount: a.activitiesMap.size,
           activities,
+          clients,
           employees,
         };
       })
       .sort((a, b) => b.minutes - a.minutes);
-  }, [filteredEntries, metrics.minutes, selectedClientId]);
+  }, [filteredEntries, metrics.minutes, selectedClientId, selectedClient?.name, companySortOrder]);
 
   // Agrupamento consolidado dinâmico por Atividade
   const byActivityDynamic = useMemo(() => {
@@ -425,15 +532,17 @@ export function ClientHoursView({
 
     const totalFilteredMins = metrics.minutes || 1;
 
-    return Array.from(map.values())
-      .map((a) => ({
+    return sortByCompanyPreference(
+      Array.from(map.values()).map((a) => ({
         ...a,
         hours: a.minutes / 60,
         percentage: (a.minutes / totalFilteredMins) * 100,
         employees: Array.from(a.employeesMap.values()).sort((x, y) => y.minutes - x.minutes),
-      }))
-      .sort((a, b) => b.minutes - a.minutes);
-  }, [filteredEntries, metrics.minutes, selectedClientId]);
+      })),
+      (act) => (act as { clientName?: string }).clientName || "Atividades Internas / Sem Cliente",
+      companySortOrder
+    );
+  }, [filteredEntries, metrics.minutes, selectedClientId, companySortOrder]);
 
   // Agrupamento consolidado dinâmico por Colaborador com atividades organizadas por Área
   const byEmployeeDynamic = useMemo(() => {
@@ -468,6 +577,26 @@ export function ClientHoursView({
             >;
           }
         >;
+        clientsMap: Map<
+          string,
+          {
+            name: string;
+            minutes: number;
+            cost: number;
+            activitiesMap: Map<
+              string,
+              {
+                id: string;
+                name: string;
+                areaName: string;
+                minutes: number;
+                hours: number;
+                cost: number;
+                billable: boolean;
+              }
+            >;
+          }
+        >;
       }
     >();
 
@@ -481,6 +610,7 @@ export function ClientHoursView({
           cost: 0,
           entriesCount: 0,
           areasMap: new Map(),
+          clientsMap: new Map(),
         };
         map.set(e.employeeId, emp);
       }
@@ -519,6 +649,37 @@ export function ClientHoursView({
       act.hours = act.minutes / 60;
       act.cost += e.costAmount;
       empArea.activitiesMap.set(actKey, act);
+
+      // Agrupamento paralelo por Empresa/Cliente
+      const clientBlockName =
+        clientKey || (selectedClientId === ALL_CLIENTS_ID ? "Interno (Sem Cliente)" : selectedClient?.name || "Sem cliente");
+      let empClient = emp.clientsMap.get(clientBlockName);
+      if (!empClient) {
+        empClient = {
+          name: clientBlockName,
+          minutes: 0,
+          cost: 0,
+          activitiesMap: new Map(),
+        };
+        emp.clientsMap.set(clientBlockName, empClient);
+      }
+      empClient.minutes += e.minutes;
+      empClient.cost += e.costAmount;
+
+      const cActKey = `${e.activityId}__${areaKey}`;
+      const cAct = empClient.activitiesMap.get(cActKey) ?? {
+        id: cActKey,
+        name: e.activityName,
+        areaName: areaKey,
+        minutes: 0,
+        hours: 0,
+        cost: 0,
+        billable: e.billable,
+      };
+      cAct.minutes += e.minutes;
+      cAct.hours = cAct.minutes / 60;
+      cAct.cost += e.costAmount;
+      empClient.activitiesMap.set(cActKey, cAct);
     }
 
     const totalFilteredMins = metrics.minutes || 1;
@@ -527,13 +688,15 @@ export function ClientHoursView({
       .map((e) => {
         const areas = Array.from(e.areasMap.values())
           .map((ar) => {
-            const activities = Array.from(ar.activitiesMap.values())
-              .map((act) => ({
+            const activities = sortByCompanyPreference(
+              Array.from(ar.activitiesMap.values()).map((act) => ({
                 ...act,
                 percentageInArea: ar.minutes > 0 ? (act.minutes / ar.minutes) * 100 : 0,
                 percentageInEmployee: e.minutes > 0 ? (act.minutes / e.minutes) * 100 : 0,
-              }))
-              .sort((x, y) => y.minutes - x.minutes);
+              })),
+              (act) => act.clientName || "Atividades Internas / Sem Cliente",
+              companySortOrder
+            );
 
             return {
               name: ar.name,
@@ -545,6 +708,28 @@ export function ClientHoursView({
             };
           })
           .sort((x, y) => y.minutes - x.minutes);
+
+        const clientsList = sortByCompanyPreference(
+          Array.from(e.clientsMap.values()).map((cl) => {
+            const activities = Array.from(cl.activitiesMap.values())
+              .map((act) => ({
+                ...act,
+                percentageInClient: cl.minutes > 0 ? (act.minutes / cl.minutes) * 100 : 0,
+              }))
+              .sort((x, y) => y.minutes - x.minutes);
+
+            return {
+              name: cl.name,
+              minutes: cl.minutes,
+              hours: cl.minutes / 60,
+              cost: cl.cost,
+              percentageInEmployee: e.minutes > 0 ? (cl.minutes / e.minutes) * 100 : 0,
+              activities,
+            };
+          }),
+          (cl) => cl.name,
+          companySortOrder === "client_hours" ? "hours" : companySortOrder
+        );
 
         const totalActivitiesCount = areas.reduce((acc, ar) => acc + ar.activities.length, 0);
 
@@ -558,10 +743,11 @@ export function ClientHoursView({
           percentage: (e.minutes / totalFilteredMins) * 100,
           totalActivitiesCount,
           areas,
+          clients: clientsList,
         };
       })
       .sort((a, b) => b.minutes - a.minutes);
-  }, [filteredEntries, metrics.minutes, selectedClientId]);
+  }, [filteredEntries, metrics.minutes, selectedClientId, selectedClient?.name, companySortOrder]);
 
   // Alterna expansão de uma área para exibir suas atividades
   const toggleAreaExpand = (areaName: string) => {
@@ -1343,7 +1529,37 @@ export function ClientHoursView({
                                       : "(Expandir colaboradores de todas)"}
                                   </button>
                                 </div>
-                                <div className="flex items-center gap-2 shrink-0 tabular-nums text-muted-foreground text-[11px] font-medium">
+                                <div className="flex flex-wrap items-center gap-2 shrink-0 tabular-nums text-muted-foreground text-[11px] font-medium">
+                                  {renderCompanySortControl()}
+
+                                  {/* Alternador Por Atividade / Blocos por Empresa */}
+                                  <div className="inline-flex items-center rounded-md border bg-muted/60 p-0.5 text-[11px]">
+                                    <button
+                                      type="button"
+                                      onClick={() => setAreaGroupBy("activities")}
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                                        areaGroupBy === "activities"
+                                          ? "bg-background text-foreground shadow-2xs font-semibold"
+                                          : "text-muted-foreground hover:text-foreground"
+                                      }`}
+                                    >
+                                      <TagIcon className="size-3" />
+                                      Atividades
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setAreaGroupBy("empresas")}
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                                        areaGroupBy === "empresas"
+                                          ? "bg-background text-foreground shadow-2xs font-semibold"
+                                          : "text-muted-foreground hover:text-foreground"
+                                      }`}
+                                    >
+                                      <BriefcaseIcon className="size-3" />
+                                      Blocos por Empresa
+                                    </button>
+                                  </div>
+
                                   {/* Alternador de Layout Lista / Grade */}
                                   <div className="flex items-center rounded-md border bg-muted/60 p-0.5 mr-1">
                                     <button
@@ -1401,7 +1617,199 @@ export function ClientHoursView({
                                 </div>
                               </div>
 
-                              {activityLayout === "grid" ? (
+                              {areaGroupBy === "empresas" ? (
+                                activityLayout === "grid" ? (
+                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                                    {area.clients.map((cl) => {
+                                      const areaClKey = `${area.name}__${cl.name}`;
+                                      const isClExpanded = expandedAreaClients[areaClKey] ?? false;
+
+                                      return (
+                                        <div
+                                          key={cl.name}
+                                          className={`rounded-lg border bg-card/90 p-3 shadow-2xs transition-all flex flex-col justify-between ${
+                                            isClExpanded
+                                              ? "border-primary/50 ring-1 ring-primary/20"
+                                              : "hover:border-primary/40"
+                                          }`}
+                                        >
+                                          <div>
+                                            <div className="flex items-start justify-between gap-2 mb-2">
+                                              <div className="flex items-center gap-1.5 min-w-0">
+                                                <BriefcaseIcon className="size-3.5 text-primary shrink-0" />
+                                                <span
+                                                  className="font-semibold text-xs text-foreground leading-snug truncate"
+                                                  title={cl.name}
+                                                >
+                                                  {cl.name}
+                                                </span>
+                                              </div>
+                                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 shrink-0 font-normal">
+                                                {cl.activities.length} {cl.activities.length === 1 ? "atividade" : "atividades"}
+                                              </Badge>
+                                            </div>
+
+                                            <div className="flex items-baseline justify-between border-b pb-2 mb-2">
+                                              <div>
+                                                <span className="text-lg font-bold tabular-nums text-foreground">
+                                                  {formatHours(cl.hours)}
+                                                </span>
+                                                {!isSlimView && (
+                                                  <span className="text-[11px] text-muted-foreground ml-1.5 tabular-nums">
+                                                    ({cl.percentageInArea.toFixed(1)}%)
+                                                  </span>
+                                                )}
+                                              </div>
+                                              {!isSlimView && canSeeCosts && cl.cost > 0 && (
+                                                <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
+                                                  {formatCurrency(cl.cost)}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          <div>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                setExpandedAreaClients((prev) => ({
+                                                  ...prev,
+                                                  [areaClKey]: !(prev[areaClKey] ?? false),
+                                                }))
+                                              }
+                                              className="w-full flex items-center justify-between text-[11px] text-muted-foreground hover:text-primary transition-colors py-0.5 cursor-pointer"
+                                            >
+                                              <span className="flex items-center gap-1 font-medium">
+                                                <TagIcon className="size-3" />
+                                                {isClExpanded ? "Ocultar atividades" : `Ver ${cl.activities.length} ${cl.activities.length === 1 ? "atividade" : "atividades"}`}
+                                              </span>
+                                              {isClExpanded ? (
+                                                <ChevronDownIcon className="size-3.5 text-primary" />
+                                              ) : (
+                                                <ChevronRightIcon className="size-3.5" />
+                                              )}
+                                            </button>
+
+                                            {isClExpanded && (
+                                              <div className="mt-2 pt-2 border-t border-dashed space-y-1 max-h-48 overflow-y-auto">
+                                                {cl.activities.map((act) => (
+                                                  <div
+                                                    key={act.id}
+                                                    className="flex items-center justify-between text-[11px] py-0.5 px-1 rounded hover:bg-muted/40 gap-2"
+                                                  >
+                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                      <span className="truncate text-foreground font-medium" title={act.name}>
+                                                        {act.name}
+                                                      </span>
+                                                      <Badge
+                                                        variant={act.billable ? "outline" : "secondary"}
+                                                        className="text-[9px] py-0 px-1 shrink-0"
+                                                      >
+                                                        {act.billable ? "Faturável" : "Interna"}
+                                                      </Badge>
+                                                    </div>
+                                                    <span className="font-semibold tabular-nums text-foreground shrink-0">
+                                                      {formatHours(act.hours)}
+                                                    </span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="grid gap-1.5">
+                                    {area.clients.map((cl) => {
+                                      const areaClKey = `${area.name}__${cl.name}`;
+                                      const isClExpanded = expandedAreaClients[areaClKey] ?? false;
+
+                                      return (
+                                        <div key={cl.name} className="grid gap-1 rounded-lg border bg-card/70 p-2">
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setExpandedAreaClients((prev) => ({
+                                                ...prev,
+                                                [areaClKey]: !(prev[areaClKey] ?? false),
+                                              }))
+                                            }
+                                            className="flex items-center justify-between text-xs w-full text-left cursor-pointer"
+                                          >
+                                            <div className="flex items-center gap-2 min-w-0 pr-2">
+                                              {isClExpanded ? (
+                                                <ChevronDownIcon className="size-3.5 text-primary shrink-0" />
+                                              ) : (
+                                                <ChevronRightIcon className="size-3.5 text-muted-foreground shrink-0" />
+                                              )}
+                                              <BriefcaseIcon className="size-3.5 text-primary shrink-0" />
+                                              <span className="font-semibold text-foreground truncate">{cl.name}</span>
+                                              <Badge variant="outline" className="text-[10px] py-0 px-1 font-normal text-muted-foreground shrink-0">
+                                                {cl.activities.length} {cl.activities.length === 1 ? "atividade" : "atividades"}
+                                              </Badge>
+                                            </div>
+                                            <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                                              <span className="font-bold text-foreground w-16 text-right">
+                                                {formatHours(cl.hours)}
+                                              </span>
+                                              {!isSlimView && (
+                                                <span className="text-muted-foreground text-[11px] w-14 text-right">
+                                                  {cl.percentageInArea.toFixed(1)}%
+                                                </span>
+                                              )}
+                                              {!isSlimView && canSeeCosts && (
+                                                <span className="text-muted-foreground text-[11px] w-20 text-right">
+                                                  {cl.cost > 0 ? formatCurrency(cl.cost) : "—"}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </button>
+
+                                          {isClExpanded && (
+                                            <div className="mt-1 ml-5 pl-2.5 border-l border-primary/30 grid gap-1 pt-1">
+                                              {cl.activities.map((act) => (
+                                                <div
+                                                  key={act.id}
+                                                  className="flex items-center justify-between text-xs py-1 px-2 rounded-md bg-muted/30 hover:bg-muted/50 transition-colors"
+                                                >
+                                                  <div className="flex items-center gap-2 min-w-0 pr-2">
+                                                    <span className="font-medium truncate text-foreground text-[11px]">
+                                                      {act.name}
+                                                    </span>
+                                                    <Badge
+                                                      variant={act.billable ? "outline" : "secondary"}
+                                                      className="text-[9px] py-0 px-1 shrink-0"
+                                                    >
+                                                      {act.billable ? "Faturável" : "Interna"}
+                                                    </Badge>
+                                                  </div>
+                                                  <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                                                    <span className="font-medium text-foreground w-16 text-right text-[11px]">
+                                                      {formatHours(act.hours)}
+                                                    </span>
+                                                    {!isSlimView && (
+                                                      <span className="text-muted-foreground text-[11px] w-14 text-right">
+                                                        {act.percentageInArea.toFixed(1)}%
+                                                      </span>
+                                                    )}
+                                                    {!isSlimView && canSeeCosts && (
+                                                      <span className="text-muted-foreground text-[11px] w-20 text-right">
+                                                        {act.cost > 0 ? formatCurrency(act.cost) : "—"}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )
+                              ) : activityLayout === "grid" ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
                                   {area.activities.map((act) => {
                                     const actKey = `${area.name}-${act.id}`;
@@ -1664,6 +2072,8 @@ export function ClientHoursView({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                    {renderCompanySortControl()}
+
                     {/* Alternador de Layout Lista / Grade */}
                     <div className="flex items-center rounded-md border bg-muted/60 p-0.5">
                       <button
@@ -1882,6 +2292,35 @@ export function ClientHoursView({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                    {renderCompanySortControl()}
+
+                    <div className="inline-flex items-center rounded-lg border bg-muted/40 p-0.5 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setEmployeeGroupBy("areas")}
+                        className={`inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium transition-colors cursor-pointer ${
+                          employeeGroupBy === "areas"
+                            ? "bg-card text-foreground shadow-2xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <LayersIcon className="size-3" />
+                        Por Área
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEmployeeGroupBy("empresas")}
+                        className={`inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium transition-colors cursor-pointer ${
+                          employeeGroupBy === "empresas"
+                            ? "bg-card text-foreground shadow-2xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <BriefcaseIcon className="size-3" />
+                        Blocos por Empresa
+                      </button>
+                    </div>
+
                     <div className="flex items-center gap-1.5 rounded-lg border bg-muted/40 px-2.5 py-1 text-xs shadow-2xs">
                       <BriefcaseIcon className="size-3.5 text-primary shrink-0" />
                       <span className="font-semibold text-foreground truncate max-w-48">{selectedClient.name}</span>
@@ -1980,8 +2419,8 @@ export function ClientHoursView({
                           />
                         </div>
 
-                        {/* Lista de Atividades executadas pelo Colaborador (Organizada por Área com Totais) */}
-                        {isEmpExpanded && emp.areas.length > 0 && (
+                        {/* Lista de Atividades executadas pelo Colaborador (Por Área ou Blocos por Empresa) */}
+                        {isEmpExpanded && employeeGroupBy === "areas" && emp.areas.length > 0 && (
                           <div className="mt-2 ml-4 mr-1 border-l-2 border-primary/30 pl-3 grid gap-2.5">
                             <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-2 py-0.5 border-b border-border/40">
                               <span>Atividades organizadas por Área ({emp.totalActivitiesCount})</span>
@@ -1992,11 +2431,31 @@ export function ClientHoursView({
                               </div>
                             </div>
 
-                            {emp.areas.map((ar) => (
+                            {emp.areas.map((ar) => {
+                              const areaBlockKey = `${emp.id}__${ar.name}`;
+                              const isAreaBlockExpanded = expandedEmpAreas[areaBlockKey] ?? true;
+
+                              return (
                               <div key={ar.name} className="grid gap-1.5 rounded-lg border bg-muted/20 p-2.5">
                                 {/* Linha de cabeçalho da Área com Total da Soma */}
-                                <div className="flex items-center justify-between text-xs font-semibold text-foreground pb-1 border-b border-border/30">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedEmpAreas((prev) => ({
+                                      ...prev,
+                                      [areaBlockKey]: !(prev[areaBlockKey] ?? true),
+                                    }))
+                                  }
+                                  className={`flex items-center justify-between text-xs font-semibold text-foreground w-full text-left cursor-pointer ${
+                                    isAreaBlockExpanded ? "pb-1 border-b border-border/30" : ""
+                                  }`}
+                                >
                                   <div className="flex items-center gap-2 min-w-0 pr-2">
+                                    {isAreaBlockExpanded ? (
+                                      <ChevronDownIcon className="size-3.5 text-primary shrink-0" />
+                                    ) : (
+                                      <ChevronRightIcon className="size-3.5 text-muted-foreground shrink-0" />
+                                    )}
                                     <LayersIcon className="size-3.5 text-primary shrink-0" />
                                     <span className="font-bold text-foreground truncate">{ar.name}</span>
                                     <Badge variant="outline" className="text-[10px] py-0 px-1 font-normal text-muted-foreground shrink-0">
@@ -2019,9 +2478,10 @@ export function ClientHoursView({
                                       </span>
                                     )}
                                   </div>
-                                </div>
+                                </button>
 
                                 {/* Atividades pertencentes a esta Área */}
+                                {isAreaBlockExpanded && (
                                 <div className="grid gap-1 pt-0.5">
                                   {ar.activities.map((act) => (
                                     <div
@@ -2065,8 +2525,115 @@ export function ClientHoursView({
                                     </div>
                                   ))}
                                 </div>
+                                )}
                               </div>
-                            ))}
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {isEmpExpanded && employeeGroupBy === "empresas" && emp.clients.length > 0 && (
+                          <div className="mt-2 ml-4 mr-1 border-l-2 border-primary/30 pl-3 grid gap-2.5">
+                            <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-2 py-0.5 border-b border-border/40">
+                              <span>Blocos por Empresa ({emp.clients.length})</span>
+                              <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                                <span className="w-16 text-right">Horas</span>
+                                {!isSlimView && <span className="w-14 text-right">Part. %</span>}
+                                {!isSlimView && canSeeCosts && <span className="w-20 text-right">Custo</span>}
+                              </div>
+                            </div>
+
+                            {emp.clients.map((cl) => {
+                              const blockKey = `${emp.id}__${cl.name}`;
+                              const isBlockExpanded = expandedEmpClients[blockKey] ?? true;
+
+                              return (
+                                <div key={cl.name} className="grid gap-1.5 rounded-lg border bg-muted/20 p-2.5">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setExpandedEmpClients((prev) => ({
+                                        ...prev,
+                                        [blockKey]: !(prev[blockKey] ?? true),
+                                      }))
+                                    }
+                                    className="flex items-center justify-between text-xs font-semibold text-foreground pb-1 border-b border-border/30 w-full text-left cursor-pointer"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0 pr-2">
+                                      {isBlockExpanded ? (
+                                        <ChevronDownIcon className="size-3.5 text-primary shrink-0" />
+                                      ) : (
+                                        <ChevronRightIcon className="size-3.5 text-muted-foreground shrink-0" />
+                                      )}
+                                      <BriefcaseIcon className="size-3.5 text-primary shrink-0" />
+                                      <span className="font-bold text-foreground truncate">{cl.name}</span>
+                                      <Badge variant="outline" className="text-[10px] py-0 px-1 font-normal text-muted-foreground shrink-0">
+                                        {cl.activities.length} {cl.activities.length === 1 ? "atividade" : "atividades"}
+                                      </Badge>
+                                    </div>
+
+                                    <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                                      <span className="font-bold text-foreground w-16 text-right">
+                                        {formatHours(cl.hours)}
+                                      </span>
+                                      {!isSlimView && (
+                                        <span className="text-muted-foreground text-[11px] w-14 text-right">
+                                          {cl.percentageInEmployee.toFixed(1)}%
+                                        </span>
+                                      )}
+                                      {!isSlimView && canSeeCosts && (
+                                        <span className="text-muted-foreground text-[11px] w-20 text-right">
+                                          {cl.cost > 0 ? formatCurrency(cl.cost) : "—"}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </button>
+
+                                  {isBlockExpanded && (
+                                    <div className="grid gap-1 pt-0.5">
+                                      {cl.activities.map((act) => (
+                                        <div
+                                          key={act.id}
+                                          className="flex items-center justify-between text-xs py-1 px-2 rounded-md bg-card/70 hover:bg-card transition-colors"
+                                        >
+                                          <div className="flex items-center gap-2 min-w-0 pr-2">
+                                            <Badge
+                                              variant="outline"
+                                              className="text-[10px] py-0 px-1.5 font-normal text-muted-foreground shrink-0"
+                                            >
+                                              {act.areaName}
+                                            </Badge>
+                                            <span className="font-medium truncate text-foreground text-[11px]">{act.name}</span>
+                                            <Badge
+                                              variant={act.billable ? "outline" : "secondary"}
+                                              className="text-[9px] py-0 px-1 shrink-0"
+                                            >
+                                              {act.billable ? "Faturável" : "Interna"}
+                                            </Badge>
+                                          </div>
+
+                                          <div className="flex items-center gap-4 shrink-0 tabular-nums">
+                                            <span className="font-medium text-foreground w-16 text-right text-[11px]">
+                                              {formatHours(act.hours)}
+                                            </span>
+                                            {!isSlimView && (
+                                              <span className="text-muted-foreground text-[11px] w-14 text-right">
+                                                {act.percentageInClient.toFixed(1)}%
+                                              </span>
+                                            )}
+                                            {!isSlimView && canSeeCosts && (
+                                              <span className="text-muted-foreground text-[11px] w-20 text-right">
+                                                {act.cost > 0 ? formatCurrency(act.cost) : "—"}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
