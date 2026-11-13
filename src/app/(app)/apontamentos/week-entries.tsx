@@ -597,6 +597,52 @@ export function WeekEntries({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {entries.length > 0 ? (
+            <div className="inline-flex items-center gap-1 rounded-lg border bg-muted/40 p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setWeekViewMode("dias")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer",
+                  weekViewMode === "dias"
+                    ? "bg-card text-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <ListIcon className="size-3.5" />
+                Por Dia
+              </button>
+              {isManagerUser ? (
+                <button
+                  type="button"
+                  onClick={() => setWeekViewMode("colaboradores")}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer",
+                    weekViewMode === "colaboradores"
+                      ? "bg-card text-foreground shadow-2xs font-semibold"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <UsersIcon className="size-3.5" />
+                  Por Colaborador
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setWeekViewMode("empresas")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer",
+                  weekViewMode === "empresas"
+                    ? "bg-card text-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <BriefcaseIcon className="size-3.5" />
+                Por Empresa
+              </button>
+            </div>
+          ) : null}
+
           {isManagerUser && employees && employees.length > 0 ? (
             <div className="flex items-center gap-1.5">
               <UsersIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -755,54 +801,8 @@ export function WeekEntries({
         ) : null}
 
         {entries.length > 0 ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
-            <div className="inline-flex items-center gap-1 rounded-lg border bg-muted/40 p-0.5 text-xs">
-              <button
-                type="button"
-                onClick={() => setWeekViewMode("dias")}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer",
-                  weekViewMode === "dias"
-                    ? "bg-card text-foreground shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <ListIcon className="size-3.5" />
-                Por Dia
-              </button>
-              {isManagerUser ? (
-                <button
-                  type="button"
-                  onClick={() => setWeekViewMode("colaboradores")}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer",
-                    weekViewMode === "colaboradores"
-                      ? "bg-card text-foreground shadow-2xs font-semibold"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <UsersIcon className="size-3.5" />
-                  Por Colaborador
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => setWeekViewMode("empresas")}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer",
-                  weekViewMode === "empresas"
-                    ? "bg-card text-foreground shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <BriefcaseIcon className="size-3.5" />
-                Por Empresa
-              </button>
-            </div>
-
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {entries.length} {entries.length === 1 ? "apontamento" : "apontamentos"} na semana
-            </span>
+          <div className="flex items-center justify-end text-xs text-muted-foreground tabular-nums">
+            {entries.length} {entries.length === 1 ? "apontamento" : "apontamentos"} na semana
           </div>
         ) : null}
 
