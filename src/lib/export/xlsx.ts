@@ -8,13 +8,24 @@ const NUMBER_FORMAT: Record<string, string> = {
   number: "#,##0.00",
 };
 
+/** Remove caracteres inválidos em abas do Excel (* ? : \ / [ ]) e respeita o limite de 31 caracteres. */
+function sanitizeSheetName(title: string): string {
+  const cleaned = title
+    .replace(/[*?:\\/\[\]]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 31)
+    .trim();
+  return cleaned || "Relatório";
+}
+
 /** Planilha .xlsx com números de verdade (dá para somar e filtrar no Excel). */
 export async function buildXlsx<T>(dataset: Dataset<T>): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Apontamento";
   workbook.created = new Date();
 
-  const sheet = workbook.addWorksheet(dataset.title.slice(0, 31));
+  const sheet = workbook.addWorksheet(sanitizeSheetName(dataset.title));
 
   sheet.columns = dataset.columns.map((column) => ({
     header: headerLabel(column),

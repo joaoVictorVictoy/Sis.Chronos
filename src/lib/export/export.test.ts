@@ -71,6 +71,17 @@ describe("Excel", () => {
     expect(sheet.getRow(2).getCell(2).value).toBe(9400);
     expect(sheet.getRow(2).getCell(3).value).toBeCloseTo(0.436, 6);
   });
+
+  it("sanitiza caracteres inválidos no nome da aba (ex.: BNR017: Origami / Lab)", async () => {
+    const buffer = await buildXlsx({
+      ...dataset,
+      title: "Apontamentos — BNR017: Origami / Lab [2026]",
+    });
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
+    expect(workbook.worksheets[0].name).toBe("Apontamentos — BNR017 Origami L");
+  });
 });
 
 describe("PDF", () => {
@@ -95,6 +106,26 @@ describe("PDF", () => {
 
   it("não quebra com dataset vazio", async () => {
     const buffer = await buildPdf({ ...dataset, rows: [] }, { company: "Empresa", generatedAt: "17/09/2026 10:00" });
+    expect(buffer.subarray(0, 5).toString("utf8")).toBe("%PDF-");
+  });
+
+  it("não quebra com quebras de linha ou emojis nas descrições", async () => {
+    const buffer = await buildPdf(
+      {
+        ...dataset,
+        title: "Apontamentos — BNR017: Origami Lab 🚀",
+        rows: [
+          {
+            cliente: "Linha 1\nLinha 2\tOK 🚀",
+            receita: 100,
+            margem: 0.5,
+            horas: 2,
+            data: "13/11/2026",
+          },
+        ],
+      },
+      { company: "Binari 🚀", generatedAt: "13/11/2026 20:00" },
+    );
     expect(buffer.subarray(0, 5).toString("utf8")).toBe("%PDF-");
   });
 });

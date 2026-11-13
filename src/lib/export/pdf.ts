@@ -11,10 +11,32 @@ const muted = rgb(0.45, 0.45, 0.45);
 const line = rgb(0.85, 0.85, 0.85);
 const zebra = rgb(0.97, 0.97, 0.96);
 
+/** Garante apenas caracteres suportados pela fonte WinAnsi (evita falhas por quebras de linha ou emojis). */
+function safePdfText(raw: string, font: PDFFont, size: number): string {
+  const collapsed = raw.replace(/[\r\n\t]+/g, " ").trim();
+  if (!collapsed) return "";
+  try {
+    font.widthOfTextAtSize(collapsed, size);
+    return collapsed;
+  } catch {
+    return Array.from(collapsed)
+      .map((ch) => {
+        try {
+          font.widthOfTextAtSize(ch, size);
+          return ch;
+        } catch {
+          return "";
+        }
+      })
+      .join("");
+  }
+}
+
 /** Corta o texto para caber na largura da coluna. */
 function fit(text: string, font: PDFFont, size: number, maxWidth: number): string {
-  if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
-  let cut = text;
+  const safe = safePdfText(text, font, size);
+  if (font.widthOfTextAtSize(safe, size) <= maxWidth) return safe;
+  let cut = safe;
   while (cut.length > 1 && font.widthOfTextAtSize(`${cut}…`, size) > maxWidth) {
     cut = cut.slice(0, -1);
   }
@@ -40,12 +62,13 @@ export async function buildPdf<T>(dataset: Dataset<T>, meta: { company: string; 
 
   const drawHeader = (pageNumber: number) => {
     y = PAGE.height - MARGIN;
-    page.drawText(dataset.title, { x: MARGIN, y: y - 10, size: 14, font: bold, color: ink });
+    page.drawText(safePdfText(dataset.title, bold, 14), { x: MARGIN, y: y - 10, size: 14, font: bold, color: ink });
     y -= 26;
-    const subtitle = [meta.company, dataset.subtitle].filter(Boolean).join(" · ");
+    const subtitle = safePdfText([meta.company, dataset.subtitle].filter(Boolean).join(" · "), font, 9);
     page.drawText(subtitle, { x: MARGIN, y, size: 9, font, color: muted });
-    page.drawText(`Gerado em ${meta.generatedAt} · página ${pageNumber}`, {
-      x: PAGE.width - MARGIN - font.widthOfTextAtSize(`Gerado em ${meta.generatedAt} · página ${pageNumber}`, 8),
+    const metaLabel = safePdfText(`Gerado em ${meta.generatedAt} · página ${pageNumber}`, font, 8);
+    page.drawText(metaLabel, {
+      x: PAGE.width - MARGIN - font.widthOfTextAtSize(metaLabel, 8),
       y,
       size: 8,
       font,
