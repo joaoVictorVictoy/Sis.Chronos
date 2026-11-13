@@ -16,8 +16,8 @@ import {
 } from "./timer-store";
 
 const MODES = [
-  { id: "cronometro", label: "Cronômetro", icon: TimerIcon },
   { id: "manual", label: "Lançamento manual", icon: PencilLineIcon },
+  { id: "cronometro", label: "Cronômetro", icon: TimerIcon },
 ] as const;
 
 type Mode = (typeof MODES)[number]["id"];
@@ -40,7 +40,7 @@ export function EntryModes({
   today: string;
   lockedThrough: string | null;
 }) {
-  const [mode, setMode] = useState<Mode>("cronometro");
+  const [mode, setMode] = useState<Mode>("manual");
 
   const raw = useSyncExternalStore(subscribeTimer, getTimerSnapshot, getTimerServerSnapshot);
   const timer = useMemo(() => parseTimer(raw), [raw]);

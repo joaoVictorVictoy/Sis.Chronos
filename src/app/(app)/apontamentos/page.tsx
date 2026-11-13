@@ -97,7 +97,7 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
     supabase.from("client_areas").select("client_id, area_id"),
     supabase.from("period_locks").select("locked_through").maybeSingle(),
     isManagerUser
-      ? supabase.from("employees").select("id, full_name, active, monthly_hours").order("full_name")
+      ? supabase.from("employees").select("id, full_name, active, monthly_hours").eq("active", true).order("full_name")
       : Promise.resolve({ data: [] }),
   ]);
 
