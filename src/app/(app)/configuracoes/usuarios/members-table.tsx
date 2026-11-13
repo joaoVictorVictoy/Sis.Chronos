@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
+import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LinkIcon } from "lucide-react";
 import { NativeCheckbox, NativeSelect } from "@/components/native-select";
@@ -136,30 +137,110 @@ function MemberRow({ member, isCurrentUser }: { member: Tables<"profiles">; isCu
 }
 
 export function MembersTable({ members, currentUserId }: { members: Tables<"profiles">[]; currentUserId: string }) {
+  const [filter, setFilter] = useState<"active" | "inactive">("active");
+
+  const activeMembers = useMemo(
+    () => members.filter((m) => m.active !== false),
+    [members]
+  );
+  const inactiveMembers = useMemo(
+    () => members.filter((m) => m.active === false),
+    [members]
+  );
+
+  const filteredMembers = useMemo(
+    () => (filter === "active" ? activeMembers : inactiveMembers),
+    [filter, activeMembers, inactiveMembers]
+  );
+
   return (
-    <Table className="table-fixed w-full">
-      <TableHeader>
-        <TableRow>
-          <TableHead className="w-[30%] min-w-[180px]">Pessoa</TableHead>
-          <TableHead className="w-[70%]">Acesso</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {members.map((member) => (
-          <MemberRow
-            key={`${member.id}-${member.role}-${member.can_view_costs}-${member.active}`}
-            member={member}
-            isCurrentUser={member.id === currentUserId}
-          />
-        ))}
-        {members.length === 0 ? (
-          <TableRow>
-            <TableCell colSpan={2} className="text-center text-muted-foreground">
-              Nenhum membro ainda.
-            </TableCell>
-          </TableRow>
-        ) : null}
-      </TableBody>
-    </Table>
+    <>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="grid gap-1">
+          <CardTitle>Membros</CardTitle>
+          <CardDescription>Perfil de acesso, permissão de ver custos individuais e status.</CardDescription>
+        </div>
+
+        {/* Filtro Ativos | Inativos */}
+        <div className="inline-flex items-center gap-1 p-1 bg-muted/60 rounded-lg border border-border/50 text-xs self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setFilter("active")}
+            className={cn(
+              "px-3 py-1.5 rounded-md font-medium transition-all cursor-pointer flex items-center gap-1.5",
+              filter === "active"
+                ? "bg-background text-foreground shadow-xs font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <span>Ativos</span>
+            <span
+              className={cn(
+                "px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none",
+                filter === "active"
+                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
+              {activeMembers.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilter("inactive")}
+            className={cn(
+              "px-3 py-1.5 rounded-md font-medium transition-all cursor-pointer flex items-center gap-1.5",
+              filter === "inactive"
+                ? "bg-background text-foreground shadow-xs font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <span>Inativos</span>
+            <span
+              className={cn(
+                "px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none",
+                filter === "inactive"
+                  ? "bg-muted-foreground/20 text-foreground"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
+              {inactiveMembers.length}
+            </span>
+          </button>
+        </div>
+      </CardHeader>
+
+      <CardContent>
+        <Table className="table-fixed w-full">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[30%] min-w-[180px]">Pessoa</TableHead>
+              <TableHead className="w-[70%]">Acesso</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredMembers.map((member) => (
+              <MemberRow
+                key={`${member.id}-${member.role}-${member.can_view_costs}-${member.active}`}
+                member={member}
+                isCurrentUser={member.id === currentUserId}
+              />
+            ))}
+            {filteredMembers.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={2} className="text-center text-muted-foreground">
+                  {members.length === 0
+                    ? "Nenhum membro ainda."
+                    : filter === "active"
+                      ? "Nenhum usuário ativo no momento."
+                      : "Nenhum usuário inativo no momento."}
+                </TableCell>
+              </TableRow>
+            ) : null}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </>
   );
 }

@@ -94,13 +94,7 @@ export default async function UsersPage() {
       {invitations?.length ? <PendingInvitations invitations={invitations as Tables<"invitations">[]} /> : null}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Membros</CardTitle>
-          <CardDescription>Perfil de acesso, permissão de ver custos individuais e status.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <MembersTable members={(members ?? []) as Tables<"profiles">[]} currentUserId={profile.id} />
-        </CardContent>
+        <MembersTable members={(members ?? []) as Tables<"profiles">[]} currentUserId={profile.id} />
       </Card>
     </div>
   );
