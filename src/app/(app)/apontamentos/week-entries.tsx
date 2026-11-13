@@ -498,9 +498,6 @@ export function WeekEntries({
   const displayDays = selectedDay ? [selectedDay] : days;
   const dayFilteredEntries = selectedDay ? entries.filter((e) => e.entry_date === selectedDay) : entries;
   const dayFilteredMinutes = dayFilteredEntries.reduce((sum, e) => sum + e.minutes, 0);
-  const nonBillableMinutes = Math.max(0, totalMinutes - billableMinutes);
-  const weekCompletionPct =
-    expectedWeekHours > 0 ? Math.round(((totalMinutes / 60) / expectedWeekHours) * 100) : 0;
 
   const contractClientMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -583,13 +580,8 @@ export function WeekEntries({
   return (
     <Card>
       <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="grid gap-1.5 min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <CardTitle>Semana de {formatDate(weekStart)}</CardTitle>
-            <Badge variant="outline" className="tabular-nums text-[11px] font-semibold">
-              {weekCompletionPct}% da meta
-            </Badge>
-          </div>
+        <div className="grid gap-1">
+          <CardTitle>Semana de {formatDate(weekStart)}</CardTitle>
           <CardDescription>
             {formatHours(totalMinutes / 60)} apontadas de {formatHours(expectedWeekHours)} esperadas{subtitleContext ? ` ${subtitleContext}` : ""} ·{" "}
             {totalMinutes > 0 ? Math.round((billableMinutes / totalMinutes) * 100) : 0}% faturável
@@ -599,26 +591,6 @@ export function WeekEntries({
               </span>
             ) : null}
           </CardDescription>
-          <div className="mt-1 flex flex-wrap items-center gap-3">
-            <div className="h-1.5 w-full max-w-xs rounded-full bg-muted overflow-hidden">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-all duration-300",
-                  weekCompletionPct >= 100 ? "bg-emerald-500" : "bg-primary",
-                )}
-                style={{ width: `${Math.min(100, weekCompletionPct)}%` }}
-              />
-            </div>
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground tabular-nums">
-              <span>
-                Faturável: <strong className="text-foreground">{formatHours(billableMinutes / 60)}</strong>
-              </span>
-              <span>·</span>
-              <span>
-                Interna: <strong className="text-foreground">{formatHours(nonBillableMinutes / 60)}</strong>
-              </span>
-            </div>
-          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -728,25 +700,11 @@ export function WeekEntries({
                     </span>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-start sm:items-center">
-                    <p className="text-sm font-semibold tabular-nums">{dayMinutes ? formatHours(dayMinutes / 60) : "—"}</p>
-                    <span className="text-[10px] text-muted-foreground tabular-nums">
-                      {!isWeekend && targetForDay > 0
-                        ? `de ${formatHours(targetForDay)} · ${Math.round(((dayMinutes / 60) / targetForDay) * 100)}%`
-                        : dayEntries.length > 0
-                        ? `${dayEntries.length} apont.`
-                        : "fim de semana"}
-                    </span>
-                  </div>
+                  <p className="text-sm font-medium tabular-nums">{dayMinutes ? formatHours(dayMinutes / 60) : "—"}</p>
                 )}
                 <div className="h-1 rounded-full bg-muted overflow-hidden">
                   <div
-                    className={cn(
-                      "h-1 rounded-full transition-all",
-                      dayLeave || (!isWeekend && targetForDay > 0 && dayMinutes / 60 >= targetForDay)
-                        ? "bg-emerald-500"
-                        : "bg-primary",
-                    )}
+                    className={cn("h-1 rounded-full", dayLeave ? "bg-emerald-500" : "bg-primary")}
                     style={{ width: `${ratio * 100}%` }}
                   />
                 </div>
