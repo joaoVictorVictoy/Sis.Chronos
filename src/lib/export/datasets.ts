@@ -4,7 +4,7 @@ import { requireContext, requireRole } from "@/lib/auth/session";
 import { formatDate } from "@/lib/format";
 import { CONTRACT_STATUS_LABELS, EXPENSE_CATEGORY_LABELS, EXPENSE_RECURRENCE_LABELS, PERIODICITY_LABELS } from "@/lib/contracts";
 import { HEALTH_LABELS } from "@/lib/profitability";
-import { getEmployeeMetrics, getProfitabilityReport, type ContractReport } from "@/lib/server/metrics";
+import { fetchAllPages, getEmployeeMetrics, getProfitabilityReport, type ContractReport } from "@/lib/server/metrics";
 import type { Period } from "@/lib/periods";
 import type { Tables } from "@/lib/database.types";
 import type { Dataset } from "./dataset";
@@ -163,20 +163,8 @@ export async function buildDataset(
   const { profile, employeeId } = await requireContext();
   const scope = options.scope ?? (profile.role === "colaborador" ? "meus" : "todos");
 
-  let query = supabase
-    .from("time_entries")
-    .select(
-      "entry_date, minutes, billable, status, description, cost_amount, employees(full_name), activities(name), contracts(name, clients(legal_name, trade_name))",
-    )
-    .gte("entry_date", period.from)
-    .lte("entry_date", period.to)
-    .order("entry_date", { ascending: false });
-
-  if (scope === "meus" && employeeId) query = query.eq("employee_id", employeeId);
-
   let clientNameTitle = "";
   if (options.clientId) {
-    query = query.eq("client_id", options.clientId);
     const { data: clientInfo } = await supabase
       .from("clients")
       .select("trade_name, legal_name")
@@ -187,8 +175,23 @@ export async function buildDataset(
     }
   }
 
-  const { data } = await query;
-  const rows = (data ?? []) as unknown as TimeEntryRow[];
+  const data = await fetchAllPages((from, to) => {
+    let pageQuery = supabase
+      .from("time_entries")
+      .select(
+        "entry_date, minutes, billable, status, description, cost_amount, employees(full_name), activities(name), contracts(name, clients(legal_name, trade_name))",
+      )
+      .gte("entry_date", period.from)
+      .lte("entry_date", period.to)
+      .order("entry_date", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, to);
+
+    if (scope === "meus" && employeeId) pageQuery = pageQuery.eq("employee_id", employeeId);
+    if (options.clientId) pageQuery = pageQuery.eq("client_id", options.clientId);
+    return pageQuery;
+  });
+  const rows = data as unknown as TimeEntryRow[];
   const canSeeCost = profile.role === "admin" || profile.can_view_costs;
 
   const ds: Dataset<TimeEntryRow> = {

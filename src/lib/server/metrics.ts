@@ -21,6 +21,26 @@ import type {
 
 export type { ClientHoursEntry, ClientHoursReport, ClientHoursSummary, ContractReport } from "./metrics.types";
 
+const PAGE_SIZE = 1000;
+
+/** Busca todas as páginas de uma consulta PostgREST/Supabase (que limita respostas a 1000 linhas por padrão). */
+export async function fetchAllPages<T>(
+  fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null }>,
+): Promise<T[]> {
+  const all: T[] = [];
+  let offset = 0;
+
+  while (true) {
+    const { data } = await fetchPage(offset, offset + PAGE_SIZE - 1);
+    const batch = data ?? [];
+    all.push(...batch);
+    if (batch.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  return all;
+}
+
 export type ProfitabilityReport = {
   period: Period;
   contracts: ContractReport[];
@@ -257,33 +277,37 @@ export async function getTeamOperationalReport(period: Period): Promise<TeamOper
   await requireRole(["admin", "gestor"]);
   const supabase = await createClient();
 
-  const [{ data: employeesData }, { data: entriesData }] = await Promise.all([
+  const [{ data: employeesData }, entriesData] = await Promise.all([
     supabase.from("employees").select("id, full_name, active, job_title").order("full_name"),
-    supabase
-      .from("time_entries")
-      .select(`
-        id,
-        employee_id,
-        entry_date,
-        minutes,
-        cost_amount,
-        billable,
-        status,
-        activity_id,
-        client_id,
-        clients(legal_name, trade_name),
-        contract_id,
-        contracts(name, clients(legal_name, trade_name)),
-        activities(id, name, area_id, client_id, areas(name))
-      `)
-      .gte("entry_date", period.from)
-      .lte("entry_date", period.to)
-      .neq("status", "rejeitado")
-      .order("entry_date", { ascending: false }),
+    fetchAllPages((from, to) =>
+      supabase
+        .from("time_entries")
+        .select(`
+          id,
+          employee_id,
+          entry_date,
+          minutes,
+          cost_amount,
+          billable,
+          status,
+          activity_id,
+          client_id,
+          clients(legal_name, trade_name),
+          contract_id,
+          contracts(name, clients(legal_name, trade_name)),
+          activities(id, name, area_id, client_id, areas(name))
+        `)
+        .gte("entry_date", period.from)
+        .lte("entry_date", period.to)
+        .neq("status", "rejeitado")
+        .order("entry_date", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
   ]);
 
   const employees = employeesData ?? [];
-  const rawEntries = entriesData ?? [];
+  const rawEntries = entriesData;
 
   const activityGroups = new Map<
     string,
@@ -422,37 +446,41 @@ export async function getClientHoursReport(period: Period): Promise<ClientHoursR
   await requireRole(["admin", "gestor"]);
   const supabase = await createClient();
 
-  const [{ data: clientsData }, { data: entriesData }] = await Promise.all([
+  const [{ data: clientsData }, entriesData] = await Promise.all([
     supabase.from("clients").select("id, legal_name, trade_name, active").order("trade_name"),
-    supabase
-      .from("time_entries")
-      .select(`
-        id,
-        employee_id,
-        entry_date,
-        start_time,
-        end_time,
-        minutes,
-        description,
-        billable,
-        status,
-        cost_amount,
-        activity_id,
-        client_id,
-        contract_id,
-        clients(id, legal_name, trade_name),
-        contracts(id, name, client_id, clients(id, legal_name, trade_name)),
-        activities(id, name, area_id, client_id, areas(name)),
-        employees(id, full_name)
-      `)
-      .gte("entry_date", period.from)
-      .lte("entry_date", period.to)
-      .neq("status", "rejeitado")
-      .order("entry_date", { ascending: false }),
+    fetchAllPages((from, to) =>
+      supabase
+        .from("time_entries")
+        .select(`
+          id,
+          employee_id,
+          entry_date,
+          start_time,
+          end_time,
+          minutes,
+          description,
+          billable,
+          status,
+          cost_amount,
+          activity_id,
+          client_id,
+          contract_id,
+          clients(id, legal_name, trade_name),
+          contracts(id, name, client_id, clients(id, legal_name, trade_name)),
+          activities(id, name, area_id, client_id, areas(name)),
+          employees(id, full_name)
+        `)
+        .gte("entry_date", period.from)
+        .lte("entry_date", period.to)
+        .neq("status", "rejeitado")
+        .order("entry_date", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
   ]);
 
   const clients = clientsData ?? [];
-  const rawEntries = entriesData ?? [];
+  const rawEntries = entriesData;
 
   // Indexa clientes cadastrados por id
   const clientMap = new Map<string, { id: string; name: string; legalName: string; active: boolean }>();
