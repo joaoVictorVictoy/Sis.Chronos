@@ -27,6 +27,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/info-tooltip";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -951,23 +952,24 @@ export function ClientHoursView({
       <Card className="border-primary/20 bg-card/60 backdrop-blur-xs">
         <CardHeader className="pb-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="grid gap-1.5">
-              <div className="flex items-center gap-2">
-                <BriefcaseIcon className="size-5 text-primary" />
-                <CardTitle className="text-xl">
-                  {selectedClient.id === ALL_CLIENTS_ID
-                    ? "Horas Apontadas - Geral (Todos os Clientes)"
-                    : `Horas Apontadas - ${selectedClient.name}`}
-                </CardTitle>
-                <Badge variant="outline" className="ml-1 text-xs font-normal">
-                  {report.period.label}
-                </Badge>
-              </div>
-              <CardDescription>
+            <div className="flex flex-wrap items-center gap-2">
+              <BriefcaseIcon className="size-5 text-primary" />
+              <CardTitle className="text-xl">
                 {selectedClient.id === ALL_CLIENTS_ID
-                  ? "Consolidação geral de apontamentos de toda a empresa com visão por Área de Atuação, Atividade e Colaborador."
-                  : "Consolidação dinâmica de apontamentos por cliente com visão por Área de Atuação, Atividade e Colaborador."}
-              </CardDescription>
+                  ? "Horas Apontadas - Geral (Todos os Clientes)"
+                  : `Horas Apontadas - ${selectedClient.name}`}
+              </CardTitle>
+              <Badge variant="outline" className="ml-1 text-xs font-normal">
+                {report.period.label}
+              </Badge>
+              <InfoTooltip
+                side="right"
+                text={
+                  selectedClient.id === ALL_CLIENTS_ID
+                    ? "Consolidação geral de apontamentos de toda a empresa com visão por Área de Atuação, Atividade e Colaborador."
+                    : "Consolidação dinâmica de apontamentos por cliente com visão por Área de Atuação, Atividade e Colaborador."
+                }
+              />
             </div>
 
             {/* Exportação e atalho de cadastro */}
@@ -1313,19 +1315,18 @@ export function ClientHoursView({
             <Card className="border-primary/20 shadow-xs">
               <CardHeader className="pb-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="grid gap-1">
-                    <div className="flex items-center gap-2">
-                      <LayersIcon className="size-4 text-primary" />
-                      <CardTitle className="text-base font-semibold">
-                        Horas Consolidadas Por Área de Atuação
-                      </CardTitle>
-                      <Badge variant="secondary" className="tabular-nums text-xs">
-                        {byAreaDynamic.length} {byAreaDynamic.length === 1 ? "área ativa" : "áreas ativas"}
-                      </Badge>
-                    </div>
-                    <CardDescription className="text-xs">
-                      Distribuição do tempo e custo por especialidade jurídica/consultoria. Clique em cada área para detalhar as atividades executadas.
-                    </CardDescription>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <LayersIcon className="size-4 text-primary" />
+                    <CardTitle className="text-base font-semibold">
+                      Horas Consolidadas Por Área de Atuação
+                    </CardTitle>
+                    <Badge variant="secondary" className="tabular-nums text-xs">
+                      {byAreaDynamic.length} {byAreaDynamic.length === 1 ? "área ativa" : "áreas ativas"}
+                    </Badge>
+                    <InfoTooltip
+                      side="right"
+                      text="Distribuição do tempo e custo por especialidade jurídica/consultoria. Clique em cada área para detalhar as atividades executadas."
+                    />
                   </div>
 
                   <div className="flex flex-col items-start sm:items-end gap-1.5 self-start sm:self-auto shrink-0">
@@ -2003,17 +2004,13 @@ export function ClientHoursView({
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="grid gap-1">
-                    <div className="flex items-center gap-2">
-                      <TagIcon className="size-4 text-primary" />
-                      <CardTitle className="text-base font-semibold">Atividades Executadas no Cliente</CardTitle>
-                      <Badge variant="secondary" className="tabular-nums text-xs">
-                        {byActivityDynamic.length} {byActivityDynamic.length === 1 ? "atividade" : "atividades"}
-                      </Badge>
-                    </div>
-                    <CardDescription className="text-xs">
-                      Tempo dedicado por tipo de tarefa/atividade individual.
-                    </CardDescription>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <TagIcon className="size-4 text-primary" />
+                    <CardTitle className="text-base font-semibold">Atividades Executadas no Cliente</CardTitle>
+                    <Badge variant="secondary" className="tabular-nums text-xs">
+                      {byActivityDynamic.length} {byActivityDynamic.length === 1 ? "atividade" : "atividades"}
+                    </Badge>
+                    <InfoTooltip side="right" text="Tempo dedicado por tipo de tarefa/atividade individual." />
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
@@ -2223,17 +2220,16 @@ export function ClientHoursView({
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="grid gap-1">
-                    <div className="flex items-center gap-2">
-                      <UsersIcon className="size-4 text-primary" />
-                      <CardTitle className="text-base font-semibold">Equipe Alocada no Cliente</CardTitle>
-                      <Badge variant="secondary" className="tabular-nums text-xs">
-                        {byEmployeeDynamic.length} {byEmployeeDynamic.length === 1 ? "pessoa" : "pessoas"}
-                      </Badge>
-                    </div>
-                    <CardDescription className="text-xs">
-                      Distribuição das horas e atividades executadas por cada colaborador da equipe.
-                    </CardDescription>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <UsersIcon className="size-4 text-primary" />
+                    <CardTitle className="text-base font-semibold">Equipe Alocada no Cliente</CardTitle>
+                    <Badge variant="secondary" className="tabular-nums text-xs">
+                      {byEmployeeDynamic.length} {byEmployeeDynamic.length === 1 ? "pessoa" : "pessoas"}
+                    </Badge>
+                    <InfoTooltip
+                      side="right"
+                      text="Distribuição das horas e atividades executadas por cada colaborador da equipe."
+                    />
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
@@ -2812,13 +2808,16 @@ export function ClientHoursView({
           <Card>
             <CardHeader className="pb-3">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
+                <div className="flex items-center gap-2">
                   <CardTitle className="text-lg font-semibold">Extrato Completo de Lançamentos</CardTitle>
-                  <CardDescription>
-                    {selectedClient.id === ALL_CLIENTS_ID
-                      ? "Lista item a item de todas as horas apontadas na empresa no período."
-                      : `Lista item a item de todas as horas apontadas em ${selectedClient.name} no período.`}
-                  </CardDescription>
+                  <InfoTooltip
+                    side="right"
+                    text={
+                      selectedClient.id === ALL_CLIENTS_ID
+                        ? "Lista item a item de todas as horas apontadas na empresa no período."
+                        : `Lista item a item de todas as horas apontadas em ${selectedClient.name} no período.`
+                    }
+                  />
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
