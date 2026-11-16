@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { ExportMenu } from "@/components/export-menu";
+import { InfoTooltip } from "@/components/info-tooltip";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth/session";
@@ -294,9 +295,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         <>
           <div className="grid gap-6 xl:grid-cols-2">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center gap-2">
                 <CardTitle>Evolução mensal</CardTitle>
-                <CardDescription>Receita líquida, custo total e lucro nos últimos meses.</CardDescription>
+                <InfoTooltip side="right" text="Receita líquida, custo total e lucro nos últimos meses." />
               </CardHeader>
               <CardContent>
                 <MonthlyResultChart data={evolution} />
@@ -304,9 +305,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
             </Card>
 
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center gap-2">
                 <CardTitle>Margem da empresa</CardTitle>
-                <CardDescription>Margem real contra a meta ponderada pelos contratos.</CardDescription>
+                <InfoTooltip side="right" text="Margem real contra a meta ponderada pelos contratos." />
               </CardHeader>
               <CardContent>
                 <MarginEvolutionChart data={evolution} />
@@ -315,11 +316,12 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           </div>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center gap-2">
               <CardTitle>Receita × margem</CardTitle>
-              <CardDescription>
-                Quadrante inferior direito = cliente grande com margem baixa: é onde renegociar primeiro.
-              </CardDescription>
+              <InfoTooltip
+                side="right"
+                text="Quadrante inferior direito = cliente grande com margem baixa: é onde renegociar primeiro."
+              />
             </CardHeader>
             <CardContent>
               {scatter.length === 0 ? (
@@ -332,9 +334,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
           <div className="grid gap-6 xl:grid-cols-2">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center gap-2">
                 <CardTitle>Rentabilidade por área</CardTitle>
-                <CardDescription>Receita rateada pelas horas apontadas em cada área.</CardDescription>
+                <InfoTooltip side="right" text="Receita rateada pelas horas apontadas em cada área." />
               </CardHeader>
               <CardContent>
                 {areas.length === 0 ? (
@@ -354,9 +356,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
             </Card>
 
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center gap-2">
                 <CardTitle>Custo por atividade</CardTitle>
-                <CardDescription>Quais atividades mais consomem margem.</CardDescription>
+                <InfoTooltip side="right" text="Quais atividades mais consomem margem." />
               </CardHeader>
               <CardContent>
                 {activities.length === 0 ? (
@@ -410,9 +412,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
         {canSeeCosts ? (
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center gap-2">
               <CardTitle>Maior custo alocado por cliente</CardTitle>
-              <CardDescription>Quem está consumindo a margem de cada cliente.</CardDescription>
+              <InfoTooltip side="right" text="Quem está consumindo a margem de cada cliente." />
             </CardHeader>
             <CardContent>
               {employeeClients.length === 0 ? (
@@ -436,9 +438,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       {canSeeCosts ? (
         <div className="grid gap-6 xl:grid-cols-3">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center gap-2">
               <CardTitle>Mais rentáveis</CardTitle>
-              <CardDescription>Maior lucro no período.</CardDescription>
+              <InfoTooltip side="right" text="Maior lucro no período." />
             </CardHeader>
             <CardContent className="grid gap-2">
               {ranking.slice(0, 5).map(({ row, profitability }) => {
@@ -472,9 +474,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center gap-2">
               <CardTitle>Menores margens</CardTitle>
-              <CardDescription>Onde a meta está mais longe.</CardDescription>
+              <InfoTooltip side="right" text="Onde a meta está mais longe." />
             </CardHeader>
             <CardContent className="grid gap-2">
               {worstMargin.slice(0, 5).map(({ row, profitability }) => {
@@ -511,9 +513,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center gap-2">
               <CardTitle>Sugestão de reajuste</CardTitle>
-              <CardDescription>Aumento necessário para atingir a margem desejada.</CardDescription>
+              <InfoTooltip side="right" text="Aumento necessário para atingir a margem desejada." />
             </CardHeader>
             <CardContent className="grid gap-2">
               {adjustments.map(({ row, adjustment, profitability }) => {
@@ -582,11 +584,13 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
             </CardContent>
           </Card>
 
-          <p className="text-xs text-muted-foreground">
-            Status: 🟢 {HEALTH_LABELS.saudavel} (margem real igual ou acima da meta) · 🟡 {HEALTH_LABELS.atencao} (até{" "}
-            {report.tolerance} pontos percentuais abaixo da meta) · 🔴 {HEALTH_LABELS.critico} (mais do que isso abaixo, ou
-            prejuízo). Ajuste esse limite em Configurações → Empresa.
-          </p>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span>Critérios de status</span>
+            <InfoTooltip
+              side="right"
+              text={`🟢 ${HEALTH_LABELS.saudavel} (margem real igual ou acima da meta) · 🟡 ${HEALTH_LABELS.atencao} (até ${report.tolerance} pontos percentuais abaixo da meta) · 🔴 ${HEALTH_LABELS.critico} (mais do que isso abaixo, ou prejuízo). Ajuste esse limite em Configurações → Empresa.`}
+            />
+          </div>
         </>
       ) : null}
           </>

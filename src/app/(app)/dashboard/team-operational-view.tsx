@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { InfoTooltip } from "@/components/info-tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate, formatHours } from "@/lib/format";
@@ -53,7 +54,10 @@ export function TeamOperationalView({
 
         <Card className="border-border/60 bg-card/60 backdrop-blur-xs">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription className="font-medium text-muted-foreground">Média por Dia Trabalhado</CardDescription>
+            <div className="flex items-center gap-1.5">
+              <CardDescription className="font-medium text-muted-foreground">Média por Dia Trabalhado</CardDescription>
+              <InfoTooltip text="Total de horas ÷ Dias únicos apontados" />
+            </div>
             <div className="rounded-md bg-blue-500/10 p-2 text-blue-600 dark:text-blue-400">
               <TrendingUpIcon className="size-4" />
             </div>
@@ -63,25 +67,22 @@ export function TeamOperationalView({
               {formatHours(report.averageDailyHours)}
               <span className="text-xs font-normal text-muted-foreground">/dia</span>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Total de horas ÷ Dias únicos apontados
-            </p>
           </CardContent>
         </Card>
 
         {canSeeCosts ? (
           <Card className="border-border/60 bg-card/60 backdrop-blur-xs">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardDescription className="font-medium text-muted-foreground">Custo Total Acumulado</CardDescription>
+              <div className="flex items-center gap-1.5">
+                <CardDescription className="font-medium text-muted-foreground">Custo Total Acumulado</CardDescription>
+                <InfoTooltip text="Custo operacional direto no período" />
+              </div>
               <div className="rounded-md bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
                 <DollarSignIcon className="size-4" />
               </div>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold tracking-tight">{formatCurrency(report.totalLaborCost)}</div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Custo operacional direto no período
-              </p>
             </CardContent>
           </Card>
         ) : null}
@@ -121,12 +122,17 @@ export function TeamOperationalView({
       {/* 2. Lista por Colaborador Abaixo dos Blocos (Accordion) */}
       <Card className="border-border/60 shadow-xs">
         <CardHeader className="border-b bg-muted/10 pb-4">
-          <CardTitle className="text-lg font-semibold tracking-tight">Desempenho por Colaborador</CardTitle>
-          <CardDescription>
-            {canSeeCosts
-              ? "Acompanhe o total de horas, média por dia trabalhado, custo acumulado e detalhe individual dos apontamentos."
-              : "Acompanhe o total de horas, média por dia trabalhado e detalhe individual dos apontamentos."}
-          </CardDescription>
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-lg font-semibold tracking-tight">Desempenho por Colaborador</CardTitle>
+            <InfoTooltip
+              side="right"
+              text={
+                canSeeCosts
+                  ? "Acompanhe o total de horas, média por dia trabalhado, custo acumulado e detalhe individual dos apontamentos."
+                  : "Acompanhe o total de horas, média por dia trabalhado e detalhe individual dos apontamentos."
+              }
+            />
+          </div>
         </CardHeader>
         <CardContent className="divide-y p-0">
           {activeMembers.length === 0 ? (

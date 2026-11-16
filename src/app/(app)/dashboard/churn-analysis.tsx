@@ -10,7 +10,8 @@ import {
   UsersIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/info-tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency, formatDate, formatPercent } from "@/lib/format";
 import { TERMINATION_REASON_LABELS, TERMINATION_SUB_REASON_LABELS } from "@/lib/contracts";
@@ -27,27 +28,26 @@ export function ChurnAnalysisCard({
 
   return (
     <Card className="border-border/80 shadow-xs">
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="grid gap-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <CardTitle className="text-xl font-bold tracking-tight">
-              Inteligência de Churn & Evasão de Contratos
-            </CardTitle>
-            {hasChurn ? (
-              <Badge variant="destructive" className="gap-1 text-xs">
-                <TrendingDownIcon className="size-3" />
-                {formatPercent(report.churnRate)} churn rate
-              </Badge>
-            ) : (
-              <Badge variant="default" className="gap-1 text-xs bg-emerald-600 hover:bg-emerald-600 text-white">
-                <CheckCircle2Icon className="size-3" />
-                0% churn rate
-              </Badge>
-            )}
-          </div>
-          <CardDescription className="text-sm">
-            Receita recorrente perdida (MRR), causas de saída e diagnóstico de gargalos de atendimento no período ({report.period.label}).
-          </CardDescription>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <CardTitle className="text-xl font-bold tracking-tight">
+            Inteligência de Churn & Evasão de Contratos
+          </CardTitle>
+          {hasChurn ? (
+            <Badge variant="destructive" className="gap-1 text-xs">
+              <TrendingDownIcon className="size-3" />
+              {formatPercent(report.churnRate)} churn rate
+            </Badge>
+          ) : (
+            <Badge variant="default" className="gap-1 text-xs bg-emerald-600 hover:bg-emerald-600 text-white">
+              <CheckCircle2Icon className="size-3" />
+              0% churn rate
+            </Badge>
+          )}
+          <InfoTooltip
+            side="right"
+            text={`Receita recorrente perdida (MRR), causas de saída e diagnóstico de gargalos de atendimento no período (${report.period.label}).`}
+          />
         </div>
 
         {hasChurn ? (
@@ -119,14 +119,14 @@ export function ChurnAnalysisCard({
 
               <div className="rounded-xl border bg-card p-4 grid gap-1 shadow-xs">
                 <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
-                  <span>Multas Recuperadas</span>
+                  <span className="flex items-center gap-1.5">
+                    Multas Recuperadas
+                    <InfoTooltip text="Receita extraordinária de rescisão" />
+                  </span>
                   <DollarSignIcon className="size-3.5 text-emerald-500" />
                 </div>
                 <p className="text-2xl font-bold tabular-nums tracking-tight text-emerald-600 dark:text-emerald-400">
                   {formatCurrency(report.totalPenalties)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Receita extraordinária de rescisão
                 </p>
               </div>
             </div>

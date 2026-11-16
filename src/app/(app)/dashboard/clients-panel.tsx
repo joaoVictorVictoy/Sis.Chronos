@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { ClockIcon, LayoutGridIcon, TableIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/info-tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -104,13 +105,16 @@ export function ClientsPanel({
   return (
     <Card>
       <CardHeader className="flex flex-wrap items-start justify-between gap-3">
-        <div className="grid gap-1">
+        <div className="flex items-center gap-2">
           <CardTitle>Clientes e contratos</CardTitle>
-          <CardDescription>
-            {canSeeCosts
-              ? "Margem real contra a desejada e consumo do limite de horas."
-              : "Acompanhe as horas e o consumo do limite de horas dos contratos."}
-          </CardDescription>
+          <InfoTooltip
+            side="right"
+            text={
+              canSeeCosts
+                ? "Margem real contra a desejada e consumo do limite de horas."
+                : "Acompanhe as horas e o consumo do limite de horas dos contratos."
+            }
+          />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {availableSortKeys.map((key) => (

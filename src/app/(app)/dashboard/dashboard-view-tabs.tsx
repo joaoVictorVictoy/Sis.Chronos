@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { BarChart3Icon, ClockIcon } from "lucide-react";
+import { InfoTooltip } from "@/components/info-tooltip";
 import { ClientHoursView } from "./client-hours-view";
 import type { ClientHoursReport } from "@/lib/server/metrics.types";
 
@@ -72,11 +73,14 @@ export function DashboardViewTabs({
           </button>
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          {activeTab === "rentabilidade"
-            ? "Métricas financeiras, margem e rentabilidade por contrato."
-            : "Consolidação mensal e extrato detalhado de apontamentos por cliente."}
-        </p>
+        <InfoTooltip
+          side="left"
+          text={
+            activeTab === "rentabilidade"
+              ? "Métricas financeiras, margem e rentabilidade por contrato."
+              : "Consolidação mensal e extrato detalhado de apontamentos por cliente."
+          }
+        />
       </div>
 
       <div className={activeTab === "rentabilidade" ? "grid gap-6" : "hidden"}>
