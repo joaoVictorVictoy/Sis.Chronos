@@ -30,6 +30,8 @@ export function TeamOperationalView({
     setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const activeMembers = report.members.filter((member) => member.active);
+
   return (
     <div className="grid gap-6">
       {/* 1. Blocos Resumo no Topo */}
@@ -127,12 +129,12 @@ export function TeamOperationalView({
           </CardDescription>
         </CardHeader>
         <CardContent className="divide-y p-0">
-          {report.members.length === 0 ? (
+          {activeMembers.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
-              Nenhum colaborador encontrado na empresa.
+              Nenhum colaborador ativo encontrado na empresa.
             </div>
           ) : (
-            report.members.map((member) => {
+            activeMembers.map((member) => {
               const isExpanded = !!expandedIds[member.id];
               return (
                 <div key={member.id} className="transition-colors hover:bg-muted/15">
