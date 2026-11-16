@@ -202,6 +202,7 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
       <PageHeader
         title="Apontamentos"
         description="Lance suas horas selecionando Cliente, Área e Atividade. O contrato vigente é vinculado automaticamente."
+        descriptionAsTooltip
       />
 
       {missingDays.length > 0 && (

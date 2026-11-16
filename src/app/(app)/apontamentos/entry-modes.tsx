@@ -2,7 +2,8 @@
 
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { PencilLineIcon, TimerIcon } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/info-tooltip";
 import { cn } from "@/lib/utils";
 import { minutesToInput } from "@/lib/time";
 import type { ActivityOption, AreaOption, ClientAreaOption, ClientOption, ContractOption } from "./page";
@@ -97,16 +98,19 @@ export function EntryModes({
 
   return (
     <Card>
-      <CardHeader className="flex flex-wrap items-start justify-between gap-3">
-        <div className="grid gap-1">
+      <CardHeader className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
           <CardTitle>{mode === "cronometro" ? "Cronômetro" : "Lançamento manual"}</CardTitle>
-          <CardDescription>
-            {mode === "cronometro"
-              ? "Continua contando se você fechar a página. Ao parar, o tempo vira um apontamento pendente."
-              : `Informe a duração (1:30, 1,5 ou 90m) ou o intervalo de horas (formato 24h).${
-                  lockedThrough ? " Datas de períodos fechados são bloqueadas." : ""
-                }`}
-          </CardDescription>
+          <InfoTooltip
+            side="right"
+            text={
+              mode === "cronometro"
+                ? "Continua contando se você fechar a página. Ao parar, o tempo vira um apontamento pendente."
+                : `Informe a duração (1:30, 1,5 ou 90m) ou o intervalo de horas (formato 24h).${
+                    lockedThrough ? " Datas de períodos fechados são bloqueadas." : ""
+                  }`
+            }
+          />
         </div>
 
         <div role="tablist" aria-label="Forma de lançamento" className="flex rounded-lg border bg-muted/40 p-0.5">

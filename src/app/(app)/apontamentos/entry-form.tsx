@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/native-select";
 import { Field, FormAlert, SubmitButton } from "@/components/form";
+import { InfoTooltip } from "@/components/info-tooltip";
 import { initialActionState, type ActionState } from "@/lib/actions";
 import { TimeInput24h } from "@/components/time-input-24h";
 import type { ActivityOption, AreaOption, ClientAreaOption, ClientOption, ContractOption } from "./page";
@@ -535,9 +536,9 @@ export function EntryForm({
         {currentUseInterval ? (
           <div className="grid grid-cols-2 gap-2 min-w-0">
             <div className="grid gap-1.5 min-w-0">
-              <div className="flex h-5 items-center justify-between gap-1 min-w-0">
+              <div className="flex h-5 items-center gap-1.5 min-w-0">
                 <Label htmlFor={`${idPrefix}startTime`}>Início (24h)</Label>
-                <span className="text-[10px] text-muted-foreground font-mono">00:00</span>
+                <InfoTooltip text="Formato 24h (ex.: 08:30)" />
               </div>
               <TimeInput24h
                 id={`${idPrefix}startTime`}
@@ -552,9 +553,9 @@ export function EntryForm({
               ) : null}
             </div>
             <div className="grid gap-1.5 min-w-0">
-              <div className="flex h-5 items-center justify-between gap-1 min-w-0">
+              <div className="flex h-5 items-center gap-1.5 min-w-0">
                 <Label htmlFor={`${idPrefix}endTime`}>Fim (24h)</Label>
-                <span className="text-[10px] text-muted-foreground font-mono">23:59</span>
+                <InfoTooltip text="Formato 24h (ex.: 18:00)" />
               </div>
               <TimeInput24h
                 id={`${idPrefix}endTime`}
@@ -571,9 +572,9 @@ export function EntryForm({
           </div>
         ) : (
           <div className="grid gap-1.5 min-w-0">
-            <div className="flex h-5 items-center justify-between gap-1 min-w-0">
+            <div className="flex h-5 items-center gap-1.5 min-w-0">
               <Label htmlFor={`${idPrefix}duration`}>Duração</Label>
-              <span className="text-[11px] text-muted-foreground">1:30 · 1,5 · 90m</span>
+              <InfoTooltip text="Formatos aceitos: 1:30, 1,5 ou 90m" />
             </div>
             <Input
               id={`${idPrefix}duration`}
