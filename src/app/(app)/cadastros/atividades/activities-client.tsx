@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/page-header";
 import { Field, FormAlert, SubmitButton } from "@/components/form";
 import { initialActionState } from "@/lib/actions";
+import { cn } from "@/lib/utils";
 import type { Tables } from "@/lib/database.types";
 import { createActivityAction, deleteActivityAction, updateActivityAction } from "./actions";
 
@@ -187,20 +188,33 @@ export function ActivitiesTable({
   canManage?: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"active" | "inactive">("active");
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [areaFilter, setAreaFilter] = useState<string>("all");
 
   const clientMap = useMemo(() => new Map(clients.map((c) => [c.id, c.name])), [clients]);
   const areaMap = useMemo(() => new Map(areas.map((a) => [a.id, a.name])), [areas]);
 
+  const { activeCount, inactiveCount } = useMemo(() => {
+    let active = 0;
+    let inactive = 0;
+    for (const act of activities) {
+      if (act.active === false) inactive++;
+      else active++;
+    }
+    return { activeCount: active, inactiveCount: inactive };
+  }, [activities]);
+
   const filteredActivities = useMemo(() => {
     return activities.filter((act) => {
+      if (statusFilter === "active" && act.active === false) return false;
+      if (statusFilter === "inactive" && act.active !== false) return false;
       if (clientFilter === "general" && act.client_id !== null) return false;
       if (clientFilter !== "all" && clientFilter !== "general" && act.client_id !== clientFilter) return false;
       if (areaFilter !== "all" && act.area_id !== areaFilter) return false;
       return true;
     });
-  }, [activities, clientFilter, areaFilter]);
+  }, [activities, statusFilter, clientFilter, areaFilter]);
 
   return (
     <>
@@ -231,6 +245,53 @@ export function ActivitiesTable({
             <div className="space-y-4">
               {/* Filtros rápidos */}
               <div className="flex flex-wrap items-center gap-3">
+                <div className="inline-flex items-center gap-1 p-1 bg-muted/60 rounded-lg border border-border/50 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("active")}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer flex items-center gap-1.5",
+                      statusFilter === "active"
+                        ? "bg-background text-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <span>Ativas</span>
+                    <span
+                      className={cn(
+                        "px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none",
+                        statusFilter === "active"
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {activeCount}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("inactive")}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer flex items-center gap-1.5",
+                      statusFilter === "inactive"
+                        ? "bg-background text-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <span>Inativas</span>
+                    <span
+                      className={cn(
+                        "px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none",
+                        statusFilter === "inactive"
+                          ? "bg-muted-foreground/20 text-foreground"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {inactiveCount}
+                    </span>
+                  </button>
+                </div>
+
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span>Filtrar por Cliente:</span>
                   <NativeSelect value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} className="w-auto h-8 text-xs">
