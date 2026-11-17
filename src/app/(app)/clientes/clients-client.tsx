@@ -174,6 +174,17 @@ export function ClientActivitiesSection({
 }) {
   const [createState, createAction] = useActionState(createActivityAction, initialActionState);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"active" | "inactive">("active");
+
+  const activeActivities = useMemo(
+    () => activities.filter((act) => act.active !== false),
+    [activities],
+  );
+  const inactiveActivities = useMemo(
+    () => activities.filter((act) => act.active === false),
+    [activities],
+  );
+  const filteredActivities = statusFilter === "active" ? activeActivities : inactiveActivities;
 
   return (
     <>
@@ -185,7 +196,7 @@ export function ClientActivitiesSection({
           <div className="flex items-center gap-2">
             <CardTitle>Atividades do Cliente</CardTitle>
             <Badge variant="secondary" className="tabular-nums text-xs">
-              {activities.length} {activities.length === 1 ? "atividade" : "atividades"}
+              {activeActivities.length} {activeActivities.length === 1 ? "atividade" : "atividades"}
             </Badge>
           </div>
           <CardDescription>
@@ -236,47 +247,104 @@ export function ClientActivitiesSection({
       {activities.length === 0 ? (
         <EmptyState>Nenhuma atividade cadastrada especificamente para este cliente.</EmptyState>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Atividade</TableHead>
-              <TableHead>Área de Consultoria</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-12 text-right">Ação</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {activities.map((act) => (
-              <TableRow key={act.id}>
-                <TableCell className="font-medium">{act.name}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{act.areas?.name ?? "Área"}</Badge>
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {act.billable ? "Faturável" : "Não faturável"}
-                </TableCell>
-                <TableCell>
-                  {act.active ? (
-                    <Badge variant="outline" className="text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
-                      Ativa
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary">Inativa</Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  <DeleteButton
-                    action={deleteActivityAction}
-                    hiddenFields={{ id: act.id }}
-                    title="Excluir atividade"
-                    description={`Deseja excluir a atividade "${act.name}" deste cliente?`}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div className="space-y-3">
+          <div className="inline-flex items-center gap-1 p-1 bg-muted/60 rounded-lg border border-border/50 text-xs">
+            <button
+              type="button"
+              onClick={() => setStatusFilter("active")}
+              className={cn(
+                "px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer flex items-center gap-1.5",
+                statusFilter === "active"
+                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <span>Ativas</span>
+              <span
+                className={cn(
+                  "px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none",
+                  statusFilter === "active"
+                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                    : "bg-muted text-muted-foreground",
+                )}
+              >
+                {activeActivities.length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("inactive")}
+              className={cn(
+                "px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer flex items-center gap-1.5",
+                statusFilter === "inactive"
+                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <span>Inativas</span>
+              <span
+                className={cn(
+                  "px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none",
+                  statusFilter === "inactive"
+                    ? "bg-muted-foreground/20 text-foreground"
+                    : "bg-muted text-muted-foreground",
+                )}
+              >
+                {inactiveActivities.length}
+              </span>
+            </button>
+          </div>
+
+          {filteredActivities.length === 0 ? (
+            <EmptyState>
+              {statusFilter === "active"
+                ? "Nenhuma atividade ativa para este cliente."
+                : "Nenhuma atividade inativa para este cliente."}
+            </EmptyState>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Atividade</TableHead>
+                  <TableHead>Área de Consultoria</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-12 text-right">Ação</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredActivities.map((act) => (
+                  <TableRow key={act.id}>
+                    <TableCell className="font-medium">{act.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{act.areas?.name ?? "Área"}</Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {act.billable ? "Faturável" : "Não faturável"}
+                    </TableCell>
+                    <TableCell>
+                      {act.active ? (
+                        <Badge variant="outline" className="text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
+                          Ativa
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">Inativa</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DeleteButton
+                        action={deleteActivityAction}
+                        hiddenFields={{ id: act.id }}
+                        title="Excluir atividade"
+                        description={`Deseja excluir a atividade "${act.name}" deste cliente?`}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
       )}
         </CardContent>
       ) : null}
