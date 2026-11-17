@@ -88,6 +88,56 @@ export async function extendTrialAction(tenantId: string, daysToAdd: number) {
   revalidatePath("/", "layout");
 }
 
+export async function renewSubscriptionAction(tenantId: string, daysToAdd: number) {
+  const { user } = await requireSuperAdmin();
+  const admin = createAdminClient();
+
+  if (!Number.isFinite(daysToAdd) || daysToAdd <= 0) {
+    throw new Error("Quantidade de dias para renovação inválida.");
+  }
+
+  const { data: tenant, error: fetchErr } = await admin
+    .from("tenants")
+    .select("name, current_period_end, subscription_status")
+    .eq("id", tenantId)
+    .single();
+
+  if (fetchErr || !tenant) {
+    throw new Error("Empresa não encontrada.");
+  }
+
+  const currentEndMs = tenant.current_period_end
+    ? new Date(tenant.current_period_end).getTime()
+    : 0;
+  const baseMs = Math.max(Date.now(), Number.isFinite(currentEndMs) ? currentEndMs : 0);
+  const newPeriodEnd = new Date(baseMs + daysToAdd * 86400000).toISOString();
+
+  const { error } = await admin
+    .from("tenants")
+    .update({
+      subscription_status: "manual_active",
+      current_period_end: newPeriodEnd,
+    })
+    .eq("id", tenantId);
+
+  if (error) {
+    throw new Error(translateError(error));
+  }
+
+  await logAuditEvent({
+    action: `Renovação de Assinatura (+${daysToAdd} dias)`,
+    tenantId,
+    tenantName: tenant.name,
+    superAdminEmail: user.email!,
+    details: `Assinatura ativada/estendida por +${daysToAdd} dias (novo vencimento: ${new Date(newPeriodEnd).toLocaleDateString("pt-BR")}).`,
+  });
+
+  revalidatePath("/super-admin");
+  revalidatePath("/", "layout");
+
+  return { newPeriodEnd };
+}
+
 export async function deleteTenantAction(tenantId: string) {
   const { user } = await requireSuperAdmin();
   const admin = createAdminClient();
@@ -358,17 +408,34 @@ export async function getTenantHealthAction(tenantId: string): Promise<TenantHea
   const employeesCount = employees?.length ?? 0;
   const activeEmployeesCount = employees?.filter((e) => e.active).length ?? 0;
 
-  // 4. Apontamentos nos últimos 30 dias
+  // 4. Apontamentos nos últimos 30 dias (paginado para não truncar em 1.000 linhas)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-  const { data: recentEntries } = await admin
-    .from("time_entries")
-    .select("id, minutes, entry_date")
-    .eq("tenant_id", tenantId)
-    .gte("entry_date", thirtyDaysAgo)
-    .order("entry_date", { ascending: false });
+  const recentEntries: { id: string; minutes: number; entry_date: string }[] = [];
+  const PAGE_SIZE = 1000;
+  let from = 0;
 
-  const recentEntriesCount = recentEntries?.length ?? 0;
-  const recentMinutesTotal = (recentEntries ?? []).reduce(
+  while (true) {
+    const { data: page, error: entriesErr } = await admin
+      .from("time_entries")
+      .select("id, minutes, entry_date")
+      .eq("tenant_id", tenantId)
+      .gte("entry_date", thirtyDaysAgo)
+      .order("entry_date", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (entriesErr) {
+      throw new Error(translateError(entriesErr));
+    }
+
+    if (!page || page.length === 0) break;
+    recentEntries.push(...page);
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  const recentEntriesCount = recentEntries.length;
+  const recentMinutesTotal = recentEntries.reduce(
     (acc, curr) => acc + (Number(curr.minutes) || 0),
     0
   );
@@ -376,7 +443,7 @@ export async function getTenantHealthAction(tenantId: string): Promise<TenantHea
 
   // 5. Último apontamento histórico
   let lastEntryDate: string | null = null;
-  if (recentEntries && recentEntries.length > 0) {
+  if (recentEntries.length > 0) {
     lastEntryDate = recentEntries[0].entry_date;
   } else {
     const { data: lastEntry } = await admin

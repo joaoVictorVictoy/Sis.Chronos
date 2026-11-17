@@ -17,8 +17,10 @@ export type TenantStats = {
   suspended: number;
   mrr: number;
   arr: number;
+  arpu?: number;
   expiringSoon: number;
   recentEntries: number;
+  churnRiskCount?: number;
 };
 
 const currencyFormatter = new Intl.NumberFormat("pt-BR", {
@@ -45,6 +47,14 @@ export function StatsCards({ stats }: { stats: TenantStats }) {
                 {currencyFormatter.format(stats.mrr)}
                 <span className="text-xs font-normal text-muted-foreground ml-1">/mês</span>
               </p>
+              {stats.arpu !== undefined && (
+                <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                  Ticket médio (ARPU):{" "}
+                  <span className="font-medium text-foreground/80">
+                    {currencyFormatter.format(stats.arpu)}
+                  </span>
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -73,8 +83,23 @@ export function StatsCards({ stats }: { stats: TenantStats }) {
               <p className="text-xs font-medium text-muted-foreground">Apontamentos (30d)</p>
               <p className="text-xl sm:text-2xl font-bold tracking-tight truncate">
                 {numberFormatter.format(stats.recentEntries)}
-                <span className="text-xs font-normal text-muted-foreground ml-1">horas/itens</span>
+                <span className="text-xs font-normal text-muted-foreground ml-1">registros</span>
               </p>
+              {stats.churnRiskCount !== undefined && (
+                <p
+                  className={`text-[11px] mt-0.5 truncate ${
+                    stats.churnRiskCount > 0
+                      ? "text-amber-600 dark:text-amber-400 font-medium"
+                      : "text-emerald-600 dark:text-emerald-400"
+                  }`}
+                >
+                  {stats.churnRiskCount > 0
+                    ? `${stats.churnRiskCount} ${
+                        stats.churnRiskCount === 1 ? "empresa em alerta" : "empresas em alerta"
+                      } (+7d sem uso)`
+                    : "Todas as ativas engajadas"}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

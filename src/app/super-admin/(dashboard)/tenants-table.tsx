@@ -1,30 +1,28 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
+import { toast } from "sonner";
 import {
   ActivityIcon,
   AlertTriangleIcon,
-  ArrowUpDownIcon,
   BanIcon,
+  CalendarCheck2Icon,
   CalendarIcon,
   CheckIcon,
   CopyIcon,
   DownloadIcon,
   Edit3Icon,
-  ExternalLinkIcon,
   HeartPulseIcon,
   KeyRoundIcon,
-  LinkIcon,
   LogInIcon,
-  MailIcon,
   MessageCircleIcon,
   MoreHorizontalIcon,
   PlayIcon,
   RefreshCwIcon,
   SearchIcon,
-  ShieldCheckIcon,
   SparklesIcon,
   Trash2Icon,
+  TrendingUpIcon,
   UserCheckIcon,
   UsersIcon,
 } from "lucide-react";
@@ -49,7 +47,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/native-select";
 import { Field, FormAlert, SubmitButton } from "@/components/form";
-import { useActionState } from "react";
 import { initialActionState } from "@/lib/actions";
 import type { Tables } from "@/lib/database.types";
 import { getSubscriptionInfo } from "@/lib/subscription/status";
@@ -60,6 +57,7 @@ import {
   generateAdminAccessLinkAction,
   getTenantHealthAction,
   impersonateTenantAction,
+  renewSubscriptionAction,
   toggleTenantStatusAction,
   updateTenantMaxUsersAction,
   updateTenantSubscriptionAction,
@@ -71,17 +69,31 @@ export type TenantMember = {
   fullName: string;
   email: string;
   role: string;
+  canViewCosts: boolean;
   active: boolean;
   createdAt: string;
 };
+
+export type TenantHealthStatus = "engaged" | "low_activity" | "inactive";
 
 export type TenantRowData = Tables<"tenants"> & {
   membersCount: number;
   users: TenantMember[];
   primaryAdmin: TenantMember | null;
+  recentEntries30d: number;
+  recentHours30d: number;
+  lastEntryDate: string | null;
+  healthStatus: TenantHealthStatus;
 };
 
-type FilterStatus = "all" | "active" | "trialing" | "expiring_soon" | "suspended";
+type FilterStatus =
+  | "all"
+  | "active"
+  | "trialing"
+  | "expiring_soon"
+  | "churn_risk"
+  | "suspended";
+
 type SortOption =
   | "newest"
   | "oldest"
@@ -89,13 +101,51 @@ type SortOption =
   | "name_desc"
   | "expiring_asc"
   | "mrr_desc"
-  | "users_desc";
+  | "users_desc"
+  | "usage_desc"
+  | "stale_asc";
+
+function normalizeMemberRole(role: string): "admin" | "gestor" | "colaborador" {
+  if (role === "admin") return "admin";
+  if (role === "gestor" || role === "manager") return "gestor";
+  return "colaborador";
+}
+
+function formatDateBr(isoDate: string | null | undefined): string | null {
+  if (!isoDate) return null;
+  const datePart = isoDate.slice(0, 10);
+  const [y, m, d] = datePart.split("-");
+  if (!y || !m || !d) return new Date(isoDate).toLocaleDateString("pt-BR");
+  return `${d}/${m}/${y}`;
+}
+
+function isChurnRiskTenant(t: TenantRowData): boolean {
+  const isOperational =
+    t.subscription_status === "manual_active" ||
+    t.subscription_status === "active" ||
+    t.subscription_status === "trialing";
+  return isOperational && t.healthStatus !== "engaged";
+}
 
 export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
   const [selectedTenant, setSelectedTenant] = useState<TenantRowData | null>(null);
   const [whatsAppTenant, setWhatsAppTenant] = useState<TenantRowData | null>(null);
   const [viewUsersTenant, setViewUsersTenant] = useState<TenantRowData | null>(null);
   const [healthTenant, setHealthTenant] = useState<TenantRowData | null>(null);
+
+  // Modais padronizados (substituem confirm/prompt/alert nativos)
+  const [confirmToggleTenant, setConfirmToggleTenant] = useState<TenantRowData | null>(null);
+  const [confirmTrialState, setConfirmTrialState] = useState<{
+    tenant: TenantRowData;
+    days: number;
+  } | null>(null);
+  const [confirmRenewState, setConfirmRenewState] = useState<{
+    tenant: TenantRowData;
+    days: number;
+  } | null>(null);
+  const [maxUsersTenant, setMaxUsersTenant] = useState<TenantRowData | null>(null);
+  const [deleteTenantTarget, setDeleteTenantTarget] = useState<TenantRowData | null>(null);
+
   const [accessLinkState, setAccessLinkState] = useState<{
     open: boolean;
     tenantName: string;
@@ -134,6 +184,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
         t.subscription_status !== "canceled"
       );
     }).length,
+    churn_risk: tenants.filter(isChurnRiskTenant).length,
     suspended: tenants.filter(
       (t) =>
         t.subscription_status === "suspended" ||
@@ -176,6 +227,10 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
       );
     }
 
+    if (statusFilter === "churn_risk") {
+      return isChurnRiskTenant(t);
+    }
+
     if (statusFilter === "suspended") {
       return (
         t.subscription_status === "suspended" ||
@@ -193,6 +248,12 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
     if (sortBy === "oldest") return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     if (sortBy === "users_desc") return b.membersCount - a.membersCount;
     if (sortBy === "mrr_desc") return calculateTenantMrr(b) - calculateTenantMrr(a);
+    if (sortBy === "usage_desc") return b.recentHours30d - a.recentHours30d;
+    if (sortBy === "stale_asc") {
+      const dateA = a.lastEntryDate ?? "0000-00-00";
+      const dateB = b.lastEntryDate ?? "0000-00-00";
+      return dateA.localeCompare(dateB);
+    }
     if (sortBy === "expiring_asc") {
       const subA = getSubscriptionInfo(a);
       const subB = getSubscriptionInfo(b);
@@ -210,74 +271,51 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
         await impersonateTenantAction(tenant.id);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Erro ao acessar workspace.";
-        alert(msg);
+        toast.error(msg);
       }
     });
   };
 
-  const handleToggleStatus = (tenant: TenantRowData) => {
-    const isSuspended = tenant.subscription_status === "suspended";
-    const confirmMsg = isSuspended
-      ? `Deseja reativar o acesso da empresa "${tenant.name}"?`
-      : `Deseja suspender o acesso da empresa "${tenant.name}"?\n\nOs usuários da empresa verão uma mensagem orientando a contatar o administrador para resolução.`;
-
-    if (!confirm(confirmMsg)) return;
-
-    startTransition(async () => {
-      await toggleTenantStatusAction(tenant.id, tenant.subscription_status);
-    });
-  };
-
-  const handleExtendTrial = (tenant: TenantRowData, days: number) => {
-    if (!confirm(`Prorrogar o teste da empresa "${tenant.name}" por mais ${days} dias?`)) return;
-
-    startTransition(async () => {
-      await extendTrialAction(tenant.id, days);
-    });
-  };
-
-  const handleQuickSetMaxUsers = (tenant: TenantRowData) => {
-    const current = tenant.max_users ? String(tenant.max_users) : "";
-    const input = prompt(
-      `Defina a quantidade máxima de usuários para a empresa "${tenant.name}":\n\n(Deixe vazio ou digite 0 para permitir usuários ilimitados)`,
-      current
-    );
-    if (input === null) return;
-    const trimmed = input.trim();
-    const val = trimmed === "" || trimmed === "0" ? null : parseInt(trimmed, 10);
-    if (val !== null && (isNaN(val) || val < 1)) {
-      alert("Por favor, informe um número inteiro positivo (ex: 5, 10) ou deixe vazio para ilimitado.");
-      return;
-    }
-
+  const executeToggleStatus = (tenant: TenantRowData) => {
+    const wasSuspended = tenant.subscription_status === "suspended";
     startTransition(async () => {
       try {
-        await updateTenantMaxUsersAction(tenant.id, val);
+        await toggleTenantStatusAction(tenant.id, tenant.subscription_status);
+        toast.success(
+          wasSuspended
+            ? `Empresa "${tenant.name}" reativada com sucesso.`
+            : `Empresa "${tenant.name}" suspensa.`
+        );
+        setConfirmToggleTenant(null);
       } catch (err) {
-        alert(err instanceof Error ? err.message : "Erro ao atualizar limite.");
+        toast.error(err instanceof Error ? err.message : "Erro ao atualizar status.");
       }
     });
   };
 
-  const handleDeleteTenant = (tenant: TenantRowData) => {
-    const confirmation = prompt(
-      `ATENÇÃO: Ação irreversível!\n\n` +
-        `Para confirmar a EXCLUSÃO DEFINITIVA da empresa "${tenant.name}", digite o nome exato da empresa abaixo:\n\n` +
-        `Todos os dados (contratos, apontamentos, colaboradores e logins) serão excluídos.`
-    );
-
-    if (confirmation === null) return;
-
-    if (confirmation.trim().toLowerCase() !== tenant.name.trim().toLowerCase()) {
-      alert("Nome digitado não confere. Exclusão cancelada por segurança.");
-      return;
-    }
-
+  const executeExtendTrial = (tenant: TenantRowData, days: number) => {
     startTransition(async () => {
       try {
-        await deleteTenantAction(tenant.id);
+        await extendTrialAction(tenant.id, days);
+        toast.success(`Teste de "${tenant.name}" prorrogado por +${days} dias.`);
+        setConfirmTrialState(null);
       } catch (err) {
-        alert(err instanceof Error ? err.message : "Erro ao excluir empresa.");
+        toast.error(err instanceof Error ? err.message : "Erro ao prorrogar teste.");
+      }
+    });
+  };
+
+  const executeRenewSubscription = (tenant: TenantRowData, days: number) => {
+    startTransition(async () => {
+      try {
+        const res = await renewSubscriptionAction(tenant.id, days);
+        const formattedEnd = formatDateBr(res.newPeriodEnd);
+        toast.success(
+          `Assinatura de "${tenant.name}" renovada (+${days}d). Novo vencimento: ${formattedEnd}.`
+        );
+        setConfirmRenewState(null);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao renovar assinatura.");
       }
     });
   };
@@ -323,6 +361,9 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
       "CNPJ",
       "Domínio",
       "Status",
+      "Engajamento",
+      "Horas (30d)",
+      "Último Apontamento",
       "Plano",
       "MRR (R$)",
       "ARR (R$)",
@@ -339,11 +380,20 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
     const rows = sortedTenants.map((t) => {
       const sub = getSubscriptionInfo(t);
       const mrrVal = calculateTenantMrr(t);
+      const healthLabel =
+        t.healthStatus === "engaged"
+          ? "Engajada"
+          : t.healthStatus === "low_activity"
+          ? "Baixo Uso"
+          : "Sem Uso";
       return [
         `"${t.name.replace(/"/g, '""')}"`,
         `"${t.cnpj ?? ""}"`,
         `"${t.email_domain ?? ""}"`,
         `"${sub.statusLabel}"`,
+        `"${healthLabel}"`,
+        t.recentHours30d.toFixed(1),
+        `"${formatDateBr(t.lastEntryDate) ?? "Nenhum"}"`,
         `"${t.plan_tier || "pro"}"`,
         mrrVal.toFixed(2),
         (mrrVal * 12).toFixed(2),
@@ -418,6 +468,15 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
           </Button>
           <Button
             size="sm"
+            variant={statusFilter === "churn_risk" ? "default" : "outline"}
+            onClick={() => setStatusFilter("churn_risk")}
+            className="h-8 text-xs text-orange-600 dark:text-orange-400 border-orange-500/30 cursor-pointer"
+            title="Empresas ativas ou em teste há mais de 7 dias sem apontamentos"
+          >
+            Risco de Churn ({counts.churn_risk})
+          </Button>
+          <Button
+            size="sm"
             variant={statusFilter === "suspended" ? "default" : "outline"}
             onClick={() => setStatusFilter("suspended")}
             className="h-8 text-xs text-destructive border-destructive/20 cursor-pointer"
@@ -443,7 +502,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
             <NativeSelect
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="h-8 text-xs w-[170px]"
+              className="h-8 text-xs w-[180px]"
             >
               <option value="newest">Mais Recentes</option>
               <option value="name_asc">Nome (A - Z)</option>
@@ -451,6 +510,8 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
               <option value="expiring_asc">Próximo a Vencer</option>
               <option value="mrr_desc">Maior MRR</option>
               <option value="users_desc">Mais Usuários</option>
+              <option value="usage_desc">Maior Uso (30d)</option>
+              <option value="stale_asc">Mais Tempo Sem Uso</option>
               <option value="oldest">Mais Antigas</option>
             </NativeSelect>
           </div>
@@ -477,9 +538,10 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
               <tr>
                 <th className="p-3.5">Empresa & Responsável</th>
                 <th className="p-3.5">Status</th>
+                <th className="p-3.5">Engajamento (30d)</th>
                 <th className="p-3.5">Plano & Receita</th>
                 <th className="p-3.5">Vencimento</th>
-                <th className="p-3.5 text-center">Usuários</th>
+                <th className="p-3.5 text-center">Usuários & Vagas</th>
                 <th className="p-3.5">Notas Internas</th>
                 <th className="p-3.5 text-right">Ações</th>
               </tr>
@@ -487,7 +549,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
             <tbody className="divide-y divide-border/60">
               {sortedTenants.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-muted-foreground text-sm">
+                  <td colSpan={8} className="p-8 text-center text-muted-foreground text-sm">
                     Nenhuma empresa encontrada com os filtros selecionados.
                   </td>
                 </tr>
@@ -504,10 +566,32 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
                   const mrrVal = calculateTenantMrr(t);
                   const customMrr = extractCustomMrr(t.manual_notes);
 
+                  const adminCount = t.users.filter(
+                    (u) => u.active && normalizeMemberRole(u.role) === "admin"
+                  ).length;
+                  const gestorCount = t.users.filter(
+                    (u) => u.active && normalizeMemberRole(u.role) === "gestor"
+                  ).length;
+                  const colabCount = t.users.filter(
+                    (u) => u.active && normalizeMemberRole(u.role) === "colaborador"
+                  ).length;
+                  const roleParts: string[] = [];
+                  if (adminCount > 0) roleParts.push(`${adminCount} adm`);
+                  if (gestorCount > 0) roleParts.push(`${gestorCount} gest`);
+                  if (colabCount > 0) roleParts.push(`${colabCount} colab`);
+
+                  const usagePct =
+                    t.max_users && t.max_users > 0
+                      ? Math.min(100, Math.round((t.membersCount / t.max_users) * 100))
+                      : 0;
+                  const isNearLimit = Boolean(t.max_users && usagePct >= 80 && t.membersCount < t.max_users);
+                  const isAtLimit = Boolean(t.max_users && t.membersCount >= t.max_users);
+                  const lastEntryBr = formatDateBr(t.lastEntryDate);
+
                   return (
                     <tr key={t.id} className="hover:bg-muted/30 transition-colors">
                       {/* Empresa e Administrador Principal */}
-                      <td className="p-3.5 min-w-[240px]">
+                      <td className="p-3.5 min-w-[230px]">
                         <div className="flex items-start justify-between gap-1.5">
                           <div>
                             <button
@@ -529,16 +613,22 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
                         {t.primaryAdmin ? (
                           <div className="mt-1.5 flex items-center gap-1.5 text-[11px] bg-muted/40 px-2 py-1 rounded-md border border-border/40 max-w-fit">
                             <UserCheckIcon className="size-3 text-primary shrink-0" />
-                            <span className="font-medium text-foreground truncate max-w-[120px]" title={t.primaryAdmin.fullName}>
+                            <span
+                              className="font-medium text-foreground truncate max-w-[120px]"
+                              title={t.primaryAdmin.fullName}
+                            >
                               {t.primaryAdmin.fullName}
                             </span>
                             <span className="text-muted-foreground">·</span>
-                            <span className="text-muted-foreground truncate max-w-[150px]" title={t.primaryAdmin.email}>
+                            <span
+                              className="text-muted-foreground truncate max-w-[150px]"
+                              title={t.primaryAdmin.email}
+                            >
                               {t.primaryAdmin.email}
                             </span>
                             <button
                               onClick={() => copyToClipboard(t.primaryAdmin!.email, `mail-${t.id}`)}
-                              className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+                              className="text-muted-foreground hover:text-foreground transition-colors p-0.5 cursor-pointer"
                               title="Copiar e-mail do admin"
                             >
                               {copiedId === `mail-${t.id}` ? (
@@ -571,12 +661,65 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
                         </Badge>
                       </td>
 
+                      {/* Engajamento (30d) */}
+                      <td className="p-3.5 whitespace-nowrap">
+                        <button
+                          onClick={() => setHealthTenant(t)}
+                          className="text-left group cursor-pointer space-y-1"
+                          title="Abrir Visão 360° de uso e engajamento"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`inline-block size-2 rounded-full ${
+                                t.healthStatus === "engaged"
+                                  ? "bg-emerald-500"
+                                  : t.healthStatus === "low_activity"
+                                  ? "bg-amber-500"
+                                  : "bg-destructive"
+                              }`}
+                            />
+                            <span
+                              className={`text-xs font-medium group-hover:underline ${
+                                t.healthStatus === "engaged"
+                                  ? "text-emerald-700 dark:text-emerald-400"
+                                  : t.healthStatus === "low_activity"
+                                  ? "text-amber-700 dark:text-amber-400"
+                                  : "text-destructive"
+                              }`}
+                            >
+                              {t.healthStatus === "engaged"
+                                ? "Engajada"
+                                : t.healthStatus === "low_activity"
+                                ? "Baixo Uso"
+                                : "Sem Uso"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            {t.recentEntries30d > 0 ? (
+                              <>
+                                <strong className="font-medium text-foreground/80">
+                                  {t.recentHours30d}h
+                                </strong>{" "}
+                                · Último: {lastEntryBr}
+                              </>
+                            ) : lastEntryBr ? (
+                              <>Último: {lastEntryBr}</>
+                            ) : (
+                              "Sem apontamentos"
+                            )}
+                          </p>
+                        </button>
+                      </td>
+
                       {/* Plano & MRR */}
                       <td className="p-3.5 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <p className="font-medium capitalize text-xs">{t.plan_tier || "Pro"}</p>
                           {customMrr !== null && (
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 border-indigo-400 text-indigo-600 dark:text-indigo-400">
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] px-1 py-0 border-indigo-400 text-indigo-600 dark:text-indigo-400"
+                            >
                               Custom
                             </Badge>
                           )}
@@ -626,43 +769,70 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
                         )}
                       </td>
 
-                      {/* Usuários e Vagas */}
+                      {/* Usuários e Barra de Ocupação de Vagas */}
                       <td className="p-3.5 text-center text-xs whitespace-nowrap">
                         <button
                           onClick={() => setViewUsersTenant(t)}
-                          className="flex flex-col items-center justify-center gap-0.5 mx-auto group cursor-pointer"
-                          title="Clique para ver os usuários cadastrados"
+                          className="flex flex-col items-center justify-center gap-1 mx-auto group cursor-pointer min-w-[110px]"
+                          title="Clique para ver os usuários cadastrados (admins, gestores e colaboradores)"
                         >
                           <span className="font-semibold text-foreground group-hover:text-primary transition-colors flex items-center gap-1">
                             <span>{t.membersCount}</span>
                             {t.max_users ? ` / ${t.max_users}` : ""}
                             <UsersIcon className="size-3 opacity-50 group-hover:opacity-100" />
                           </span>
+
                           {t.max_users ? (
-                            t.membersCount >= t.max_users ? (
-                              <span className="text-[10px] text-destructive font-medium bg-destructive/10 px-1.5 py-0.2 rounded">
-                                Limite atingido
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground">
-                                {t.max_users - t.membersCount}{" "}
-                                {t.max_users - t.membersCount === 1 ? "vaga" : "vagas"}
-                              </span>
-                            )
+                            <>
+                              <div className="h-1.5 w-24 rounded-full bg-muted overflow-hidden">
+                                <div
+                                  className={`h-full transition-all ${
+                                    isAtLimit
+                                      ? "bg-destructive"
+                                      : isNearLimit
+                                      ? "bg-amber-500"
+                                      : "bg-primary"
+                                  }`}
+                                  style={{ width: `${usagePct}%` }}
+                                />
+                              </div>
+                              {isAtLimit ? (
+                                <span className="text-[10px] text-destructive font-medium bg-destructive/10 px-1.5 py-0.2 rounded inline-flex items-center gap-0.5">
+                                  <TrendingUpIcon className="size-2.5" />
+                                  Limite · Upsell
+                                </span>
+                              ) : isNearLimit ? (
+                                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                                  {usagePct}% ocupado
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground">
+                                  {t.max_users - t.membersCount}{" "}
+                                  {t.max_users - t.membersCount === 1 ? "vaga" : "vagas"}
+                                </span>
+                              )}
+                            </>
                           ) : (
                             <span className="text-[10px] text-muted-foreground">ilimitado</span>
+                          )}
+
+                          {roleParts.length > 0 && (
+                            <span className="text-[10px] text-muted-foreground/80">
+                              {roleParts.join(" · ")}
+                            </span>
                           )}
                         </button>
                       </td>
 
                       {/* Notas */}
                       <td
-                        className="p-3.5 max-w-[180px] truncate text-xs text-muted-foreground"
+                        className="p-3.5 max-w-[170px] truncate text-xs text-muted-foreground"
                         title={t.manual_notes ?? ""}
                       >
                         {t.manual_notes ? (
-                          t.manual_notes.replace(/\[MRR:\s*\d+(?:[.,]\d+)?\]/gi, "").trim() ||
-                          <span className="opacity-40">-</span>
+                          t.manual_notes.replace(/\[MRR:\s*\d+(?:[.,]\d+)?\]/gi, "").trim() || (
+                            <span className="opacity-40">-</span>
+                          )
                         ) : (
                           <span className="opacity-40">-</span>
                         )}
@@ -693,7 +863,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
                                 ? "h-8 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 text-xs cursor-pointer"
                                 : "h-8 text-destructive hover:bg-destructive/10 gap-1 text-xs cursor-pointer"
                             }
-                            onClick={() => handleToggleStatus(t)}
+                            onClick={() => setConfirmToggleTenant(t)}
                             disabled={isPending}
                           >
                             {isSuspended ? (
@@ -719,7 +889,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
                                 </Button>
                               }
                             />
-                            <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuContent align="end" className="w-60">
                               <DropdownMenuLabel>Gerenciar {t.name}</DropdownMenuLabel>
 
                               <DropdownMenuItem
@@ -773,7 +943,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
                               </DropdownMenuItem>
 
                               <DropdownMenuItem
-                                onClick={() => handleQuickSetMaxUsers(t)}
+                                onClick={() => setMaxUsersTenant(t)}
                                 className="cursor-pointer font-medium text-primary"
                               >
                                 <UsersIcon className="mr-2 size-4 text-primary" />
@@ -782,24 +952,43 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
 
                               <DropdownMenuSeparator />
                               <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
+                                Renovação Rápida (Ativa)
+                              </DropdownMenuLabel>
+                              <DropdownMenuItem
+                                onClick={() => setConfirmRenewState({ tenant: t, days: 30 })}
+                                className="cursor-pointer text-emerald-600 dark:text-emerald-400"
+                              >
+                                <CalendarCheck2Icon className="mr-2 size-4" />
+                                Renovar +30 dias
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => setConfirmRenewState({ tenant: t, days: 365 })}
+                                className="cursor-pointer text-emerald-600 dark:text-emerald-400"
+                              >
+                                <CalendarCheck2Icon className="mr-2 size-4" />
+                                Renovar +1 ano (365d)
+                              </DropdownMenuItem>
+
+                              <DropdownMenuSeparator />
+                              <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
                                 Prorrogar Teste
                               </DropdownMenuLabel>
                               <DropdownMenuItem
-                                onClick={() => handleExtendTrial(t, 7)}
+                                onClick={() => setConfirmTrialState({ tenant: t, days: 7 })}
                                 className="cursor-pointer"
                               >
                                 <SparklesIcon className="mr-2 size-4 text-amber-500" />
                                 +7 dias grátis
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={() => handleExtendTrial(t, 14)}
+                                onClick={() => setConfirmTrialState({ tenant: t, days: 14 })}
                                 className="cursor-pointer"
                               >
                                 <SparklesIcon className="mr-2 size-4 text-amber-500" />
                                 +14 dias grátis
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={() => handleExtendTrial(t, 30)}
+                                onClick={() => setConfirmTrialState({ tenant: t, days: 30 })}
                                 className="cursor-pointer"
                               >
                                 <SparklesIcon className="mr-2 size-4 text-amber-500" />
@@ -808,7 +997,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
 
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
-                                onClick={() => handleDeleteTenant(t)}
+                                onClick={() => setDeleteTenantTarget(t)}
                                 className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
                               >
                                 <Trash2Icon className="mr-2 size-4 text-destructive" />
@@ -832,7 +1021,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
         <EditTenantDialog
           tenant={selectedTenant}
           onClose={() => setSelectedTenant(null)}
-          onDelete={() => handleDeleteTenant(selectedTenant)}
+          onDelete={() => setDeleteTenantTarget(selectedTenant)}
         />
       )}
 
@@ -847,6 +1036,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
       {/* Dialog: Lista de Usuários da Empresa */}
       {viewUsersTenant && (
         <TenantUsersDialog
+          key={viewUsersTenant.id}
           tenant={viewUsersTenant}
           onClose={() => setViewUsersTenant(null)}
           onGenerateAccessLink={(email) =>
@@ -858,6 +1048,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
       {/* Dialog: Visão 360° e Saúde da Empresa */}
       {healthTenant && (
         <TenantHealthDialog
+          key={healthTenant.id}
           tenant={healthTenant}
           onClose={() => setHealthTenant(null)}
           onImpersonate={() => handleImpersonate(healthTenant)}
@@ -871,12 +1062,62 @@ export function TenantsTable({ tenants }: { tenants: TenantRowData[] }) {
           onClose={() => setAccessLinkState((prev) => ({ ...prev, open: false }))}
         />
       )}
+
+      {/* Dialog: Suspender / Reativar Empresa */}
+      {confirmToggleTenant && (
+        <ConfirmToggleStatusDialog
+          tenant={confirmToggleTenant}
+          pending={isPending}
+          onConfirm={() => executeToggleStatus(confirmToggleTenant)}
+          onClose={() => setConfirmToggleTenant(null)}
+        />
+      )}
+
+      {/* Dialog: Prorrogar Teste (Trial) */}
+      {confirmTrialState && (
+        <ConfirmExtendTrialDialog
+          tenant={confirmTrialState.tenant}
+          days={confirmTrialState.days}
+          pending={isPending}
+          onConfirm={() => executeExtendTrial(confirmTrialState.tenant, confirmTrialState.days)}
+          onClose={() => setConfirmTrialState(null)}
+        />
+      )}
+
+      {/* Dialog: Renovar Assinatura */}
+      {confirmRenewState && (
+        <ConfirmRenewDialog
+          tenant={confirmRenewState.tenant}
+          days={confirmRenewState.days}
+          pending={isPending}
+          onConfirm={() =>
+            executeRenewSubscription(confirmRenewState.tenant, confirmRenewState.days)
+          }
+          onClose={() => setConfirmRenewState(null)}
+        />
+      )}
+
+      {/* Dialog: Alterar Limite de Vagas */}
+      {maxUsersTenant && (
+        <MaxUsersDialog
+          tenant={maxUsersTenant}
+          onClose={() => setMaxUsersTenant(null)}
+        />
+      )}
+
+      {/* Dialog: Excluir Empresa */}
+      {deleteTenantTarget && (
+        <DeleteTenantDialog
+          tenant={deleteTenantTarget}
+          onClose={() => setDeleteTenantTarget(null)}
+        />
+      )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------
-// Componente: Visualizador de Usuários da Empresa
+// Componente: Visualizador de Usuários da Empresa (com Gestores, Admins e Colaboradores)
 // ---------------------------------------------------------------------
 function TenantUsersDialog({
   tenant,
@@ -888,6 +1129,38 @@ function TenantUsersDialog({
   onGenerateAccessLink: (email: string) => void;
 }) {
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
+  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "gestor" | "colaborador">("all");
+  const [activeFilter, setActiveFilter] = useState<"all" | "active" | "inactive">("all");
+  const [memberSearch, setMemberSearch] = useState("");
+
+  const roleCounts = useMemo(() => {
+    let admin = 0;
+    let gestor = 0;
+    let colaborador = 0;
+    let inactive = 0;
+    for (const u of tenant.users) {
+      const nr = normalizeMemberRole(u.role);
+      if (nr === "admin") admin++;
+      else if (nr === "gestor") gestor++;
+      else colaborador++;
+      if (!u.active) inactive++;
+    }
+    return { admin, gestor, colaborador, inactive };
+  }, [tenant.users]);
+
+  const filteredUsers = useMemo(() => {
+    const q = memberSearch.trim().toLowerCase();
+    return tenant.users.filter((u) => {
+      const nr = normalizeMemberRole(u.role);
+      if (roleFilter !== "all" && nr !== roleFilter) return false;
+      if (activeFilter === "active" && !u.active) return false;
+      if (activeFilter === "inactive" && u.active) return false;
+      if (q && !u.fullName.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) {
+        return false;
+      }
+      return true;
+    });
+  }, [tenant.users, roleFilter, activeFilter, memberSearch]);
 
   const copyEmail = (email: string) => {
     navigator.clipboard.writeText(email);
@@ -897,7 +1170,7 @@ function TenantUsersDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-xl md:max-w-2xl max-h-[85vh] p-6 flex flex-col gap-4">
+      <DialogContent className="sm:max-w-xl md:max-w-2xl max-h-[85vh] p-6 flex flex-col gap-3.5">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UsersIcon className="size-5 text-primary" />
@@ -909,68 +1182,165 @@ function TenantUsersDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 pt-1 max-h-[55vh]">
+        {/* Resumo e filtros por cargo / status */}
+        {tenant.users.length > 0 && (
+          <div className="space-y-2.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Button
+                type="button"
+                size="sm"
+                variant={roleFilter === "all" ? "default" : "outline"}
+                onClick={() => setRoleFilter("all")}
+                className="h-7 px-2.5 text-xs cursor-pointer"
+              >
+                Todos ({tenant.users.length})
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={roleFilter === "admin" ? "default" : "outline"}
+                onClick={() => setRoleFilter("admin")}
+                className="h-7 px-2.5 text-xs cursor-pointer"
+              >
+                Admins ({roleCounts.admin})
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={roleFilter === "gestor" ? "default" : "outline"}
+                onClick={() => setRoleFilter("gestor")}
+                className="h-7 px-2.5 text-xs text-indigo-600 dark:text-indigo-400 border-indigo-500/30 cursor-pointer"
+              >
+                Gestores ({roleCounts.gestor})
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={roleFilter === "colaborador" ? "default" : "outline"}
+                onClick={() => setRoleFilter("colaborador")}
+                className="h-7 px-2.5 text-xs cursor-pointer"
+              >
+                Colaboradores ({roleCounts.colaborador})
+              </Button>
+
+              {roleCounts.inactive > 0 && (
+                <div className="ml-auto flex items-center gap-1">
+                  <NativeSelect
+                    aria-label="Filtrar por status do usuário"
+                    value={activeFilter}
+                    onChange={(e) =>
+                      setActiveFilter(e.target.value as "all" | "active" | "inactive")
+                    }
+                    className="h-7 text-xs w-[125px]"
+                  >
+                    <option value="all">Ativos e Inativos</option>
+                    <option value="active">Somente Ativos</option>
+                    <option value="inactive">Inativos ({roleCounts.inactive})</option>
+                  </NativeSelect>
+                </div>
+              )}
+            </div>
+
+            {tenant.users.length > 6 && (
+              <div className="relative">
+                <SearchIcon className="absolute left-2.5 top-2 size-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Filtrar por nome ou e-mail..."
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  className="h-8 pl-8 text-xs"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 pt-1 max-h-[50vh]">
           {tenant.users.length === 0 ? (
             <p className="text-center py-8 text-sm text-muted-foreground">
               Nenhum usuário com login registrado nesta empresa.
             </p>
+          ) : filteredUsers.length === 0 ? (
+            <p className="text-center py-8 text-sm text-muted-foreground">
+              Nenhum usuário encontrado com esse filtro.
+            </p>
           ) : (
-            tenant.users.map((u) => (
-              <div
-                key={u.id}
-                className="flex items-center justify-between gap-4 p-3.5 rounded-xl border bg-card/60 hover:bg-muted/30 transition-colors"
-              >
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-sm text-foreground truncate max-w-[200px]" title={u.fullName}>
-                      {u.fullName}
-                    </p>
-                    <Badge
-                      variant={u.role === "admin" ? "default" : "secondary"}
-                      className="text-[10px] capitalize px-2 py-0.5 shrink-0"
-                    >
-                      {u.role === "admin"
-                        ? "Administrador"
-                        : u.role === "manager"
-                        ? "Gestor"
-                        : "Colaborador"}
-                    </Badge>
-                    {!u.active && (
-                      <Badge variant="destructive" className="text-[10px] px-2 py-0.5 shrink-0">
-                        Inativo
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span className="truncate max-w-[240px] sm:max-w-sm" title={u.email}>
-                      {u.email}
-                    </span>
-                    <button
-                      onClick={() => copyEmail(u.email)}
-                      className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted shrink-0 cursor-pointer"
-                      title="Copiar e-mail"
-                    >
-                      {copiedEmail === u.email ? (
-                        <CheckIcon className="size-3.5 text-emerald-500" />
-                      ) : (
-                        <CopyIcon className="size-3.5" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-900/50 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 shrink-0 cursor-pointer ml-2"
-                  onClick={() => onGenerateAccessLink(u.email)}
-                  title="Gerar link mágico de login sem necessidade de senha"
+            filteredUsers.map((u) => {
+              const nr = normalizeMemberRole(u.role);
+              return (
+                <div
+                  key={u.id}
+                  className="flex items-center justify-between gap-4 p-3.5 rounded-xl border bg-card/60 hover:bg-muted/30 transition-colors"
                 >
-                  <KeyRoundIcon className="size-3.5" />
-                  <span className="whitespace-nowrap">Link de Login</span>
-                </Button>
-              </div>
-            ))
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p
+                        className="font-semibold text-sm text-foreground truncate max-w-[200px]"
+                        title={u.fullName}
+                      >
+                        {u.fullName}
+                      </p>
+                      {nr === "admin" ? (
+                        <Badge variant="default" className="text-[10px] px-2 py-0.5 shrink-0">
+                          Administrador
+                        </Badge>
+                      ) : nr === "gestor" ? (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-2 py-0.5 shrink-0 border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"
+                        >
+                          Gestor
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-[10px] px-2 py-0.5 shrink-0">
+                          Colaborador
+                        </Badge>
+                      )}
+                      {nr === "gestor" && u.canViewCosts && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0.5 shrink-0 text-muted-foreground"
+                        >
+                          Vê custos
+                        </Badge>
+                      )}
+                      {!u.active && (
+                        <Badge variant="destructive" className="text-[10px] px-2 py-0.5 shrink-0">
+                          Inativo
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="truncate max-w-[240px] sm:max-w-sm" title={u.email}>
+                        {u.email}
+                      </span>
+                      <button
+                        onClick={() => copyEmail(u.email)}
+                        className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted shrink-0 cursor-pointer"
+                        title="Copiar e-mail"
+                      >
+                        {copiedEmail === u.email ? (
+                          <CheckIcon className="size-3.5 text-emerald-500" />
+                        ) : (
+                          <CopyIcon className="size-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-900/50 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 shrink-0 cursor-pointer ml-2"
+                    onClick={() => onGenerateAccessLink(u.email)}
+                    title="Gerar link mágico de login sem necessidade de senha"
+                  >
+                    <KeyRoundIcon className="size-3.5" />
+                    <span className="whitespace-nowrap">Link de Login</span>
+                  </Button>
+                </div>
+              );
+            })
           )}
         </div>
       </DialogContent>
@@ -1091,7 +1461,7 @@ function TenantHealthDialog({
 
   const sub = getSubscriptionInfo(tenant);
 
-  useState(() => {
+  useEffect(() => {
     let mounted = true;
     getTenantHealthAction(tenant.id)
       .then((data) => {
@@ -1106,7 +1476,7 @@ function TenantHealthDialog({
     return () => {
       mounted = false;
     };
-  });
+  }, [tenant.id]);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -1203,9 +1573,7 @@ function TenantHealthDialog({
               <div className="flex justify-between border-b pb-2">
                 <span className="text-muted-foreground">Último Apontamento Registrado:</span>
                 <span className="font-semibold">
-                  {health.lastEntryDate
-                    ? new Date(health.lastEntryDate).toLocaleDateString("pt-BR")
-                    : "Nenhum registro"}
+                  {formatDateBr(health.lastEntryDate) ?? "Nenhum registro"}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -1230,6 +1598,344 @@ function TenantHealthDialog({
             </div>
           </div>
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Modais Padronizados de Confirmação & Ações Rápidas
+// ---------------------------------------------------------------------
+function ConfirmToggleStatusDialog({
+  tenant,
+  pending,
+  onConfirm,
+  onClose,
+}: {
+  tenant: TenantRowData;
+  pending: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const isSuspended = tenant.subscription_status === "suspended";
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
+      <DialogContent className="sm:max-w-md p-6 gap-4">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {isSuspended ? (
+              <PlayIcon className="size-5 text-emerald-600" />
+            ) : (
+              <BanIcon className="size-5 text-destructive" />
+            )}
+            {isSuspended ? `Reativar ${tenant.name}?` : `Suspender ${tenant.name}?`}
+          </DialogTitle>
+          <DialogDescription>
+            {isSuspended
+              ? `Os usuários da empresa "${tenant.name}" voltarão a ter acesso normal ao workspace.`
+              : `O acesso da empresa "${tenant.name}" será bloqueado imediatamente. Os usuários verão uma tela orientando a contatar o administrador.`}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button
+            size="sm"
+            variant={isSuspended ? "default" : "destructive"}
+            className={isSuspended ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}
+            onClick={onConfirm}
+            disabled={pending}
+          >
+            {pending
+              ? "Processando..."
+              : isSuspended
+              ? "Confirmar Reativação"
+              : "Confirmar Suspensão"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConfirmExtendTrialDialog({
+  tenant,
+  days,
+  pending,
+  onConfirm,
+  onClose,
+}: {
+  tenant: TenantRowData;
+  days: number;
+  pending: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
+      <DialogContent className="sm:max-w-md p-6 gap-4">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <SparklesIcon className="size-5 text-amber-500" />
+            Prorrogar Teste (+{days} dias)
+          </DialogTitle>
+          <DialogDescription>
+            Deseja prorrogar o período de avaliação gratuita da empresa{" "}
+            <strong>{tenant.name}</strong> por mais <strong>{days} dias</strong> a partir de hoje?
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button size="sm" onClick={onConfirm} disabled={pending}>
+            {pending ? "Prorrogando..." : `Adicionar +${days} dias`}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConfirmRenewDialog({
+  tenant,
+  days,
+  pending,
+  onConfirm,
+  onClose,
+}: {
+  tenant: TenantRowData;
+  days: number;
+  pending: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const [nowMs] = useState(() => Date.now());
+  const currentEndMs = tenant.current_period_end
+    ? new Date(tenant.current_period_end).getTime()
+    : 0;
+  const baseMs = Math.max(nowMs, Number.isFinite(currentEndMs) ? currentEndMs : 0);
+  const previewDate = new Date(baseMs + days * 86400000).toLocaleDateString("pt-BR");
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
+      <DialogContent className="sm:max-w-md p-6 gap-4">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarCheck2Icon className="size-5 text-emerald-600" />
+            Renovar Assinatura (+{days === 365 ? "1 ano" : `${days} dias`})
+          </DialogTitle>
+          <DialogDescription>
+            A assinatura de <strong>{tenant.name}</strong> será marcada como{" "}
+            <strong>Ativa (Manual)</strong> e terá o vencimento estendido para{" "}
+            <strong>{previewDate}</strong>.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button
+            size="sm"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={onConfirm}
+            disabled={pending}
+          >
+            {pending ? "Renovando..." : "Confirmar Renovação"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MaxUsersDialog({
+  tenant,
+  onClose,
+}: {
+  tenant: TenantRowData;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState<string>(tenant.max_users ? String(tenant.max_users) : "");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const submitLimit = (nextLimit: number | null) => {
+    setErrorMsg(null);
+    startTransition(async () => {
+      try {
+        await updateTenantMaxUsersAction(tenant.id, nextLimit);
+        toast.success(
+          nextLimit
+            ? `Limite de "${tenant.name}" atualizado para ${nextLimit} usuários.`
+            : `Limite de "${tenant.name}" liberado (Ilimitado).`
+        );
+        onClose();
+      } catch (err) {
+        setErrorMsg(err instanceof Error ? err.message : "Erro ao atualizar limite.");
+      }
+    });
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = value.trim();
+    if (trimmed === "" || trimmed === "0") {
+      submitLimit(null);
+      return;
+    }
+    const parsed = parseInt(trimmed, 10);
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      setErrorMsg("Informe um número inteiro positivo (ex: 5, 10) ou deixe vazio para ilimitado.");
+      return;
+    }
+    submitLimit(parsed);
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
+      <DialogContent className="sm:max-w-md p-6 gap-4">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UsersIcon className="size-5 text-primary" />
+            Limite de Vagas · {tenant.name}
+          </DialogTitle>
+          <DialogDescription>
+            Usuários registrados atualmente: <strong>{tenant.membersCount}</strong>. Deixe o campo
+            vazio ou clique em &ldquo;Ilimitado&rdquo; para remover o teto.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSave} className="space-y-4">
+          {errorMsg && (
+            <div className="rounded-lg bg-destructive/10 p-3 text-xs text-destructive">
+              {errorMsg}
+            </div>
+          )}
+
+          <Field
+            label="Quantidade máxima de usuários"
+            htmlFor="quickMaxUsersInput"
+            hint="Vazio ou 0 = sem limite de vagas."
+          >
+            <Input
+              id="quickMaxUsersInput"
+              type="number"
+              min="0"
+              placeholder="Ex: 10"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              autoFocus
+            />
+          </Field>
+
+          <div className="flex items-center justify-between gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => submitLimit(null)}
+              disabled={pending}
+            >
+              Definir Ilimitado
+            </Button>
+
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={pending}>
+                Cancelar
+              </Button>
+              <Button type="submit" size="sm" disabled={pending}>
+                {pending ? "Salvando..." : "Salvar Limite"}
+              </Button>
+            </div>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteTenantDialog({
+  tenant,
+  onClose,
+}: {
+  tenant: TenantRowData;
+  onClose: () => void;
+}) {
+  const [confirmName, setConfirmName] = useState("");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const matches = confirmName.trim().toLowerCase() === tenant.name.trim().toLowerCase();
+
+  const handleDelete = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!matches) return;
+    setErrorMsg(null);
+    startTransition(async () => {
+      try {
+        await deleteTenantAction(tenant.id);
+        toast.success(`Empresa "${tenant.name}" excluída definitivamente.`);
+        onClose();
+      } catch (err) {
+        setErrorMsg(err instanceof Error ? err.message : "Erro ao excluir empresa.");
+      }
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
+      <DialogContent className="sm:max-w-md p-6 gap-4">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <Trash2Icon className="size-5" />
+            Excluir Empresa Definitivamente
+          </DialogTitle>
+          <DialogDescription>
+            Ação irreversível! Todos os dados de <strong>{tenant.name}</strong> (contratos,
+            clientes, colaboradores, apontamentos e logins) serão excluídos permanentemente.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleDelete} className="space-y-4">
+          {errorMsg && (
+            <div className="rounded-lg bg-destructive/10 p-3 text-xs text-destructive">
+              {errorMsg}
+            </div>
+          )}
+
+          <Field
+            label={`Digite "${tenant.name}" para confirmar`}
+            htmlFor="deleteTenantConfirmInput"
+          >
+            <Input
+              id="deleteTenantConfirmInput"
+              value={confirmName}
+              onChange={(e) => setConfirmName(e.target.value)}
+              placeholder={tenant.name}
+              autoFocus
+            />
+          </Field>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={pending}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              variant="destructive"
+              size="sm"
+              disabled={!matches || pending}
+            >
+              {pending ? "Excluindo..." : "Excluir Definitivamente"}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
