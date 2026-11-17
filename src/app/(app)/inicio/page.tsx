@@ -1,14 +1,23 @@
 import Link from "next/link";
-import { ArrowRightIcon, CalendarX2Icon, CheckCircle2Icon } from "lucide-react";
+import {
+  ArrowRightIcon,
+  CalendarClockIcon,
+  CalendarX2Icon,
+  CheckCircle2Icon,
+  ClipboardCheckIcon,
+  UserXIcon,
+} from "lucide-react";
+import { InfoTooltip } from "@/components/info-tooltip";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { requireContext, ROLE_LABELS } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { formatCurrency, formatHours, formatPercent, todayISO } from "@/lib/format";
-import { addDays, endOfMonth, startOfMonth } from "@/lib/time";
+import { formatCurrency, formatDate, formatHours, formatPercent, todayISO } from "@/lib/format";
+import { addDays, businessDaysBetween, endOfMonth, startOfMonth } from "@/lib/time";
 import { resolvePeriod } from "@/lib/periods";
-import { getProfitabilityReport } from "@/lib/server/metrics";
+import { getEmployeeMetrics, getProfitabilityReport } from "@/lib/server/metrics";
 import { calculateSalaryProjection, type SalaryProjection } from "@/lib/salary-projection";
 import type { HealthStatus } from "@/lib/profitability";
 import type { HeatmapRawEntry, HeatmapRawLeave } from "@/lib/heatmap";
@@ -16,6 +25,15 @@ import { LeavesDialog, type LeaveRecord } from "../minhas-analises/leaves-dialog
 import { ActivityHeatmap } from "./activity-heatmap";
 
 export const metadata = { title: "Início | Apontamento" };
+
+const LEAVE_TYPE_LABELS: Record<string, string> = {
+  ferias: "Férias",
+  recesso: "Recesso",
+  falta: "Falta",
+  atestado: "Atestado",
+  folga: "Folga",
+  outro: "Outro",
+};
 
 function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -83,15 +101,14 @@ export default async function HomePage() {
 
       {isManager ? (
         <>
+          <ManagerDailyRadar today={today} />
           <ManagerSummary canSeeCosts={canSeeCosts} />
           {employeeId && (
             <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
                   <h2 className="text-lg font-semibold tracking-tight">Seus apontamentos pessoais</h2>
-                  <p className="text-xs text-muted-foreground">
-                    Seus dias apontados e horas registradas por cliente.
-                  </p>
+                  <InfoTooltip text="Seus dias apontados e horas registradas por cliente." />
                 </div>
                 <Button nativeButton={false} render={<Link href="/apontamentos" />} variant="outline" size="sm">
                   Lançar horas
@@ -117,25 +134,231 @@ export default async function HomePage() {
           projection={projection}
         />
       )}
+    </div>
+  );
+}
 
-      {profile.role === "admin" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Configuração da empresa</CardTitle>
-            <CardDescription>Dados, domínio corporativo e parâmetros de cálculo.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Button nativeButton={false} render={<Link href="/configuracoes/empresa" />} variant="outline">
-              Configurar empresa
-              <ArrowRightIcon />
-            </Button>
-            <Button nativeButton={false} render={<Link href="/configuracoes/usuarios" />}>
-              Convidar equipe
-              <ArrowRightIcon />
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
+/** Radar operacional do dia para gestores e administradores. */
+async function ManagerDailyRadar({ today }: { today: string }) {
+  const period = resolvePeriod(today);
+  const weekAhead = addDays(today, 7);
+  const supabase = await createClient();
+
+  const [pendingRes, deletionRes, upcomingLeavesRes, employeeMetrics] = await Promise.all([
+    supabase
+      .from("time_entries")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pendente"),
+    supabase
+      .from("time_entries")
+      .select("id", { count: "exact", head: true })
+      .not("deletion_requested_at", "is", null),
+    supabase
+      .from("employee_leaves")
+      .select("id, employee_id, start_date, end_date, type, employees(full_name, active)")
+      .lte("start_date", weekAhead)
+      .gte("end_date", today)
+      .order("start_date", { ascending: true }),
+    getEmployeeMetrics(period),
+  ]);
+
+  const pendingCount = pendingRes.count ?? 0;
+  const deletionCount = deletionRes.count ?? 0;
+  const totalApprovals = pendingCount + deletionCount;
+
+  const activeLeaves = (upcomingLeavesRes.data ?? [])
+    .map((row) => {
+      const emp = row.employees as unknown as { full_name: string; active: boolean } | null;
+      return {
+        id: row.id,
+        employeeId: row.employee_id,
+        employeeName: emp?.full_name ?? "Colaborador",
+        employeeActive: emp?.active ?? true,
+        startDate: row.start_date,
+        endDate: row.end_date,
+        type: row.type,
+      };
+    })
+    .filter((l) => l.employeeActive);
+
+  const onLeaveTodayIds = new Set(
+    activeLeaves
+      .filter((l) => l.startDate <= today && l.endDate >= today)
+      .map((l) => l.employeeId),
+  );
+
+  const overdueEmployees = employeeMetrics
+    .filter((emp) => emp.active && emp.last_entry_date && !onLeaveTodayIds.has(emp.employee_id))
+    .map((emp) => {
+      const idleDays = businessDaysBetween(emp.last_entry_date!, today) - 1;
+      return {
+        id: emp.employee_id,
+        name: emp.employee_name,
+        lastEntryDate: emp.last_entry_date!,
+        idleDays,
+      };
+    })
+    .filter((emp) => emp.idleDays > 2)
+    .sort((a, b) => b.idleDays - a.idleDays);
+
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      {/* Bloco 1: Aprovações Pendentes */}
+      <Card className={totalApprovals > 0 ? "border-amber-500/40 bg-amber-500/5" : ""}>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ClipboardCheckIcon className="size-4 text-primary" />
+              Aprovações pendentes
+            </CardTitle>
+            {totalApprovals > 0 ? (
+              <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30" variant="outline">
+                {totalApprovals}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                Em dia
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          {totalApprovals === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Nenhum apontamento ou pedido de exclusão aguardando análise.
+            </p>
+          ) : (
+            <div className="space-y-1 text-xs text-muted-foreground">
+              <p>
+                <strong className="font-semibold text-foreground">{pendingCount}</strong>{" "}
+                {pendingCount === 1 ? "apontamento para aprovar" : "apontamentos para aprovar"}
+              </p>
+              <p>
+                <strong className="font-semibold text-foreground">{deletionCount}</strong>{" "}
+                {deletionCount === 1 ? "solicitação de exclusão" : "solicitações de exclusão"}
+              </p>
+            </div>
+          )}
+          <Button
+            nativeButton={false}
+            render={<Link href="/aprovacoes" />}
+            variant={totalApprovals > 0 ? "default" : "outline"}
+            size="sm"
+            className="w-full justify-between"
+          >
+            {totalApprovals > 0 ? "Revisar pendências" : "Abrir aprovações"}
+            <ArrowRightIcon className="size-3.5" />
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Bloco 2: Equipe sem apontar (>2 dias úteis) */}
+      <Card className={overdueEmployees.length > 0 ? "border-orange-500/30 bg-orange-500/5" : ""}>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <UserXIcon className="size-4 text-orange-600 dark:text-orange-400" />
+                Sem apontar (+2d)
+              </CardTitle>
+              <InfoTooltip text="Colaboradores ativos (fora de férias/ausência hoje) com mais de 2 dias úteis desde o último apontamento." />
+            </div>
+            <Badge variant={overdueEmployees.length > 0 ? "secondary" : "outline"}>
+              {overdueEmployees.length}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          {overdueEmployees.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Toda a equipe ativa registrou apontamentos recentemente.
+            </p>
+          ) : (
+            <ul className="space-y-1.5 text-xs">
+              {overdueEmployees.slice(0, 3).map((emp) => (
+                <li key={emp.id} className="flex items-center justify-between gap-2">
+                  <span className="truncate font-medium text-foreground">{emp.name}</span>
+                  <span className="shrink-0 text-orange-700 dark:text-orange-400 font-medium tabular-nums">
+                    {emp.idleDays}d úteis
+                  </span>
+                </li>
+              ))}
+              {overdueEmployees.length > 3 ? (
+                <li className="text-[11px] text-muted-foreground">
+                  + {overdueEmployees.length - 3} colaborador(es)
+                </li>
+              ) : null}
+            </ul>
+          )}
+          <Button
+            nativeButton={false}
+            render={<Link href="/dashboard?aba=equipe" />}
+            variant="outline"
+            size="sm"
+            className="w-full justify-between"
+          >
+            Ver equipe no painel
+            <ArrowRightIcon className="size-3.5" />
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Bloco 3: Férias e Ausências (hoje e próximos 7 dias) */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <CalendarClockIcon className="size-4 text-blue-600 dark:text-blue-400" />
+                Férias & ausências
+              </CardTitle>
+              <InfoTooltip text="Afastamentos vigentes hoje ou previstos para os próximos 7 dias." />
+            </div>
+            <Badge variant="outline">{activeLeaves.length}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          {activeLeaves.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Nenhuma ausência ou férias registrada para os próximos 7 dias.
+            </p>
+          ) : (
+            <ul className="space-y-1.5 text-xs">
+              {activeLeaves.slice(0, 3).map((leave) => {
+                const isToday = leave.startDate <= today && leave.endDate >= today;
+                return (
+                  <li key={leave.id} className="flex items-center justify-between gap-2">
+                    <span className="truncate font-medium text-foreground">{leave.employeeName}</span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {LEAVE_TYPE_LABELS[leave.type] ?? leave.type} ·{" "}
+                      {isToday ? (
+                        <strong className="text-blue-600 dark:text-blue-400">Hoje</strong>
+                      ) : (
+                        formatDate(leave.startDate)
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+              {activeLeaves.length > 3 ? (
+                <li className="text-[11px] text-muted-foreground">
+                  + {activeLeaves.length - 3} ausência(s) na semana
+                </li>
+              ) : null}
+            </ul>
+          )}
+          <Button
+            nativeButton={false}
+            render={<Link href="/colaboradores" />}
+            variant="outline"
+            size="sm"
+            className="w-full justify-between"
+          >
+            Gerenciar equipe
+            <ArrowRightIcon className="size-3.5" />
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

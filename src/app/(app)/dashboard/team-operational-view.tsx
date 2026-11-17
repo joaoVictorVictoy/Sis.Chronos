@@ -7,7 +7,6 @@ import {
   ClockIcon,
   DollarSignIcon,
   TrendingUpIcon,
-  AlertCircleIcon,
   LayersIcon,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/info-tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { formatCurrency, formatDate, formatHours } from "@/lib/format";
+import { formatCurrency, formatDate, formatHours, formatPercent } from "@/lib/format";
 import type { TeamOperationalReport } from "@/lib/server/metrics";
 
 export function TeamOperationalView({
@@ -47,7 +46,9 @@ export function TeamOperationalView({
           <CardContent>
             <div className="text-2xl font-bold tracking-tight">{formatHours(report.totalHours)}</div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {report.uniqueDaysWorked} {report.uniqueDaysWorked === 1 ? "dia único trabalhado" : "dias únicos com apontamentos"}
+              {report.totalAvailableHours > 0
+                ? `${formatPercent(report.teamUtilizationPct)} de ${formatHours(report.totalAvailableHours)} disponíveis`
+                : `${report.uniqueDaysWorked} ${report.uniqueDaysWorked === 1 ? "dia único trabalhado" : "dias únicos com apontamentos"}`}
             </p>
           </CardContent>
         </Card>
@@ -185,6 +186,38 @@ export function TeamOperationalView({
 
                     {/* Métricas do Colaborador */}
                     <div className="flex flex-wrap items-center gap-4 text-sm sm:gap-6">
+                      {member.availableHours > 0 ? (
+                        <div className="min-w-[140px]">
+                          <div className="flex items-center justify-between gap-2 text-[11px]">
+                            <span className="font-medium uppercase tracking-wider text-muted-foreground">
+                              Utilização
+                            </span>
+                            <span className="font-semibold tabular-nums text-foreground">
+                              {formatPercent(member.utilizationPct)}
+                            </span>
+                          </div>
+                          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                            <div
+                              className={cn(
+                                "h-full rounded-full transition-all",
+                                member.utilizationPct >= 1.05
+                                  ? "bg-amber-500"
+                                  : member.utilizationPct >= 0.75
+                                  ? "bg-emerald-500"
+                                  : "bg-primary",
+                              )}
+                              style={{ width: `${Math.min(100, Math.round(member.utilizationPct * 100))}%` }}
+                            />
+                          </div>
+                          <span className="mt-0.5 block text-[10px] text-muted-foreground tabular-nums">
+                            {formatHours(member.totalHours)} / {formatHours(member.availableHours)}
+                            {member.totalHours > 0
+                              ? ` · ${formatPercent(member.billableShare)} fat.`
+                              : ""}
+                          </span>
+                        </div>
+                      ) : null}
+
                       <div className="text-left sm:text-right">
                         <span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                           Total Horas

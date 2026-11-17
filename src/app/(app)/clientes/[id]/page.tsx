@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeftIcon, LockIcon, PlusIcon } from "lucide-react";
+import { ArrowLeftIcon, ClockIcon, LockIcon, PlusIcon } from "lucide-react";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,7 +50,18 @@ export default async function ClientPage({ params }: PageProps<"/clientes/[id]">
         title={client.trade_name || client.legal_name}
         description={client.trade_name ? client.legal_name : undefined}
       >
-        {!client.active ? <Badge variant="secondary">inativo</Badge> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {!client.active ? <Badge variant="secondary">inativo</Badge> : null}
+          <Button
+            nativeButton={false}
+            render={<Link href={`/dashboard?aba=horas-cliente&cliente=${client.id}`} />}
+            variant="outline"
+            size="sm"
+          >
+            <ClockIcon />
+            Ver extrato de horas
+          </Button>
+        </div>
       </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">

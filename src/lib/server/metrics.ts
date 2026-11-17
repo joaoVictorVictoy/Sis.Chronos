@@ -240,6 +240,10 @@ export type TeamMemberReport = {
   active: boolean;
   jobTitle: string | null;
   totalHours: number;
+  billableHours: number;
+  availableHours: number;
+  utilizationPct: number;
+  billableShare: number;
   uniqueDays: number;
   dailyAverage: number;
   totalCost: number;
@@ -258,6 +262,8 @@ export type TeamMemberReport = {
 
 export type TeamOperationalReport = {
   totalHours: number;
+  totalAvailableHours: number;
+  teamUtilizationPct: number;
   uniqueDaysWorked: number;
   averageDailyHours: number;
   totalLaborCost: number;
@@ -277,7 +283,7 @@ export async function getTeamOperationalReport(period: Period): Promise<TeamOper
   await requireRole(["admin", "gestor"]);
   const supabase = await createClient();
 
-  const [{ data: employeesData }, entriesData] = await Promise.all([
+  const [{ data: employeesData }, entriesData, employeeMetrics] = await Promise.all([
     supabase.from("employees").select("id, full_name, active, job_title").order("full_name"),
     fetchAllPages((from, to) =>
       supabase
@@ -304,7 +310,13 @@ export async function getTeamOperationalReport(period: Period): Promise<TeamOper
         .order("id", { ascending: true })
         .range(from, to),
     ),
+    getEmployeeMetrics(period),
   ]);
+
+  const availableByEmployee = new Map<string, number>();
+  for (const m of employeeMetrics) {
+    availableByEmployee.set(m.employee_id, Number(m.available_hours) || 0);
+  }
 
   const employees = employeesData ?? [];
   const rawEntries = entriesData;
@@ -384,6 +396,13 @@ export async function getTeamOperationalReport(period: Period): Promise<TeamOper
     const empEntries = entriesByEmployee.get(emp.id) ?? [];
     const empDays = new Set(empEntries.map((e) => e.entry_date)).size;
     const empHours = empEntries.reduce((acc, e) => acc + e.minutes / 60, 0);
+    const empBillableHours = empEntries.reduce(
+      (acc, e) => acc + (e.billable ? e.minutes / 60 : 0),
+      0,
+    );
+    const empAvailableHours = availableByEmployee.get(emp.id) ?? 0;
+    const utilizationPct = empAvailableHours > 0 ? empHours / empAvailableHours : 0;
+    const billableShare = empHours > 0 ? empBillableHours / empHours : 0;
     const empCost = empEntries.reduce((acc, e) => acc + (Number(e.cost_amount) || 0), 0);
     const dailyAverage = empDays > 0 ? empHours / empDays : 0;
 
@@ -419,6 +438,10 @@ export async function getTeamOperationalReport(period: Period): Promise<TeamOper
       active: emp.active,
       jobTitle: emp.job_title,
       totalHours: empHours,
+      billableHours: empBillableHours,
+      availableHours: empAvailableHours,
+      utilizationPct,
+      billableShare,
       uniqueDays: empDays,
       dailyAverage,
       totalCost: empCost,
@@ -431,8 +454,15 @@ export async function getTeamOperationalReport(period: Period): Promise<TeamOper
     return b.totalHours - a.totalHours;
   });
 
+  const activeMembers = members.filter((m) => m.active);
+  const activeHours = activeMembers.reduce((sum, m) => sum + m.totalHours, 0);
+  const totalAvailableHours = activeMembers.reduce((sum, m) => sum + m.availableHours, 0);
+  const teamUtilizationPct = totalAvailableHours > 0 ? activeHours / totalAvailableHours : 0;
+
   return {
     totalHours,
+    totalAvailableHours,
+    teamUtilizationPct,
     uniqueDaysWorked,
     averageDailyHours,
     totalLaborCost,
