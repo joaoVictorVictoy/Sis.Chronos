@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { ArrowUpDownIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,13 @@ import { initialActionState, type ActionState } from "@/lib/actions";
 import { TimeInput24h } from "@/components/time-input-24h";
 import type { ActivityOption, AreaOption, ClientAreaOption, ClientOption, ContractOption } from "./page";
 import { createTimeEntryAction } from "./actions";
+import {
+  getAvailableActivities,
+  getAvailableAreas,
+  resolveAreaSelection,
+  resolveClientSelection,
+  resolveContractId,
+} from "./cascade";
 import { QuickActivityDialog } from "./quick-activity-dialog";
 
 export interface CascadeSelectorsProps {
@@ -141,107 +148,84 @@ export function CascadeSelectors({
     return contracts.find((c) => c.clientId === selectedClientId) ?? null;
   }, [selectedClientId, contracts]);
 
+  const resolvedContractId = useMemo(
+    () =>
+      resolveContractId({
+        selectedClientId,
+        contracts,
+        defaultClientId: initialClientId,
+        defaultContractId,
+      }),
+    [selectedClientId, contracts, initialClientId, defaultContractId],
+  );
+
   // Áreas associadas ao cliente selecionado (se não houver vínculo específico, mostra todas as ativas)
-  const availableAreas = useMemo(() => {
-    if (!selectedClientId) return areas;
-
-    const directAreaIds = clientAreas
-      .filter((ca) => ca.clientId === selectedClientId)
-      .map((ca) => ca.areaId);
-
-    if (directAreaIds.length > 0) {
-      const filtered = areas.filter((a) => directAreaIds.includes(a.id));
-      if (filtered.length > 0) return filtered;
-    }
-
-    return areas;
-  }, [selectedClientId, clientAreas, areas]);
-
-  // Filtra atividades por área e vínculo com cliente
-  const filterActivities = useCallback(
-    (areaId: string, clientId: string) => {
-      if (!areaId) return [];
-      return allActivities.filter((act) => {
-        if (act.area_id !== areaId) return false;
-        // Se um cliente específico está selecionado, exibe apenas as atividades daquele cliente
-        if (clientId) {
-          return act.client_id === clientId;
-        }
-        // Se nenhum cliente foi selecionado (Sem cliente / interno), exibe apenas atividades internas (sem cliente vinculado)
-        return !act.client_id;
-      });
-    },
-    [allActivities],
+  const availableAreas = useMemo(
+    () => getAvailableAreas(selectedClientId, areas, clientAreas),
+    [selectedClientId, areas, clientAreas],
   );
 
   // Atividades pertencentes à área selecionada e ao cliente selecionado
-  const availableActivities = useMemo(() => {
-    return filterActivities(selectedAreaId, selectedClientId);
-  }, [selectedAreaId, selectedClientId, filterActivities]);
+  const availableActivities = useMemo(
+    () => getAvailableActivities(selectedAreaId, selectedClientId, allActivities),
+    [selectedAreaId, selectedClientId, allActivities],
+  );
+
+  const safeAreaValue = availableAreas.some((a) => a.id === selectedAreaId) ? selectedAreaId : "";
+  const safeActivityValue = availableActivities.some((act) => act.id === selectedActivityId)
+    ? selectedActivityId
+    : "";
+
+  const applyClientId = (id: string) => {
+    if (isControlledClient) onClientChange?.(id);
+    else setInternalClientId(id);
+  };
+
+  const applyAreaId = (id: string) => {
+    if (isControlledArea) onAreaChange?.(id);
+    else setInternalAreaId(id);
+  };
+
+  const applyActivityId = (id: string) => {
+    if (isControlledActivity) onActivityChange?.(id);
+    else setInternalActivityId(id);
+  };
 
   const handleClientChange = (newClientId: string) => {
-    if (isControlledClient) {
-      onClientChange?.(newClientId);
-    } else {
-      setInternalClientId(newClientId);
-    }
+    const next = resolveClientSelection({
+      newClientId,
+      currentAreaId: selectedAreaId,
+      currentActivityId: selectedActivityId,
+      areas,
+      activities: allActivities,
+      clientAreas,
+    });
 
-    // Identifica as áreas válidas para o novo cliente
-    let newAvailableAreas = areas;
-    if (newClientId) {
-      const directIds = clientAreas.filter((ca) => ca.clientId === newClientId).map((ca) => ca.areaId);
-      if (directIds.length > 0) {
-        const filtered = areas.filter((a) => directIds.includes(a.id));
-        if (filtered.length > 0) newAvailableAreas = filtered;
-      }
+    applyClientId(next.clientId);
+    if (next.areaId !== selectedAreaId) {
+      applyAreaId(next.areaId);
     }
-
-    // Se a área atual não estiver disponível para o novo cliente, ajusta para a primeira
-    let targetAreaId = selectedAreaId;
-    if (!newAvailableAreas.some((a) => a.id === selectedAreaId)) {
-      targetAreaId = newAvailableAreas[0]?.id ?? "";
-      if (isControlledArea) {
-        onAreaChange?.(targetAreaId);
-      } else {
-        setInternalAreaId(targetAreaId);
-      }
-    }
-
-    // Atualiza atividade para condizer com o novo cliente + área
-    const newActs = filterActivities(targetAreaId, newClientId);
-    if (!newActs.some((act) => act.id === selectedActivityId)) {
-      const nextActId = newActs[0]?.id ?? "";
-      if (isControlledActivity) {
-        onActivityChange?.(nextActId);
-      } else {
-        setInternalActivityId(nextActId);
-      }
+    if (next.activityId !== selectedActivityId) {
+      applyActivityId(next.activityId);
     }
   };
 
   const handleAreaChange = (newAreaId: string) => {
-    if (isControlledArea) {
-      onAreaChange?.(newAreaId);
-    } else {
-      setInternalAreaId(newAreaId);
-    }
-    const newActs = filterActivities(newAreaId, selectedClientId);
-    if (!newActs.some((act) => act.id === selectedActivityId)) {
-      const nextActId = newActs[0]?.id ?? "";
-      if (isControlledActivity) {
-        onActivityChange?.(nextActId);
-      } else {
-        setInternalActivityId(nextActId);
-      }
+    const next = resolveAreaSelection({
+      newAreaId,
+      currentClientId: selectedClientId,
+      currentActivityId: selectedActivityId,
+      activities: allActivities,
+    });
+
+    applyAreaId(next.areaId);
+    if (next.activityId !== selectedActivityId) {
+      applyActivityId(next.activityId);
     }
   };
 
   const handleActivityChange = (newActId: string) => {
-    if (isControlledActivity) {
-      onActivityChange?.(newActId);
-    } else {
-      setInternalActivityId(newActId);
-    }
+    applyActivityId(newActId);
   };
 
   const clientIdAttr = `${idPrefix}clientId`;
@@ -250,7 +234,7 @@ export function CascadeSelectors({
 
   return (
     <>
-      <input type="hidden" name="contractId" value={activeContract?.id ?? defaultContractId ?? ""} />
+      <input type="hidden" name="contractId" value={resolvedContractId} />
 
       {/* 1. Cliente */}
       <div className="grid gap-1.5 min-w-0">
@@ -268,8 +252,11 @@ export function CascadeSelectors({
             </button>
           </div>
           {activeContract ? (
-            <span className="text-[10px] text-muted-foreground truncate min-w-0 text-right" title={`Contrato: ${activeContract.name}`}>
-              {activeContract.name}
+            <span
+              className="text-[10px] text-muted-foreground truncate min-w-0 text-right"
+              title={`Contrato ativo vinculado: ${activeContract.name}`}
+            >
+              Contrato: {activeContract.name}
             </span>
           ) : selectedClientId ? (
             <span className="text-[10px] text-muted-foreground truncate min-w-0 text-right">Sem contrato</span>
@@ -299,7 +286,7 @@ export function CascadeSelectors({
         <NativeSelect
           id={areaIdAttr}
           name="areaId"
-          value={selectedAreaId}
+          value={safeAreaValue}
           onChange={(e) => handleAreaChange(e.target.value)}
           disabled={disabled}
           required
@@ -324,34 +311,32 @@ export function CascadeSelectors({
             areas={availableAreas.length > 0 ? availableAreas : areas}
             clientAreas={clientAreas}
             initialClientId={selectedClientId}
-            initialAreaId={selectedAreaId}
+            initialAreaId={safeAreaValue}
             disabled={disabled}
             onActivityCreated={(newAct) => {
               setExtraActivities((prev) => {
                 if (prev.some((a) => a.id === newAct.id)) return prev;
                 return [...prev, newAct];
               });
-              if (newAct.client_id && newAct.client_id !== selectedClientId) {
-                handleClientChange(newAct.client_id);
+              const targetClientId = newAct.client_id ?? "";
+              if (targetClientId !== selectedClientId) {
+                applyClientId(targetClientId);
               }
-              if (isControlledArea) onAreaChange?.(newAct.area_id);
-              else setInternalAreaId(newAct.area_id);
-
-              if (isControlledActivity) onActivityChange?.(newAct.id);
-              else setInternalActivityId(newAct.id);
+              applyAreaId(newAct.area_id);
+              applyActivityId(newAct.id);
             }}
           />
         </div>
         <NativeSelect
           id={activityIdAttr}
           name="activityId"
-          value={selectedActivityId}
+          value={safeActivityValue}
           onChange={(e) => handleActivityChange(e.target.value)}
-          disabled={disabled || !selectedAreaId}
+          disabled={disabled || !safeAreaValue}
           required
         >
           <option value="" disabled>
-            {!selectedAreaId
+            {!safeAreaValue
               ? "Selecione a área primeiro"
               : availableActivities.length === 0
               ? "Nenhuma atividade nesta área"
@@ -480,22 +465,30 @@ export function EntryForm({
     else setInternalUseInterval(nextVal);
   };
 
-  // Mantém todas as informações selecionadas se houver erro (formato inválido, etc.).
-  // Limpa apenas quando o apontamento for salvo com sucesso!
-  const [state, formAction] = useActionState(async (prev: ActionState, formData: FormData) => {
-    const result = await createTimeEntryAction(prev, formData);
-    if (result.success) {
-      handleDurationChange("");
-      handleStartTimeChange("");
-      handleEndTimeChange("");
-      handleDescriptionChange("");
-      onSuccess?.();
-    }
-    return result;
-  }, initialActionState);
+  // Usa onSubmit com preventDefault em vez de <form action={...}> para evitar o form.reset()
+  // automático do React 19, que dessincronizava visualmente os selects controlados (Cliente/Área/Atividade)
+  // e o campo Data após o lançamento.
+  const [state, setState] = useState<ActionState>(initialActionState);
+  const [isPending, startTransition] = useTransition();
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    startTransition(async () => {
+      const result = await createTimeEntryAction(state, formData);
+      setState(result);
+      if (result.success) {
+        handleDurationChange("");
+        handleStartTimeChange("");
+        handleEndTimeChange("");
+        handleDescriptionChange("");
+        onSuccess?.();
+      }
+    });
+  };
 
   return (
-    <form action={formAction} className="grid gap-4">
+    <form onSubmit={handleSubmit} className="grid gap-4">
       <FormAlert state={state} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -603,7 +596,7 @@ export function EntryForm({
       </Field>
 
       <div className="flex flex-wrap items-center gap-3">
-        <SubmitButton>Lançar horas</SubmitButton>
+        <SubmitButton pending={isPending}>Lançar horas</SubmitButton>
         <button
           type="button"
           onClick={handleToggleInterval}

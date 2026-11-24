@@ -7,11 +7,17 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type { ActionState } from "@/lib/actions";
 
-export function SubmitButton({ children, ...props }: React.ComponentProps<typeof Button>) {
-  const { pending } = useFormStatus();
+export function SubmitButton({
+  children,
+  pending: controlledPending,
+  disabled,
+  ...props
+}: React.ComponentProps<typeof Button> & { pending?: boolean }) {
+  const { pending: formPending } = useFormStatus();
+  const isPending = controlledPending ?? formPending;
   return (
-    <Button type="submit" disabled={pending} {...props}>
-      {pending ? <Loader2Icon className="animate-spin" /> : null}
+    <Button type="submit" disabled={disabled || isPending} {...props}>
+      {isPending ? <Loader2Icon className="animate-spin" /> : null}
       {children}
     </Button>
   );

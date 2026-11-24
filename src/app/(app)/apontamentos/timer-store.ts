@@ -69,3 +69,9 @@ export function saveTimer(next: TimerState) {
   }
   listeners.forEach((listener) => listener());
 }
+
+/** Atualiza parcialmente o estado mais recente no localStorage sem sofrer com closures antigas. */
+export function updateTimer(patch: Partial<TimerState>) {
+  const latest = parseTimer(getTimerSnapshot());
+  saveTimer({ ...latest, ...patch });
+}

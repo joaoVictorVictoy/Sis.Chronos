@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { PauseIcon, PlayIcon, SquareIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import {
   parseTimer,
   saveTimer,
   subscribeTimer,
+  updateTimer,
 } from "./timer-store";
 
 function formatClock(totalSeconds: number) {
@@ -82,34 +83,41 @@ export function TimerCard({
   const handleClientChange = (cId: string) => {
     onClientChange?.(cId);
     const contract = contracts.find((c) => c.clientId === cId);
-    saveTimer({ ...timer, clientId: cId, contractId: contract?.id ?? "" });
+    updateTimer({ clientId: cId, contractId: contract?.id ?? "" });
   };
 
   const handleAreaChange = (aId: string) => {
     onAreaChange?.(aId);
-    saveTimer({ ...timer, areaId: aId });
+    updateTimer({ areaId: aId });
   };
 
   const handleActivityChange = (actId: string) => {
     onActivityChange?.(actId);
-    saveTimer({ ...timer, activityId: actId });
+    updateTimer({ activityId: actId });
   };
 
   const handleDescriptionChange = (desc: string) => {
     if (isControlledDescription) onDescriptionChange?.(desc);
-    saveTimer({ ...timer, description: desc });
+    updateTimer({ description: desc });
   };
 
-  // Zera o cronômetro quando o apontamento é criado com sucesso
-  const [state, formAction] = useActionState(async (prev: ActionState, formData: FormData) => {
-    const result = await createTimeEntryAction(prev, formData);
-    if (result.success) {
-      saveTimer(EMPTY_TIMER);
-      if (isControlledDescription) onDescriptionChange?.("");
-      onSuccess?.();
-    }
-    return result;
-  }, initialActionState);
+  // Zera o cronômetro quando o apontamento é criado com sucesso (sem acionar form.reset() do React 19)
+  const [state, setState] = useState<ActionState>(initialActionState);
+  const [isPending, startTransition] = useTransition();
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    startTransition(async () => {
+      const result = await createTimeEntryAction(state, formData);
+      setState(result);
+      if (result.success) {
+        updateTimer({ elapsed: 0, startedAt: null, description: "" });
+        if (isControlledDescription) onDescriptionChange?.("");
+        onSuccess?.();
+      }
+    });
+  };
 
   useEffect(() => {
     if (timer.startedAt === null) return;
@@ -171,7 +179,7 @@ export function TimerCard({
         </div>
       </div>
 
-      <form ref={formRef} action={formAction} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <form ref={formRef} onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <input type="hidden" name="entryDate" value={currentEntryDate} />
         <input type="hidden" name="duration" value={`${minutes}m`} />
 
@@ -206,7 +214,7 @@ export function TimerCard({
               onChange={(e) => handleDescriptionChange(e.target.value)}
               placeholder="No que você está trabalhando"
             />
-            <SubmitButton variant="outline" className="h-9 shrink-0">
+            <SubmitButton variant="outline" className="h-9 shrink-0" pending={isPending}>
               Lançar
             </SubmitButton>
           </div>

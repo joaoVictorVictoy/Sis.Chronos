@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import {
   AlertTriangleIcon,
   BriefcaseIcon,
@@ -27,7 +27,7 @@ import { EmptyState } from "@/components/page-header";
 import { Field, FormAlert, SubmitButton } from "@/components/form";
 import { NativeSelect } from "@/components/native-select";
 import { cn } from "@/lib/utils";
-import { initialActionState } from "@/lib/actions";
+import { initialActionState, type ActionState } from "@/lib/actions";
 import { formatDate, formatHours } from "@/lib/format";
 import { addDays, minutesToInput, WEEKDAY_LABELS } from "@/lib/time";
 import type { AppRole, TimeEntryStatus } from "@/lib/database.types";
@@ -108,7 +108,8 @@ function EntryRow({
   const [editing, setEditing] = useState(false);
   const [requestingDeletion, setRequestingDeletion] = useState(false);
 
-  const [state, formAction] = useActionState(updateTimeEntryAction, initialActionState);
+  const [state, setState] = useState<ActionState>(initialActionState);
+  const [isEditPending, startEditTransition] = useTransition();
   const [deleteState, deleteAction] = useActionState(deleteTimeEntryAction, initialActionState);
   const [reqDelState, reqDelAction] = useActionState(requestTimeEntryDeletionAction, initialActionState);
   const [cancelDelState, cancelDelAction] = useActionState(cancelTimeEntryDeletionAction, initialActionState);
@@ -125,11 +126,17 @@ function EntryRow({
     isManagerUser ||
     (entry.reviewed_by === null && (entry.status === "pendente" || (entry.status === "aprovado" && isWithin24h)));
 
-  useEffect(() => {
-    if (state.success) {
-      setEditing(false);
-    }
-  }, [state.success]);
+  const handleEditSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    startEditTransition(async () => {
+      const result = await updateTimeEntryAction(state, formData);
+      setState(result);
+      if (result.success) {
+        setEditing(false);
+      }
+    });
+  };
 
   useEffect(() => {
     if (reqDelState.success) {
@@ -140,7 +147,7 @@ function EntryRow({
   if (editing) {
     return (
       <div className="grid gap-3 rounded-lg border bg-muted/20 p-3.5">
-        <form action={formAction} className="grid gap-3">
+        <form onSubmit={handleEditSubmit} className="grid gap-3">
           <input type="hidden" name="id" value={entry.id} />
           <FormAlert state={state} />
 
@@ -173,7 +180,7 @@ function EntryRow({
             <Input id={`desc-${entry.id}`} name="description" defaultValue={entry.description ?? ""} />
           </Field>
           <div className="flex items-center gap-2">
-            <SubmitButton size="sm">Salvar alteração</SubmitButton>
+            <SubmitButton size="sm" pending={isEditPending}>Salvar alteração</SubmitButton>
             <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>
               <XIcon />
               Cancelar
