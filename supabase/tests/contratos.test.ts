@@ -166,9 +166,9 @@ describe("contratos e gastos extras", () => {
     expect(msg).toContain("row-level security");
   });
 
-  it("colaborador enxerga apenas nome e status pela view de apontamento", async () => {
+  it("colaborador enxerga apenas nome e status pela RPC de apontamento", async () => {
     const options = await asUser(db, colaborador, () =>
-      db.query<{ name: string }>("select * from public.contract_options order by name"),
+      db.query<{ name: string }>("select * from public.get_contract_options() order by name"),
     );
     expect(options.rows.map((o) => o.name)).toEqual(["Consultoria trimestral", "Contábil mensal", "Implantação"]);
     const cols = Object.keys(options.rows[0]);
@@ -176,10 +176,10 @@ describe("contratos e gastos extras", () => {
     expect(cols).not.toContain("desired_margin");
   });
 
-  it("a view não vaza contratos de outra empresa", async () => {
+  it("a RPC não vaza contratos de outra empresa", async () => {
     const outro = await createAuthUser(db, "dono@empresa-b.com");
     await asUser(db, outro, () => db.query("select public.create_tenant('Empresa B', null, 'Bruno')"));
-    const options = await asUser(db, outro, () => db.query("select * from public.contract_options"));
+    const options = await asUser(db, outro, () => db.query("select * from public.get_contract_options()"));
     expect(options.rows).toHaveLength(0);
   });
 

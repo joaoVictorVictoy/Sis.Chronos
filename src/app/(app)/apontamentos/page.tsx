@@ -81,6 +81,21 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
     );
   }
 
+  const loadActiveContracts = async () => {
+    const rpcRes = await supabase.rpc("get_contract_options");
+    if (!rpcRes.error && rpcRes.data) {
+      return {
+        data: rpcRes.data.filter((c) => c.status === "ativo"),
+      };
+    }
+    // Fallback temporário enquanto a migration 026 não for aplicada no banco
+    return supabase
+      .from("contract_options")
+      .select("id, name, client_id, status")
+      .eq("status", "ativo")
+      .order("name");
+  };
+
   const [
     { data: contractsData },
     { data: clientsData },
@@ -90,7 +105,7 @@ export default async function TimeEntriesPage({ searchParams }: PageProps<"/apon
     { data: lock },
     { data: employeesData },
   ] = await Promise.all([
-    supabase.from("contract_options").select("id, name, client_id, status").eq("status", "ativo").order("name"),
+    loadActiveContracts(),
     supabase.from("clients").select("id, legal_name, trade_name").eq("active", true).order("legal_name"),
     supabase.from("areas").select("id, name, active").eq("active", true).order("name"),
     supabase.from("activities").select("id, name, billable, area_id, client_id").eq("active", true).order("name"),

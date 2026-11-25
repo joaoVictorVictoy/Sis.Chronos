@@ -660,6 +660,18 @@ export type Database = {
       };
     };
     Functions: {
+      get_contract_options: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          tenant_id: string;
+          client_id: string;
+          name: string;
+          status: ContractStatus;
+          start_date: string;
+          end_date: string | null;
+        }[];
+      };
       contract_area_hours: {
         Args: { p_from: string; p_to: string };
         Returns: {

@@ -24,6 +24,9 @@ const SUPABASE_BOOTSTRAP = `
   create function auth.uid() returns uuid language sql stable as $$
     select nullif(nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub', '')::uuid
   $$;
+  create function auth.jwt() returns jsonb language sql stable as $$
+    select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb)
+  $$;
   grant usage on schema auth to anon, authenticated, service_role;
 
   create schema storage;
