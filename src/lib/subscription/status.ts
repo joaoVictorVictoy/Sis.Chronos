@@ -128,6 +128,10 @@ export function isSuperAdminEmail(email?: string | null): boolean {
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 
-  const defaults = ["joaovvt@gmail.com", "joaovictor@binariconsultoria.com.br"];
+  const defaults = [
+    "joaovvt@gmail.com",
+    "joaovictor@binariconsultoria.com.br",
+    "thiago@binariconsultoria.com.br",
+  ];
   return configured.includes(normalized) || defaults.includes(normalized);
 }
