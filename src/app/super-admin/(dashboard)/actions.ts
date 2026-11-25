@@ -670,3 +670,97 @@ export async function saveAnnouncementAction(
     return { error: `Erro ao salvar comunicado: ${msg}` };
   }
 }
+
+export type SuperAdminMember = {
+  id: string;
+  email: string;
+  createdAt: string;
+  source: "db" | "env";
+};
+
+export async function addSuperAdminAction(
+  rawEmail: string,
+): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  const { user } = await requireSuperAdmin();
+  const email = rawEmail.trim().toLowerCase();
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, error: "Informe um endereço de e-mail válido." };
+  }
+
+  const admin = createAdminClient();
+  const { data: existing, error: selErr } = await admin
+    .from("super_admins")
+    .select("id, email");
+
+  if (selErr) {
+    return { ok: false, error: translateError(selErr) };
+  }
+
+  const alreadyExists = (existing ?? []).some(
+    (row) => String(row.email).trim().toLowerCase() === email,
+  );
+  if (alreadyExists) {
+    return { ok: false, error: "Este e-mail já está cadastrado como Super Admin." };
+  }
+
+  const { error: insErr } = await admin.from("super_admins").insert({ email });
+  if (insErr) {
+    return { ok: false, error: translateError(insErr) };
+  }
+
+  await logAuditEvent({
+    action: "Adição de Super Admin",
+    tenantName: "Acesso Master",
+    superAdminEmail: user.email!,
+    details: `Novo Super Admin autorizado: ${email}`,
+  });
+
+  revalidatePath("/super-admin");
+  revalidatePath("/", "layout");
+  return { ok: true, message: `Super Admin ${email} adicionado com sucesso.` };
+}
+
+export async function removeSuperAdminAction(
+  id: string,
+): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  const { user } = await requireSuperAdmin();
+  const admin = createAdminClient();
+
+  const { data: allRows, error: listErr } = await admin
+    .from("super_admins")
+    .select("id, email");
+
+  if (listErr) {
+    return { ok: false, error: translateError(listErr) };
+  }
+
+  const rows = allRows ?? [];
+  const target = rows.find((r) => r.id === id);
+  if (!target) {
+    return { ok: false, error: "Registro de Super Admin não encontrado." };
+  }
+
+  if (rows.length <= 1) {
+    return {
+      ok: false,
+      error: "Operação bloqueada: é obrigatório manter pelo menos 1 Super Admin no sistema.",
+    };
+  }
+
+  const { error: delErr } = await admin.from("super_admins").delete().eq("id", id);
+  if (delErr) {
+    return { ok: false, error: translateError(delErr) };
+  }
+
+  await logAuditEvent({
+    action: "Remoção de Super Admin",
+    tenantName: "Acesso Master",
+    superAdminEmail: user.email!,
+    details: `Acesso de Super Admin revogado para: ${target.email}`,
+  });
+
+  revalidatePath("/super-admin");
+  revalidatePath("/", "layout");
+  return { ok: true, message: `Acesso de Super Admin removido para ${target.email}.` };
+}

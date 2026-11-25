@@ -1,10 +1,9 @@
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SignOutButton } from "@/components/sign-out-button";
-import { getAppContext, getUser } from "@/lib/auth/session";
+import { getAppContext, getUser, checkIsSuperAdminEmail } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { emailDomain, isPublicEmailDomain } from "@/lib/email-domain";
-import { isSuperAdminEmail } from "@/lib/subscription/status";
 import { OnboardingForm } from "./onboarding-form";
 
 export const metadata = { title: "Criar empresa | Apontamento" };
@@ -22,7 +21,7 @@ export default async function OnboardingPage() {
   if (tenantId) redirect("/inicio");
 
   const domain = emailDomain(user.email);
-  const isSuper = isSuperAdminEmail(user.email);
+  const isSuper = await checkIsSuperAdminEmail(user.email);
 
   // Empresa é identificada pelo domínio corporativo: e-mail pessoal não serve (exceto para o Super Admin do sistema)
   if (!isSuper && (!domain || isPublicEmailDomain(domain))) {

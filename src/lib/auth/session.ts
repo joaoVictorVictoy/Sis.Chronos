@@ -3,8 +3,44 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { AppRole, Tables } from "@/lib/database.types";
 import { getSubscriptionInfo, isSuperAdminEmail, type SubscriptionInfo } from "@/lib/subscription/status";
+
+/**
+ * Verifica se um e-mail (ou lista de e-mails) pertence a um Super Admin.
+ * Prioriza a tabela `public.super_admins` (quando populada) + `SUPER_ADMIN_EMAILS` da Vercel,
+ * permitindo que e-mails removidos pelo painel deixem de ter acesso imediatamente.
+ */
+export async function checkIsSuperAdminEmail(
+  emailOrEmails?: string | null | (string | null | undefined)[],
+): Promise<boolean> {
+  const list = (Array.isArray(emailOrEmails) ? emailOrEmails : [emailOrEmails])
+    .map((e) => e?.trim().toLowerCase())
+    .filter((e): e is string => Boolean(e));
+
+  if (list.length === 0) return false;
+
+  // 1. Variável de ambiente explícita (SUPER_ADMIN_EMAILS)
+  if (list.some((e) => isSuperAdminEmail(e, { includeDefaults: false }))) {
+    return true;
+  }
+
+  // 2. Tabela public.super_admins no banco (fonte de verdade gerenciável pelo painel)
+  try {
+    const admin = createAdminClient();
+    const { data: rows, error } = await admin.from("super_admins").select("email");
+    if (!error && rows && rows.length > 0) {
+      const dbSet = new Set(rows.map((r) => String(r.email).trim().toLowerCase()));
+      return list.some((e) => dbSet.has(e));
+    }
+  } catch {
+    // Fallback abaixo caso service role não esteja disponível em ambiente de teste
+  }
+
+  // 3. Fallback seguro apenas se a tabela estiver vazia ou inacessível
+  return list.some((e) => isSuperAdminEmail(e, { includeDefaults: true }));
+}
 
 export type AppContext = {
   user: User;
@@ -50,26 +86,7 @@ export const getAppContext = cache(async (): Promise<AppContext | null> => {
   if (!data || !data.tenants) return null;
   const { tenants, ...profile } = data;
 
-  let isSuperInDb = false;
-  const emailsToCheck = [user.email, profile.email].filter(Boolean) as string[];
-  for (const e of emailsToCheck) {
-    try {
-      const { data: sa } = await supabase
-        .from("super_admins")
-        .select("id")
-        .ilike("email", e)
-        .maybeSingle();
-      if (sa) {
-        isSuperInDb = true;
-        break;
-      }
-    } catch {
-      // Ignora erro se a tabela ainda não existir
-    }
-  }
-
-  const isSuper =
-    emailsToCheck.some((e) => isSuperAdminEmail(e)) || isSuperInDb;
+  const isSuper = await checkIsSuperAdminEmail([user.email, profile.email]);
   const subscription = getSubscriptionInfo(tenants);
 
   return {
@@ -92,21 +109,7 @@ export async function requireContext(): Promise<AppContext> {
   if (!user) redirect("/login");
   const ctx = await getAppContext();
   if (!ctx) {
-    let isSuper = isSuperAdminEmail(user.email);
-    if (!isSuper && user.email) {
-      try {
-        const supabase = await createClient();
-        const { data: sa } = await supabase
-          .from("super_admins")
-          .select("id")
-          .ilike("email", user.email)
-          .maybeSingle();
-        if (sa) isSuper = true;
-      } catch {
-        // Ignora erro
-      }
-    }
-    if (isSuper) {
+    if (await checkIsSuperAdminEmail(user.email)) {
       redirect("/super-admin");
     }
     redirect("/onboarding");
@@ -133,22 +136,7 @@ export async function requireSuperAdmin(): Promise<SuperAdminContext> {
   const user = await getUser();
   if (!user) redirect("/super-admin/login");
 
-  let isSuperInDb = false;
-  if (user.email) {
-    try {
-      const supabase = await createClient();
-      const { data: sa } = await supabase
-        .from("super_admins")
-        .select("id")
-        .ilike("email", user.email)
-        .maybeSingle();
-      if (sa) isSuperInDb = true;
-    } catch {
-      isSuperInDb = false;
-    }
-  }
-
-  const isSuper = isSuperAdminEmail(user.email) || isSuperInDb;
+  const isSuper = await checkIsSuperAdminEmail(user.email);
   if (!isSuper) {
     redirect("/super-admin/login?erro=" + encodeURIComponent("Acesso negado: este usuário não é um administrador do sistema."));
   }

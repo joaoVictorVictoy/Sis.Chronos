@@ -120,18 +120,30 @@ export function getSubscriptionInfo(tenant: Tables<"tenants">): SubscriptionInfo
   };
 }
 
-export function isSuperAdminEmail(email?: string | null): boolean {
-  if (!email) return false;
-  const normalized = email.toLowerCase().trim();
-  const configured = (process.env.SUPER_ADMIN_EMAILS ?? "")
+export const DEFAULT_SUPER_ADMIN_EMAILS = [
+  "joaovvt@gmail.com",
+  "joaovictor@binariconsultoria.com.br",
+  "thiago@binariconsultoria.com.br",
+];
+
+export function getConfiguredSuperAdminEmails(): string[] {
+  return (process.env.SUPER_ADMIN_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
+}
 
-  const defaults = [
-    "joaovvt@gmail.com",
-    "joaovictor@binariconsultoria.com.br",
-    "thiago@binariconsultoria.com.br",
-  ];
-  return configured.includes(normalized) || defaults.includes(normalized);
+export function isSuperAdminEmail(
+  email?: string | null,
+  options?: { includeDefaults?: boolean },
+): boolean {
+  if (!email) return false;
+  const normalized = email.toLowerCase().trim();
+  const configured = getConfiguredSuperAdminEmails();
+  if (configured.includes(normalized)) return true;
+
+  if (options?.includeDefaults ?? true) {
+    return DEFAULT_SUPER_ADMIN_EMAILS.includes(normalized);
+  }
+  return false;
 }

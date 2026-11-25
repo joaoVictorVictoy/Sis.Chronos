@@ -1,8 +1,7 @@
-import { ShieldCheckIcon } from "lucide-react";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Tables } from "@/lib/database.types";
-import { getSubscriptionInfo } from "@/lib/subscription/status";
+import { getConfiguredSuperAdminEmails, getSubscriptionInfo } from "@/lib/subscription/status";
 import { calculateTenantMrr } from "@/lib/subscription/mrr";
 import { InfoTooltip } from "@/components/info-tooltip";
 import { StatsCards, type TenantStats } from "./stats-cards";
@@ -16,6 +15,8 @@ import { CreateTenantDialog } from "./create-tenant-dialog";
 import { BroadcastDialog } from "./broadcast-dialog";
 import { PlatformSettingsDialog } from "./platform-settings-dialog";
 import { AuditLogsDialog } from "./audit-logs-dialog";
+import { SuperAdminsVaultTrigger } from "./super-admins-vault-dialog";
+import type { SuperAdminMember } from "./actions";
 import { getPlatformSettings } from "./platform-settings";
 import { getAuditLogs } from "./audit";
 
@@ -28,10 +29,6 @@ function rolePriority(role: string): number {
   return 3;
 }
 
-function getThirtyDaysAgoIso(): string {
-  return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-}
-
 function diffDaysFromToday(isoDate: string): number {
   const todayStr = new Date().toISOString().split("T")[0];
   const todayMs = new Date(`${todayStr}T12:00:00Z`).getTime();
@@ -41,7 +38,7 @@ function diffDaysFromToday(isoDate: string): number {
 }
 
 export default async function SuperAdminPage() {
-  await requireSuperAdmin();
+  const { user } = await requireSuperAdmin();
   const admin = createAdminClient();
 
   // 1. Busca todas as empresas ordenadas pelas mais recentes
@@ -87,7 +84,7 @@ export default async function SuperAdminPage() {
   }
 
   // 3. Apontamentos recentes (últimos 30 dias) paginados para engajamento por tenant e total global
-  const thirtyDaysAgo = getThirtyDaysAgoIso();
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   const entriesByTenant = new Map<
     string,
     { count: number; minutes: number; lastEntryDate: string | null }
@@ -248,11 +245,31 @@ export default async function SuperAdminPage() {
     announcement = null;
   }
 
-  // 6. Carrega configurações e logs de auditoria
-  const [platformSettings, auditLogs] = await Promise.all([
+  // 6. Carrega configurações, logs de auditoria e lista de Super Admins
+  const [platformSettings, auditLogs, { data: superAdminsRows }] = await Promise.all([
     getPlatformSettings(),
     getAuditLogs(),
+    admin.from("super_admins").select("id, email, created_at").order("created_at", { ascending: true }),
   ]);
+
+  const superAdmins: SuperAdminMember[] = (superAdminsRows ?? []).map((row) => ({
+    id: row.id,
+    email: row.email,
+    createdAt: row.created_at,
+    source: "db",
+  }));
+
+  const dbEmailsSet = new Set(superAdmins.map((a) => a.email.trim().toLowerCase()));
+  for (const envEmail of getConfiguredSuperAdminEmails()) {
+    if (!dbEmailsSet.has(envEmail)) {
+      superAdmins.push({
+        id: `env-${envEmail}`,
+        email: envEmail,
+        createdAt: new Date(0).toISOString(),
+        source: "env",
+      });
+    }
+  }
 
   const stats: TenantStats = {
     total: tenants.length,
@@ -278,9 +295,10 @@ export default async function SuperAdminPage() {
     <div className="grid gap-6">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-2.5">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
-            <ShieldCheckIcon className="size-4" />
-          </span>
+          <SuperAdminsVaultTrigger
+            superAdmins={superAdmins}
+            currentUserEmail={user.email ?? ""}
+          />
           <div className="flex items-center gap-1.5">
             <h1 className="text-2xl font-semibold tracking-tight">Administração SaaS</h1>
             <InfoTooltip text="Painel executivo: métricas de receita (MRR/ARR), gestão de empresas, saúde de uso, risco de churn e suporte." />
